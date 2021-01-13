@@ -21,7 +21,7 @@ qemu: dainboot.cdr
 		-usb \
 		-monitor stdio
 
-disk/EFI/BOOT/BOOTAA64.efi:
+disk/EFI/BOOT/BOOTAA64.efi: build.zig src/*.zig
 	zig build
 
 dainboot.cdr: disk/EFI/BOOT/BOOTAA64.efi
