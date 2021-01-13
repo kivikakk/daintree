@@ -1,5 +1,5 @@
 ovmf_vars.fd
-disk.qcow2
+disk.dmg
 dainboot/dainboot.cdr
 *.obj
 *.pdb
