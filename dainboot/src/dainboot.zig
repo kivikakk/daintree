@@ -58,12 +58,12 @@ pub fn main() void {
     // We may still use the frame buffer!
 
     // draw some colors
-    var j: u32 = 0;
-    while (j < 640 * 480 * 4) : (j += 4) {
-        fb[j] = @truncate(u8, @divTrunc(j, 256));
-        fb[j + 1] = @truncate(u8, @divTrunc(j, 1536));
-        fb[j + 2] = @truncate(u8, @divTrunc(j, 2560));
-    }
+    // var j: u32 = 0;
+    // while (j < 640 * 480 * 4) : (j += 4) {
+    //     fb[j] = @truncate(u8, @divTrunc(j, 256));
+    //     fb[j + 1] = @truncate(u8, @divTrunc(j, 1536));
+    //     fb[j + 2] = @truncate(u8, @divTrunc(j, 2560));
+    // }
 
     while (true) {}
 }

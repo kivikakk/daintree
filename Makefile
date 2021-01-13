@@ -39,5 +39,5 @@ mk-ovmf-vars:
 	dd if=/dev/zero conv=sync bs=1m count=64 of=ovmf_vars.fd
 
 mk-disk:
-	hdiutil create -size 128m -layout GPTSPUD -fs "MS-DOS FAT32" -volname DAINDISK disk.dmg
+	hdiutil create -fs fat32 -size 128m -layout GPTSPUD -volname DAINDISK disk.dmg
 
