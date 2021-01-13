@@ -1,2 +1,7 @@
 ovmf_vars.fd
 disk.qcow2
+dainboot.cdr
+*.obj
+*.pdb
+*.efi
+zig-cache
