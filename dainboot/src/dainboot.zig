@@ -80,11 +80,34 @@ pub fn main() void {
         var dainkrnl_proto: *uefi.protocols.FileProtocol = undefined;
         if (f_proto.open(&dainkrnl_proto, &[_:0]u16{ 'd', 'a', 'i', 'n', 'k', 'r', 'n', 'l' }, uefi.protocols.FileProtocol.efi_file_mode_read, 0) == .Success) {
             check("setPosition", dainkrnl_proto.setPosition(uefi.protocols.FileProtocol.efi_file_position_end_of_file));
-            var position: u64 = undefined;
-            check("getPosition", dainkrnl_proto.getPosition(&position));
-            printf(buf[0..], " {} bytes\r\n", .{position});
+            var size: u64 = undefined;
+            check("getPosition", dainkrnl_proto.getPosition(&size));
+            printf(buf[0..], " {} bytes\r\n", .{size});
 
             check("setPosition", dainkrnl_proto.setPosition(0));
+
+            var dainkrnl: [*]u8 = undefined;
+            check("allocatePool", boot_services.allocatePool(
+                .BootServicesData,
+                size,
+                @ptrCast(*[*]align(8) u8, &dainkrnl),
+            ));
+            check("read", dainkrnl_proto.read(&size, dainkrnl));
+
+            if (size < @sizeOf(std.elf.Elf64_Ehdr)) {
+                printf(buf[0..], "found {} byte(s), too small for ELF header ({} bytes)\r\n", .{ size, @sizeOf(std.elf.Elf64_Ehdr) });
+                end();
+            }
+
+            var hdr_buf: [@sizeOf(std.elf.Elf64_Ehdr)]u8 align(@alignOf(std.elf.Elf64_Ehdr)) = undefined;
+            std.mem.copy(u8, &hdr_buf, dainkrnl[0..@sizeOf(std.elf.Elf64_Ehdr)]);
+
+            const elf_header = std.elf.parseHeader(&hdr_buf) catch |err| {
+                printf(buf[0..], "failed to parse ELF: {}\r\n", .{err});
+                end();
+            };
+
+            printf(buf[0..], "ELF entry: {x:0>16}", .{elf_header.entry});
         }
 
         _ = boot_services.closeProtocol(handle, &uefi.protocols.SimpleFileSystemProtocol.guid, uefi.handle, null);
