@@ -59,6 +59,8 @@ pub fn main() void {
     const handle_count = handle_list_size / @sizeOf(uefi.Handle);
 
     printf(buf[0..], "searching for DAINKRNL on {} volume(s) ", .{handle_count});
+    var dainkrnl: [*]u8 = undefined;
+    var dainkrnl_elf: ?std.elf.Header = null;
 
     for (handle_list[0..handle_count]) |handle| {
         var sfs_proto: ?*uefi.protocols.SimpleFileSystemProtocol = undefined;
@@ -86,7 +88,6 @@ pub fn main() void {
 
             check("setPosition", dainkrnl_proto.setPosition(0));
 
-            var dainkrnl: [*]u8 = undefined;
             check("allocatePool", boot_services.allocatePool(
                 .BootServicesData,
                 size,
@@ -102,15 +103,22 @@ pub fn main() void {
             var hdr_buf: [@sizeOf(std.elf.Elf64_Ehdr)]u8 align(@alignOf(std.elf.Elf64_Ehdr)) = undefined;
             std.mem.copy(u8, &hdr_buf, dainkrnl[0..@sizeOf(std.elf.Elf64_Ehdr)]);
 
-            const elf_header = std.elf.parseHeader(&hdr_buf) catch |err| {
+            dainkrnl_elf = std.elf.Header.parse(&hdr_buf) catch |err| {
                 printf(buf[0..], "failed to parse ELF: {}\r\n", .{err});
                 end();
             };
 
-            printf(buf[0..], "ELF entry: {x:0>16}", .{elf_header.entry});
+            printf(buf[0..], "ELF entrypoint: {x:0>16}\r\n", .{dainkrnl_elf.?.entry});
+            printf(buf[0..], "{}-bit ({c}E)\r\n", .{
+                @as(u8, if (dainkrnl_elf.?.is_64) 64 else 32),
+                @as(u8, if (dainkrnl_elf.?.endian == .Big) 'B' else 'L'),
+            });
         }
 
         _ = boot_services.closeProtocol(handle, &uefi.protocols.SimpleFileSystemProtocol.guid, uefi.handle, null);
+        if (dainkrnl_elf != null) {
+            break;
+        }
     }
 
     exitBootServices();

@@ -21,7 +21,7 @@ qemu: dainboot/dainboot.cdr disk.dmg
 		-usb \
 		-monitor stdio
 
-os/zig-cache/bin/dainkrnl: os/build.zig os/version.zig os/src/*.zig
+os/zig-cache/bin/dainkrnl: os/build.zig os/version.zig os/linker.ld os/src/*.zig
 	cd os && zig build
 
 disk.dmg: os/zig-cache/bin/dainkrnl

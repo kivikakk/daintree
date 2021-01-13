@@ -14,6 +14,8 @@ pub fn build(b: *Builder) !void {
     const exe = b.addExecutable("dainkrnl", "src/entry.zig");
     exe.setTarget(target);
     exe.setBuildMode(b.standardReleaseOptions());
+    exe.setLinkerScriptPath("linker.ld");
+    exe.setVerboseLink(true);
     exe.addBuildOption([:0]const u8, "version", try b.allocator.dupeZ(u8, try version(b)));
     exe.install();
 
