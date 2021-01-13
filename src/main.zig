@@ -1,5 +1,6 @@
 const std = @import("std");
 const uefi = std.os.uefi;
+const build_options = @import("build_options");
 
 var con_out: *uefi.protocols.SimpleTextOutputProtocol = undefined;
 
@@ -12,8 +13,9 @@ fn puts(msg: []const u8) void {
 
 pub fn main() void {
     con_out = uefi.system_table.con_out.?;
-    _ = con_out.reset(false);
 
-    puts("daintree\r\n");
+    puts("daintree bootloader (");
+    puts(build_options.version);
+    puts(")\r\n");
     _ = uefi.system_table.boot_services.?.stall(5 * 1000 * 1000);
 }
