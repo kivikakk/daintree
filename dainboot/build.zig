@@ -11,7 +11,7 @@ pub fn build(b: *Builder) !void {
         .abi = .msvc,
     };
 
-    const exe = b.addExecutable("BOOTAA64", "src/main.zig");
+    const exe = b.addExecutable("BOOTAA64", "src/dainboot.zig");
     exe.setTarget(target);
     exe.setBuildMode(b.standardReleaseOptions());
     exe.setOutputDir("disk/EFI/BOOT");

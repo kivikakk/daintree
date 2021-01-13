@@ -11,7 +11,7 @@ pub fn build(b: *Builder) !void {
         .abi = .none, // ??
     };
 
-    const exe = b.addExecutable("dainkrnl", "src/main.zig");
+    const exe = b.addExecutable("dainkrnl", "src/entry.zig");
     exe.setTarget(target);
     exe.setBuildMode(b.standardReleaseOptions());
     exe.addBuildOption([:0]const u8, "version", try b.allocator.dupeZ(u8, try version(b)));
