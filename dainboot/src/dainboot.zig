@@ -3,6 +3,7 @@ const uefi = std.os.uefi;
 const build_options = @import("build_options");
 
 var con_out: *uefi.protocols.SimpleTextOutputProtocol = undefined;
+var boot_services: *uefi.tables.BootServices = undefined;
 
 fn puts(msg: []const u8) void {
     for (msg) |c| {
@@ -17,17 +18,48 @@ fn printf(buf: []u8, comptime format: []const u8, args: anytype) void {
 
 pub fn main() void {
     con_out = uefi.system_table.con_out.?;
-    const boot_services = uefi.system_table.boot_services.?;
+    boot_services = uefi.system_table.boot_services.?;
     var buf: [256]u8 = undefined;
 
     printf(buf[0..], "daintree bootloader ({s})\r\n", .{build_options.version});
 
-    var graphics: *uefi.protocols.GraphicsOutputProtocol = undefined;
-    if (uefi.Status.Success != boot_services.locateProtocol(&uefi.protocols.GraphicsOutputProtocol.guid, null, @ptrCast(*?*c_void, &graphics))) {
+    var sfs_proto: ?*uefi.protocols.SimpleFileSystemProtocol = undefined;
+    if (boot_services.locateProtocol(
+        &uefi.protocols.SimpleFileSystemProtocol.guid,
+        null,
+        @ptrCast(*?*c_void, &sfs_proto),
+    ) != .Success) {
+        puts("couldn't load simple filesystem protocol\r\n");
         return;
     }
-    var fb: [*]u8 = @intToPtr([*]u8, graphics.mode.frame_buffer_base);
 
+    var handle_list_size: usize = 0;
+    var handle_list: [*]uefi.Handle = undefined;
+    while (boot_services.locateHandle(
+        .ByProtocol,
+        &uefi.protocols.SimpleFileSystemProtocol.guid,
+        null,
+        &handle_list_size,
+        handle_list,
+    ) == .BufferTooSmall) {
+        if (boot_services.allocatePool(
+            uefi.tables.MemoryType.BootServicesData,
+            handle_list_size,
+            @ptrCast(*[*]align(8) u8, &handle_list),
+        ) != .Success) {
+            puts("failed to allocatePool\r\n");
+            return;
+        }
+    }
+
+    //   sfs_proto.?.openVolume(root: **const FileProtocol)
+
+    printf(buf[0..], "searching for DAINKRNL ({}) ", .{handle_list_size});
+
+    exitBootServices();
+}
+
+fn exitBootServices() void {
     var memory_map: [*]uefi.tables.MemoryDescriptor = undefined;
     var memory_map_size: usize = 0;
     var memory_map_key: usize = undefined;
@@ -44,26 +76,16 @@ pub fn main() void {
             uefi.tables.MemoryType.BootServicesData,
             memory_map_size,
             @ptrCast(*[*]align(8) u8, &memory_map),
-        ) != uefi.Status.Success) {
+        ) != .Success) {
             puts("failed to allocatePool\r\n");
             return;
         }
     }
 
-    if (uefi.Status.Success != boot_services.exitBootServices(uefi.handle, memory_map_key)) {
+    if (boot_services.exitBootServices(uefi.handle, memory_map_key) != .Success) {
         puts("failed to exitBootServices\r\n");
         return;
     }
-
-    // We may still use the frame buffer!
-
-    // draw some colors
-    // var j: u32 = 0;
-    // while (j < 640 * 480 * 4) : (j += 4) {
-    //     fb[j] = @truncate(u8, @divTrunc(j, 256));
-    //     fb[j + 1] = @truncate(u8, @divTrunc(j, 1536));
-    //     fb[j + 2] = @truncate(u8, @divTrunc(j, 2560));
-    // }
 
     while (true) {}
 }
