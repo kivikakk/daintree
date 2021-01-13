@@ -2,7 +2,7 @@ const std = @import("std");
 const CrossTarget = std.zig.CrossTarget;
 const Builder = std.build.Builder;
 
-const daintree_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 0 };
+const daintree_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 1 };
 
 pub fn build(b: *Builder) !void {
     const target = CrossTarget{
