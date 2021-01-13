@@ -21,6 +21,13 @@ fn end() noreturn {
     while (true) {}
 }
 
+fn check(comptime method: []const u8, result: uefi.Status) void {
+    if (result != .Success) {
+        puts(method ++ " failed\r\n");
+        end();
+    }
+}
+
 pub fn main() void {
     con_out = uefi.system_table.con_out.?;
     boot_services = uefi.system_table.boot_services.?;
@@ -37,14 +44,11 @@ pub fn main() void {
         &handle_list_size,
         handle_list,
     ) == .BufferTooSmall) {
-        if (boot_services.allocatePool(
+        check("allocatePool", boot_services.allocatePool(
             uefi.tables.MemoryType.BootServicesData,
             handle_list_size,
             @ptrCast(*[*]align(8) u8, &handle_list),
-        ) != .Success) {
-            puts("failed to allocatePool\r\n");
-            end();
-        }
+        ));
     }
 
     if (handle_list_size == 0) {
@@ -59,35 +63,28 @@ pub fn main() void {
     for (handle_list[0..handle_count]) |handle| {
         var sfs_proto: ?*uefi.protocols.SimpleFileSystemProtocol = undefined;
 
-        if (boot_services.openProtocol(
+        check("openProtocol", boot_services.openProtocol(
             handle,
             &uefi.protocols.SimpleFileSystemProtocol.guid,
             @ptrCast(*?*c_void, &sfs_proto),
             uefi.handle,
             null,
             .{ .get_protocol = true },
-        ) != .Success) {
-            puts("\r\nerror calling openProtocol\r\n");
-            end();
-        }
+        ));
 
         puts(".");
 
         var f_proto: *uefi.protocols.FileProtocol = undefined;
-        if (sfs_proto.?.openVolume(&f_proto) != .Success) {
-            puts("\r\nerror calling openVolume\r\n");
-            end();
-        }
+        check("openVolume", sfs_proto.?.openVolume(&f_proto));
 
         var dainkrnl_proto: *uefi.protocols.FileProtocol = undefined;
         if (f_proto.open(&dainkrnl_proto, &[_:0]u16{ 'd', 'a', 'i', 'n', 'k', 'r', 'n', 'l' }, uefi.protocols.FileProtocol.efi_file_mode_read, 0) == .Success) {
-            _ = dainkrnl_proto.setPosition(uefi.protocols.FileProtocol.efi_file_position_end_of_file);
+            check("setPosition", dainkrnl_proto.setPosition(uefi.protocols.FileProtocol.efi_file_position_end_of_file));
             var position: u64 = undefined;
-            if (dainkrnl_proto.getPosition(&position) != .Success) {
-                puts("\r\ngetPosition failed\r\n");
-                end();
-            }
+            check("getPosition", dainkrnl_proto.getPosition(&position));
             printf(buf[0..], " {} bytes\r\n", .{position});
+
+            check("setPosition", dainkrnl_proto.setPosition(0));
         }
 
         _ = boot_services.closeProtocol(handle, &uefi.protocols.SimpleFileSystemProtocol.guid, uefi.handle, null);
