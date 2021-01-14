@@ -108,9 +108,8 @@ pub fn main() void {
                 end();
             }
 
-            const elf_parse_source = elf.BufferParseSource{ .buffer = dainkrnl[0..dainkrnl_size] };
-
-            dainkrnl_elf = elf.Header.read(elf_parse_source) catch |err| {
+            var elf_buffer = std.io.fixedBufferStream(dainkrnl[0..dainkrnl_size]);
+            dainkrnl_elf = elf.Header.read(&elf_buffer) catch |err| {
                 printf(buf[0..], "failed to parse ELF: {}\r\n", .{err});
                 end();
             };
@@ -120,8 +119,10 @@ pub fn main() void {
                 @as(u8, if (dainkrnl_elf.?.is_64) 64 else 32),
                 @as(u8, if (dainkrnl_elf.?.endian == .Big) 'B' else 'L'),
             });
-            var it = dainkrnl_elf.?.program_header_iterator(elf_parse_source);
-            while (try it.next()) |phdr| {
+            var it = dainkrnl_elf.?.program_header_iterator(&elf_buffer);
+            while (it.next() catch {
+                end();
+            }) |phdr| {
                 printf(buf[0..], " * type={x:0>8} off={x:0>16} vad={x:0>16} pad={x:0>16} fsz={x:0>16} msz={x:0>16}\r\n", .{ phdr.p_type, phdr.p_offset, phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz, phdr.p_memsz });
             }
         }
@@ -143,7 +144,16 @@ pub fn main() void {
 // ref Figure D5-15
 fn PageTableEntry_u64(pte: PageTableEntry) u64 {
     return @as(u64, pte.valid) |
-        (@as(u64, @enumToInt(pte.type)) << 1) | (@as(u64, pte.lba.attr_indx) << 2) | (@as(u64, pte.lba.ns) << 5) | (@as(u64, pte.lba.ap) << 6) | (@as(u64, pte.lba.sh) << 8) | (@as(u64, pte.lba.af) << 10) | (@as(u64, pte.lba.ng) << 11) | (@as(u64, pte.oa) << 29) | (@as(u64, pte.uba.pxn) << 53) | (@as(u64, pte.uba.uxn) << 54);
+        (@as(u64, @enumToInt(pte.type)) << 1) |
+        (@as(u64, pte.lba.attr_indx) << 2) |
+        (@as(u64, pte.lba.ns) << 5) |
+        (@as(u64, pte.lba.ap) << 6) |
+        (@as(u64, pte.lba.sh) << 8) |
+        (@as(u64, pte.lba.af) << 10) |
+        (@as(u64, pte.lba.ng) << 11) |
+        (@as(u64, pte.oa) << 29) |
+        (@as(u64, pte.uba.pxn) << 53) |
+        (@as(u64, pte.uba.uxn) << 54);
 }
 
 const PageTableEntry = struct {
@@ -165,7 +175,7 @@ const PageTableEntry = struct {
     _res0c: u12 = 0,
     oa: u19, // OA[47:29]
     _res0d: u4 = 0,
-    uba: packed struct {
+    uba: struct {
         contiguous: u1 = 0,
         pxn: u1 = 0,
         uxn: u1 = 1,
@@ -289,7 +299,8 @@ fn exitBootServices(dainkrnl: [*]u8, dainkrnl_size: u64, dainkrnl_elf: elf.Heade
     //  * type=00000001 off=0000000000011000 vad=0000000040001000 pad=0000000040001000 fsz=00000000000001d6 msz=00000000000001d6
     //  * type=6474e551 off=0000000000000000 vad=0000000000000000 pad=0000000000000000 fsz=0000000000000000 msz=0000000001000000
 
-    var it = dainkrnl_elf.program_header_iterator(elf.BufferParseSource{ .buffer = dainkrnl[0..dainkrnl_size] });
+    var elf_source = std.io.fixedBufferStream(dainkrnl[0..dainkrnl_size]);
+    var it = dainkrnl_elf.program_header_iterator(&elf_source);
     while (it.next() catch {
         puts("bad\r\n");
         halt();
