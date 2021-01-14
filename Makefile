@@ -7,7 +7,7 @@ qemu: dainboot/dainboot.cdr disk.dmg
 		-cpu cortex-a57 -M virt,highmem=off \
 		-drive file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd,if=pflash,format=raw,readonly=on \
 		-drive file=ovmf_vars.fd,if=pflash,format=raw \
-		-serial telnet::4444,server,nowait \
+		-serial stdio \
 		-drive if=none,file=disk.dmg,format=raw,id=hd0 \
 		-cdrom dainboot/dainboot.cdr \
 		-device virtio-blk-device,drive=hd0,serial="dummyserial" \
@@ -18,8 +18,7 @@ qemu: dainboot/dainboot.cdr disk.dmg
 		-device usb-ehci \
 		-device usb-kbd \
 		-device usb-mouse \
-		-usb \
-		-monitor stdio
+		-usb
 
 os/zig-cache/bin/dainkrnl: os/build.zig os/version.zig os/linker.ld os/src/*.zig
 	cd os && zig build

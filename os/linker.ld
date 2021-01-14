@@ -2,8 +2,11 @@ ENTRY(daintree_start)
 OUTPUT_FORMAT(elf64-aarch64)
 
 SECTIONS {
-    .text (0x100000) : ALIGN(0x1000) {
+    .text (0xffff000000000000) : ALIGN(0x1000) {
         *(.text)
+    }
+    .rodata : ALIGN(0x1000) {
+        *(.rodata)
     }
     .data : ALIGN(0x1000) {
         *(.data)
