@@ -338,7 +338,25 @@ pub const FileParseSource = struct {
     file: std.fs.File,
 
     fn readNoEof(self: FileParseSource, buf: []u8, offset: u64) !void {
-        try preadNoEof(self.file, buf, offset);
+        var i: usize = 0;
+        while (i < buf.len) {
+            const len = self.file.pread(buf[i .. buf.len - i], offset + i) catch |err| switch (err) {
+                error.SystemResources => return error.SystemResources,
+                error.IsDir => return error.UnableToReadElfFile,
+                error.OperationAborted => return error.UnableToReadElfFile,
+                error.BrokenPipe => return error.UnableToReadElfFile,
+                error.Unseekable => return error.UnableToReadElfFile,
+                error.ConnectionResetByPeer => return error.UnableToReadElfFile,
+                error.ConnectionTimedOut => return error.UnableToReadElfFile,
+                error.InputOutput => return error.FileSystem,
+                error.Unexpected => return error.Unexpected,
+                error.WouldBlock => return error.Unexpected,
+                error.NotOpenForReading => return error.Unexpected,
+                error.AccessDenied => return error.Unexpected,
+            };
+            if (len == 0) return error.UnexpectedEndOfFile;
+            i += len;
+        }
     }
 };
 
@@ -363,8 +381,8 @@ pub const Header = struct {
     shnum: u16,
     shstrndx: u16,
 
-    pub fn program_header_iterator(self: Header, parse_source: anytype) ProgramHeaderIterator {
-        return .{
+    pub fn program_header_iterator(self: Header, parse_source: anytype) ProgramHeaderIterator(@TypeOf(parse_source)) {
+        return ProgramHeaderIterator(@TypeOf(parse_source)){
             .elf_header = self,
             .parse_source = parse_source,
         };
@@ -417,68 +435,70 @@ pub const Header = struct {
     }
 };
 
-pub const ProgramHeaderIterator = struct {
-    elf_header: Header,
-    parse_source: ParseSource,
-    index: usize = 0,
+pub fn ProgramHeaderIterator(ParseSource: anytype) type {
+    return struct {
+        elf_header: Header,
+        parse_source: ParseSource,
+        index: usize = 0,
 
-    pub fn next(self: *ProgramHeaderIterator) !?Elf64_Phdr {
-        if (self.index >= self.elf_header.phnum) return null;
-        defer self.index += 1;
+        pub fn next(self: *@This()) !?Elf64_Phdr {
+            if (self.index >= self.elf_header.phnum) return null;
+            defer self.index += 1;
 
-        if (self.elf_header.is_64) {
-            var phdr: Elf64_Phdr = undefined;
+            if (self.elf_header.is_64) {
+                var phdr: Elf64_Phdr = undefined;
+                const offset = self.elf_header.phoff + @sizeOf(@TypeOf(phdr)) * self.index;
+                try self.parse_source.readNoEof(mem.asBytes(&phdr), offset);
+
+                // ELF endianness matches native endianness.
+                if (self.elf_header.endian == std.builtin.endian) return phdr;
+
+                // Convert fields to native endianness.
+                return Elf64_Phdr{
+                    .p_type = @byteSwap(@TypeOf(phdr.p_type), phdr.p_type),
+                    .p_offset = @byteSwap(@TypeOf(phdr.p_offset), phdr.p_offset),
+                    .p_vaddr = @byteSwap(@TypeOf(phdr.p_vaddr), phdr.p_vaddr),
+                    .p_paddr = @byteSwap(@TypeOf(phdr.p_paddr), phdr.p_paddr),
+                    .p_filesz = @byteSwap(@TypeOf(phdr.p_filesz), phdr.p_filesz),
+                    .p_memsz = @byteSwap(@TypeOf(phdr.p_memsz), phdr.p_memsz),
+                    .p_flags = @byteSwap(@TypeOf(phdr.p_flags), phdr.p_flags),
+                    .p_align = @byteSwap(@TypeOf(phdr.p_align), phdr.p_align),
+                };
+            }
+
+            var phdr: Elf32_Phdr = undefined;
             const offset = self.elf_header.phoff + @sizeOf(@TypeOf(phdr)) * self.index;
             try self.parse_source.readNoEof(mem.asBytes(&phdr), offset);
 
-            // ELF endianness matches native endianness.
-            if (self.elf_header.endian == std.builtin.endian) return phdr;
+            // ELF endianness does NOT match native endianness.
+            if (self.elf_header.endian != std.builtin.endian) {
+                // Convert fields to native endianness.
+                phdr = .{
+                    .p_type = @byteSwap(@TypeOf(phdr.p_type), phdr.p_type),
+                    .p_offset = @byteSwap(@TypeOf(phdr.p_offset), phdr.p_offset),
+                    .p_vaddr = @byteSwap(@TypeOf(phdr.p_vaddr), phdr.p_vaddr),
+                    .p_paddr = @byteSwap(@TypeOf(phdr.p_paddr), phdr.p_paddr),
+                    .p_filesz = @byteSwap(@TypeOf(phdr.p_filesz), phdr.p_filesz),
+                    .p_memsz = @byteSwap(@TypeOf(phdr.p_memsz), phdr.p_memsz),
+                    .p_flags = @byteSwap(@TypeOf(phdr.p_flags), phdr.p_flags),
+                    .p_align = @byteSwap(@TypeOf(phdr.p_align), phdr.p_align),
+                };
+            }
 
-            // Convert fields to native endianness.
+            // Convert 32-bit header to 64-bit.
             return Elf64_Phdr{
-                .p_type = @byteSwap(@TypeOf(phdr.p_type), phdr.p_type),
-                .p_offset = @byteSwap(@TypeOf(phdr.p_offset), phdr.p_offset),
-                .p_vaddr = @byteSwap(@TypeOf(phdr.p_vaddr), phdr.p_vaddr),
-                .p_paddr = @byteSwap(@TypeOf(phdr.p_paddr), phdr.p_paddr),
-                .p_filesz = @byteSwap(@TypeOf(phdr.p_filesz), phdr.p_filesz),
-                .p_memsz = @byteSwap(@TypeOf(phdr.p_memsz), phdr.p_memsz),
-                .p_flags = @byteSwap(@TypeOf(phdr.p_flags), phdr.p_flags),
-                .p_align = @byteSwap(@TypeOf(phdr.p_align), phdr.p_align),
+                .p_type = phdr.p_type,
+                .p_offset = phdr.p_offset,
+                .p_vaddr = phdr.p_vaddr,
+                .p_paddr = phdr.p_paddr,
+                .p_filesz = phdr.p_filesz,
+                .p_memsz = phdr.p_memsz,
+                .p_flags = phdr.p_flags,
+                .p_align = phdr.p_align,
             };
         }
-
-        var phdr: Elf32_Phdr = undefined;
-        const offset = self.elf_header.phoff + @sizeOf(@TypeOf(phdr)) * self.index;
-        try self.parse_source.readNoEof(mem.asBytes(&phdr), offset);
-
-        // ELF endianness does NOT match native endianness.
-        if (self.elf_header.endian != std.builtin.endian) {
-            // Convert fields to native endianness.
-            phdr = .{
-                .p_type = @byteSwap(@TypeOf(phdr.p_type), phdr.p_type),
-                .p_offset = @byteSwap(@TypeOf(phdr.p_offset), phdr.p_offset),
-                .p_vaddr = @byteSwap(@TypeOf(phdr.p_vaddr), phdr.p_vaddr),
-                .p_paddr = @byteSwap(@TypeOf(phdr.p_paddr), phdr.p_paddr),
-                .p_filesz = @byteSwap(@TypeOf(phdr.p_filesz), phdr.p_filesz),
-                .p_memsz = @byteSwap(@TypeOf(phdr.p_memsz), phdr.p_memsz),
-                .p_flags = @byteSwap(@TypeOf(phdr.p_flags), phdr.p_flags),
-                .p_align = @byteSwap(@TypeOf(phdr.p_align), phdr.p_align),
-            };
-        }
-
-        // Convert 32-bit header to 64-bit.
-        return Elf64_Phdr{
-            .p_type = phdr.p_type,
-            .p_offset = phdr.p_offset,
-            .p_vaddr = phdr.p_vaddr,
-            .p_paddr = phdr.p_paddr,
-            .p_filesz = phdr.p_filesz,
-            .p_memsz = phdr.p_memsz,
-            .p_flags = phdr.p_flags,
-            .p_align = phdr.p_align,
-        };
-    }
-};
+    };
+}
 
 pub const SectionHeaderIterator = struct {
     elf_header: Header,
@@ -566,28 +586,6 @@ pub fn int32(need_bswap: bool, int_32: anytype, comptime Int64: anytype) Int64 {
         return @byteSwap(@TypeOf(int_32), int_32);
     } else {
         return int_32;
-    }
-}
-
-fn preadNoEof(file: std.fs.File, buf: []u8, offset: u64) !void {
-    var i: usize = 0;
-    while (i < buf.len) {
-        const len = file.pread(buf[i .. buf.len - i], offset + i) catch |err| switch (err) {
-            error.SystemResources => return error.SystemResources,
-            error.IsDir => return error.UnableToReadElfFile,
-            error.OperationAborted => return error.UnableToReadElfFile,
-            error.BrokenPipe => return error.UnableToReadElfFile,
-            error.Unseekable => return error.UnableToReadElfFile,
-            error.ConnectionResetByPeer => return error.UnableToReadElfFile,
-            error.ConnectionTimedOut => return error.UnableToReadElfFile,
-            error.InputOutput => return error.FileSystem,
-            error.Unexpected => return error.Unexpected,
-            error.WouldBlock => return error.Unexpected,
-            error.NotOpenForReading => return error.Unexpected,
-            error.AccessDenied => return error.Unexpected,
-        };
-        if (len == 0) return error.UnexpectedEndOfFile;
-        i += len;
     }
 }
 

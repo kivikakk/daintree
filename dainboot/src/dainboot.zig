@@ -113,7 +113,10 @@ pub fn main() void {
                 @as(u8, if (dainkrnl_elf.?.is_64) 64 else 32),
                 @as(u8, if (dainkrnl_elf.?.endian == .Big) 'B' else 'L'),
             });
-            // dainkrnl_elf.?.program_header_iterator(file: File)
+            var it = dainkrnl_elf.?.program_header_iterator(elf_parse_source);
+            while (try it.next()) |phdr| {
+                printf(buf[0..], " * type={x:0>8} off={x:0>16} vad={x:0>16} pad={x:0>16} fsz={x:0>16} msz={x:0>16}\r\n", .{ phdr.p_type, phdr.p_offset, phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz, phdr.p_memsz });
+            }
         }
 
         _ = boot_services.closeProtocol(handle, &uefi.protocols.SimpleFileSystemProtocol.guid, uefi.handle, null);
