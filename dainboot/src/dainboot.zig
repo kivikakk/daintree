@@ -1,6 +1,7 @@
 const std = @import("std");
 const uefi = std.os.uefi;
 const build_options = @import("build_options");
+const elf = @import("elf.zig");
 
 var con_out: *uefi.protocols.SimpleTextOutputProtocol = undefined;
 var boot_services: *uefi.tables.BootServices = undefined;
@@ -60,7 +61,7 @@ pub fn main() void {
 
     printf(buf[0..], "searching for DAINKRNL on {} volume(s) ", .{handle_count});
     var dainkrnl: [*]u8 = undefined;
-    var dainkrnl_elf: ?std.elf.Header = null;
+    var dainkrnl_elf: ?elf.Header = null;
 
     for (handle_list[0..handle_count]) |handle| {
         var sfs_proto: ?*uefi.protocols.SimpleFileSystemProtocol = undefined;
@@ -95,15 +96,14 @@ pub fn main() void {
             ));
             check("read", dainkrnl_proto.read(&size, dainkrnl));
 
-            if (size < @sizeOf(std.elf.Elf64_Ehdr)) {
-                printf(buf[0..], "found {} byte(s), too small for ELF header ({} bytes)\r\n", .{ size, @sizeOf(std.elf.Elf64_Ehdr) });
+            if (size < @sizeOf(elf.Elf64_Ehdr)) {
+                printf(buf[0..], "found {} byte(s), too small for ELF header ({} bytes)\r\n", .{ size, @sizeOf(elf.Elf64_Ehdr) });
                 end();
             }
 
-            var hdr_buf: [@sizeOf(std.elf.Elf64_Ehdr)]u8 align(@alignOf(std.elf.Elf64_Ehdr)) = undefined;
-            std.mem.copy(u8, &hdr_buf, dainkrnl[0..@sizeOf(std.elf.Elf64_Ehdr)]);
+            const elf_parse_source = elf.BufferParseSource{ .buffer = dainkrnl[0..size] };
 
-            dainkrnl_elf = std.elf.Header.parse(&hdr_buf) catch |err| {
+            dainkrnl_elf = elf.Header.read(elf_parse_source) catch |err| {
                 printf(buf[0..], "failed to parse ELF: {}\r\n", .{err});
                 end();
             };
@@ -113,6 +113,7 @@ pub fn main() void {
                 @as(u8, if (dainkrnl_elf.?.is_64) 64 else 32),
                 @as(u8, if (dainkrnl_elf.?.endian == .Big) 'B' else 'L'),
             });
+            // dainkrnl_elf.?.program_header_iterator(file: File)
         }
 
         _ = boot_services.closeProtocol(handle, &uefi.protocols.SimpleFileSystemProtocol.guid, uefi.handle, null);
