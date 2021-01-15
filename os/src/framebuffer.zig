@@ -75,6 +75,7 @@ pub fn print(msg: []const u8) void {
                 }
                 if (console_row >= console_height) {
                     scroll();
+                    console_row -= 1;
                 }
             },
             .ESCAPE => {
@@ -85,7 +86,25 @@ pub fn print(msg: []const u8) void {
     }
 }
 
-fn scroll() void {}
+fn scroll() void {
+    var row: CONSOLE_DIMENSION = 0;
+    while (row < console_height - 1) : (row += 1) {
+        std.mem.copy(u16, console_buf[row * console_width .. (row + 1) * console_width], console_buf[(row + 1) * console_width .. (row + 2) * console_width]);
+    }
+    std.mem.set(u16, console_buf[(console_height - 1) * console_width .. console_height * console_width], 0);
+    refresh();
+}
+
+fn refresh() void {
+    var row: CONSOLE_DIMENSION = 0;
+    while (row < console_height) : (row += 1) {
+        var col: CONSOLE_DIMENSION = 0;
+        while (col < console_width) : (col += 1) {
+            const pair = console_buf[row * console_width + col];
+            font.putChar(row, col, @truncate(u8, pair), @truncate(u8, pair >> 8));
+        }
+    }
+}
 
 var printf_buf: [1024]u8 = undefined;
 pub fn printf(comptime format: []const u8, args: anytype) void {

@@ -20,7 +20,7 @@ export fn daintree_start(
     while (i < 50) : (i += 1) {
         printf("  * {}\n", .{i});
     }
-
+    printf("c", .{});
     halt();
 }
 
