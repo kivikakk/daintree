@@ -259,6 +259,10 @@ comptime {
 }
 
 fn exitBootServices(dainkrnl: [*]u8, dainkrnl_size: u64, dainkrnl_elf: elf.Header) noreturn {
+    var graphics: *uefi.protocols.GraphicsOutputProtocol = undefined;
+    check("locateProtocol", boot_services.locateProtocol(&uefi.protocols.GraphicsOutputProtocol.guid, null, @ptrCast(*?*c_void, &graphics)));
+    var fb: [*]u8 = @intToPtr([*]u8, graphics.mode.frame_buffer_base);
+
     var buf: [256]u8 = undefined;
 
     var page_table_0: [*]u64 align(0x1000) = undefined;
@@ -324,14 +328,14 @@ fn exitBootServices(dainkrnl: [*]u8, dainkrnl_size: u64, dainkrnl_elf: elf.Heade
         halt();
     }) |phdr| {
         if (phdr.p_type == elf.PT_LOAD) {
-            const target = phdr.p_vaddr - 0xffff000000000000 + 0x40000000;
+            const target = phdr.p_vaddr; //- 0xffff000000000000 + 0x40000000;
             printf(buf[0..], "loading {} bytes at 0x{x:0>16} into 0x{x:0>16}\r\n", .{ phdr.p_filesz, phdr.p_vaddr, target });
             std.mem.copy(u8, @intToPtr([*]u8, target)[0..phdr.p_filesz], dainkrnl[phdr.p_offset .. phdr.p_offset + phdr.p_filesz]);
             // zero-extend up to p_memsz if needed
         }
     }
 
-    const target = @intToPtr([*]u8, dainkrnl_elf.entry + 8 - 0xffff000000000000 + 0x40000000)[0..4];
+    const target = @intToPtr([*]u8, dainkrnl_elf.entry + 8)[0..4]; // - 0xffff000000000000 + 0x40000000)[0..4];
     printf(buf[0..], "we will execute: {x:0>2} {x:0>2} {x:0>2} {x:0>2}\r\n", .{ target[0], target[1], target[2], target[3] });
 
     const tcr_el1 = TCR_EL1_u64(.{});
@@ -349,46 +353,20 @@ fn exitBootServices(dainkrnl: [*]u8, dainkrnl_size: u64, dainkrnl_elf: elf.Heade
         \\.equ SPSR_EL3_VALUE, 0x03C9
 
         // Set up MMU.
-        \\mrs x5, mpidr_el1
-        \\and x5, x5, 0x0f
-        \\cbz x5, 2f
-        \\1: wfe
-        \\   b 1b
-        \\2:
-        \\mrs x5, CurrentEL
-        \\and x5, x5, #0x0C
-        \\cmp x5, #0x0C
-        \\b .
-        \\bne 3f
-        \\ldr x5, =SCR_EL3_VALUE
-        \\msr SCR_EL3, x5
-        \\ldr x5, =SPSR_EL3_VALUE
-        \\msr SPSR_EL3, x5
-        \\adr x5, 3f
-        \\msr ELR_EL3, x5
-        \\eret
-        \\3:
-        \\mrs x5, SCTLR_EL1
-        \\bic x5, x5, 0x04
-        \\msr SCTLR_EL1, x5
-        \\
-        \\msr ttbr0_el1, x0
-        \\msr ttbr1_el1, x1
-        \\msr tcr_el1, x2
-        \\msr mair_el1, x3
-        \\dsb ish
-        \\isb
+        // XXX: screw it, just disable the MMU.
         \\mrs x0, sctlr_el1
-        \\orr x0, x0, #1
+        \\bic x0, x0, #1
         \\msr sctlr_el1, x0
         \\isb
-        \\b .
+        \\mov x0, x5
+        \\br x4
         :
         : [ttbr0_el1] "{x0}" (@ptrToInt(page_table_0) | 1),
           [ttbr1_el1] "{x1}" (@ptrToInt(page_table_1) | 1),
           [tcr_el1] "{x2}" (tcr_el1),
           [mair_el1] "{x3}" (@as(u64, 0xFF)),
-          [entry] "{x4}" (dainkrnl_elf.entry + 8)
+          [entry] "{x4}" (dainkrnl_elf.entry + 8),
+          [fb] "{x5}" (fb)
         : "memory"
     );
 
