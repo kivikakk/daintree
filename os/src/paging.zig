@@ -1,18 +1,18 @@
 // ref Figure D5-15
-fn PageTableEntry_u64(pte: PageTableEntry) u64 {
-    return @as(u64, pte.valid) |
-        (@as(u64, @enumToInt(pte.type)) << 1) |
-        (@as(u64, pte.lba.attr_indx) << 2) |
-        (@as(u64, pte.lba.ns) << 5) |
-        (@as(u64, pte.lba.ap) << 6) |
-        (@as(u64, pte.lba.sh) << 8) |
-        (@as(u64, pte.lba.af) << 10) |
-        (@as(u64, pte.oa) << 29) |
-        (@as(u64, pte.uba.pxn) << 53) |
-        (@as(u64, pte.uba.uxn) << 54);
-}
+pub const PageTableEntry = struct {
+    pub fn toU64(pte: PageTableEntry) u64 {
+        return @as(u64, pte.valid) |
+            (@as(u64, @enumToInt(pte.type)) << 1) |
+            (@as(u64, pte.lba.attr_indx) << 2) |
+            (@as(u64, pte.lba.ns) << 5) |
+            (@as(u64, pte.lba.ap) << 6) |
+            (@as(u64, pte.lba.sh) << 8) |
+            (@as(u64, pte.lba.af) << 10) |
+            (@as(u64, pte.oa) << 29) |
+            (@as(u64, pte.uba.pxn) << 53) |
+            (@as(u64, pte.uba.uxn) << 54);
+    }
 
-const PageTableEntry = struct {
     valid: u1 = 1,
     type: enum(u1) {
         block = 0,
@@ -41,24 +41,24 @@ const PageTableEntry = struct {
     } = .{},
 };
 
-fn TCR_EL1_u64(tcr: TCR_EL1) u64 {
-    return @as(u64, tcr.t0sz) |
-        (@as(u64, tcr.epd0) << 7) |
-        (@as(u64, tcr.irgn0) << 8) |
-        (@as(u64, tcr.orgn0) << 10) |
-        (@as(u64, tcr.sh0) << 12) |
-        (@as(u64, @enumToInt(tcr.tg0)) << 14) |
-        (@as(u64, tcr.t1sz) << 16) |
-        (@as(u64, tcr.a1) << 22) |
-        (@as(u64, tcr.epd1) << 23) |
-        (@as(u64, tcr.irgn1) << 24) |
-        (@as(u64, tcr.orgn1) << 26) |
-        (@as(u64, tcr.sh1) << 28) |
-        (@as(u64, @enumToInt(tcr.tg1)) << 30) |
-        (@as(u64, @enumToInt(tcr.ips)) << 32);
-}
+pub const TCR_EL1 = struct {
+    pub fn toU64(tcr: TCR_EL1) u64 {
+        return @as(u64, tcr.t0sz) |
+            (@as(u64, tcr.epd0) << 7) |
+            (@as(u64, tcr.irgn0) << 8) |
+            (@as(u64, tcr.orgn0) << 10) |
+            (@as(u64, tcr.sh0) << 12) |
+            (@as(u64, @enumToInt(tcr.tg0)) << 14) |
+            (@as(u64, tcr.t1sz) << 16) |
+            (@as(u64, tcr.a1) << 22) |
+            (@as(u64, tcr.epd1) << 23) |
+            (@as(u64, tcr.irgn1) << 24) |
+            (@as(u64, tcr.orgn1) << 26) |
+            (@as(u64, tcr.sh1) << 28) |
+            (@as(u64, @enumToInt(tcr.tg1)) << 30) |
+            (@as(u64, @enumToInt(tcr.ips)) << 32);
+    }
 
-const TCR_EL1 = struct {
     t0sz: u6 = 25, // TTBR0_EL1 addresses 2**(64-25)
     // _res0a: u1 = 0,
     epd0: u1 = 0, // enable TTBR0_EL1 walks (set = 1 to *disable*)
