@@ -150,7 +150,6 @@ fn PageTableEntry_u64(pte: PageTableEntry) u64 {
         (@as(u64, pte.lba.ap) << 6) |
         (@as(u64, pte.lba.sh) << 8) |
         (@as(u64, pte.lba.af) << 10) |
-        (@as(u64, pte.lba.ng) << 11) |
         (@as(u64, pte.oa) << 29) |
         (@as(u64, pte.uba.pxn) << 53) |
         (@as(u64, pte.uba.uxn) << 54);
@@ -165,71 +164,85 @@ const PageTableEntry = struct {
     lba: struct {
         attr_indx: u3 = 0,
         ns: u1 = 0,
-        ap: u2 = 0b10, // read-only, EL1
+        ap: u2 = 0b00, // R/W, EL0 access denied
         sh: u2 = 0b11, // inner shareable
         af: u1 = 0b1, // access flag (?)
-        ng: u1 = 0, // ??
+        // ng: u1 = 0, // ??
     } = .{},
-    _res0a: u4 = 0, // OA[51:48]
-    _res0b: u1 = 0, // nT
-    _res0c: u12 = 0,
+    // _res0a: u4 = 0, // OA[51:48]
+    // _res0b: u1 = 0, // nT
+    // _res0c: u12 = 0,
     oa: u19, // OA[47:29]
-    _res0d: u4 = 0,
+    // _res0d: u4 = 0,
     uba: struct {
-        contiguous: u1 = 0,
+        // contiguous: u1 = 0,
         pxn: u1 = 0,
         uxn: u1 = 1,
-        _resa: u4 = 0,
-        _res0b: u4 = 0,
-        _resb: u1 = 0,
+        // _resa: u4 = 0,
+        // _res0b: u4 = 0,
+        // _resb: u1 = 0,
     } = .{},
 };
 
 fn TCR_EL1_u64(tcr: TCR_EL1) u64 {
-    return 0b0000000000000000000000000000010111111111010101100111010100010110;
+    return @as(u64, tcr.t0sz) |
+        (@as(u64, tcr.epd0) << 7) |
+        (@as(u64, tcr.irgn0) << 8) |
+        (@as(u64, tcr.orgn0) << 10) |
+        (@as(u64, tcr.sh0) << 12) |
+        (@as(u64, @enumToInt(tcr.tg0)) << 14) |
+        (@as(u64, tcr.t1sz) << 16) |
+        (@as(u64, tcr.a1) << 22) |
+        (@as(u64, tcr.epd1) << 23) |
+        (@as(u64, tcr.irgn1) << 24) |
+        (@as(u64, tcr.orgn1) << 26) |
+        (@as(u64, tcr.sh1) << 28) |
+        (@as(u64, @enumToInt(tcr.tg1)) << 30) |
+        (@as(u64, @enumToInt(tcr.ips)) << 32);
 }
 
-const TCR_EL1 = packed struct {
-    t0sz: u6 = 22, // TTBR0_EL1 addresses 2**(64-22) = 4TB
-    _res0a: u1 = 0,
+const TCR_EL1 = struct {
+    t0sz: u6 = 25, // TTBR0_EL1 addresses 2**(64-25)
+    // _res0a: u1 = 0,
     epd0: u1 = 0, // enable TTBR0_EL1 walks (set = 1 to *disable*)
-    irgn0: u2 = 0b01, // WB/WA
-    orgn0: u2 = 0b01, // WB/WA
+    irgn0: u2 = 0b01, // "Normal, Inner Wr.Back Rd.alloc Wr.alloc Cacheble"
+    orgn0: u2 = 0b01, // "Normal, Outer Wr.Back Rd.alloc Wr.alloc Cacheble"
     sh0: u2 = 0b11, // inner-shareable
-    tg0: packed enum(u2) {
+    tg0: enum(u2) {
         K4 = 0b00,
         K16 = 0b10,
         K64 = 0b01,
-    } = .K64,
-    t1sz: u6 = 22, // TTBR1_EL1 addresses 2**(64-22) = 4TB
-    a1: u1 = 1, // TTBR1 contains ASID (???)
+    } = .K4,
+    t1sz: u6 = 25, // TTBR1_EL1 addresses 2**(64-25): 0xffffff80_00000000
+    a1: u1 = 0, // TTBR0_EL1.ASID defines the ASID
     epd1: u1 = 0, // enable TTBR1_EL1 walks (set = 1 to *disable*)
-    irgn1: u2 = 0b11, // WB/WA
-    orgn1: u2 = 0b11, // WB/WA
+    irgn1: u2 = 0b01, // "Normal, Inner Wr.Back Rd.alloc Wr.alloc Cacheble"
+    orgn1: u2 = 0b01, // "Normal, Outer Wr.Back Rd.alloc Wr.alloc Cacheble"
     sh1: u2 = 0b11, // inner-shareable
-    tg1: packed enum(u2) { // granule size for TTBR1_EL1
+    tg1: enum(u2) { // granule size for TTBR1_EL1
         K4 = 0b10,
         K16 = 0b01,
         K64 = 0b11,
-    } = .K64,
-    ips: packed enum(u3) {
+    } = .K4,
+    ips: enum(u3) {
         B32 = 0b000,
+        B36 = 0b001,
         B48 = 0b101,
-    } = .B48,
-    _res0b: u1 = 0,
-    _as: u1 = 0,
-    tbi0: u1 = 0, // top byte ignored
-    tbi1: u1 = 0,
-    _ha: u1 = 0,
-    _hd: u1 = 0,
-    _hpd0: u1 = 0,
-    _hpd1: u1 = 0,
-    _hwu: u8 = 0,
-    _tbid0: u1 = 0,
-    _tbid1: u1 = 0,
-    _nfd0: u1 = 0,
-    _nfd1: u1 = 0,
-    _res0c: u9 = 0,
+    } = .B36,
+    // _res0b: u1 = 0,
+    // _as: u1 = 0,
+    // tbi0: u1 = 0, // top byte ignored
+    // tbi1: u1 = 0,
+    // _ha: u1 = 0,
+    // _hd: u1 = 0,
+    // _hpd0: u1 = 0,
+    // _hpd1: u1 = 0,
+    // _hwu: u8 = 0,
+    // _tbid0: u1 = 0,
+    // _tbid1: u1 = 0,
+    // _nfd0: u1 = 0,
+    // _nfd1: u1 = 0,
+    // _res0c: u9 = 0,
 };
 
 comptime {
@@ -241,22 +254,30 @@ comptime {
     }
 
     if (@bitSizeOf(TCR_EL1) != 64) {
-        @compileLog("TCR_EL1 misshapen; ", @bitSizeOf(TCR_EL1));
+        // @compileLog("TCR_EL1 misshapen; ", @bitSizeOf(TCR_EL1));
     }
 }
 
 fn exitBootServices(dainkrnl: [*]u8, dainkrnl_size: u64, dainkrnl_elf: elf.Header) noreturn {
     var buf: [256]u8 = undefined;
 
-    var page_table: [*]u64 align(0x1000) = undefined;
-    check("allocatePages", boot_services.allocatePages(.AllocateAnyPages, .LoaderData, 16, @ptrCast(*[*]align(4096) u8, &page_table)));
-    printf(buf[0..], "allocated 16x4KiB pages at 0x{x:0>16} for page table\r\n", .{page_table});
-    for (page_table[0..8192]) |*pte, i| {
-        pte.* = PageTableEntry_u64(.{
-            .oa = @truncate(u19, 2 + i), // 512MB increments, so we start at 1GiB (where QEMU maps in memory) and go up
-        });
-        if (i < 2) {
-            printf(buf[0..], "i{}: {x:0>16}\r\n", .{ i, pte.* });
+    var page_table_0: [*]u64 align(0x1000) = undefined;
+    var page_table_1: [*]u64 align(0x1000) = undefined;
+    check("allocatePages", boot_services.allocatePages(.AllocateAnyPages, .LoaderData, 16, @ptrCast(*[*]align(4096) u8, &page_table_0)));
+    printf(buf[0..], "allocated 16x4KiB pages at 0x{x:0>16} for page table 0\r\n", .{page_table_0});
+    check("allocatePages", boot_services.allocatePages(.AllocateAnyPages, .LoaderData, 16, @ptrCast(*[*]align(4096) u8, &page_table_1)));
+    printf(buf[0..], "allocated 16x4KiB pages at 0x{x:0>16} for page table 1\r\n", .{page_table_1});
+    {
+        var i: u14 = 0;
+        while (i < 8192) : (i += 1) {
+            page_table_0[0..8192][i] = PageTableEntry_u64(.{
+                .oa = i, // 512MB increments
+            });
+            page_table_1[0..8192][i] = PageTableEntry_u64(.{ .oa = i });
+
+            if (i < 2) {
+                printf(buf[0..], "i{}: {x:0>16}\r\n", .{ i, page_table_0[0..8192][i] });
+            }
         }
     }
 
@@ -272,14 +293,11 @@ fn exitBootServices(dainkrnl: [*]u8, dainkrnl_size: u64, dainkrnl_elf: elf.Heade
         &descriptor_size,
         &descriptor_version,
     ) == uefi.Status.BufferTooSmall) {
-        if (boot_services.allocatePool(
+        check("allocatePool", boot_services.allocatePool(
             uefi.tables.MemoryType.BootServicesData,
             memory_map_size,
             @ptrCast(*[*]align(8) u8, &memory_map),
-        ) != .Success) {
-            puts("failed to allocatePool\r\n");
-            halt();
-        }
+        ));
     }
 
     for (memory_map[0 .. memory_map_size / descriptor_size]) |ptr, i| {
@@ -316,10 +334,10 @@ fn exitBootServices(dainkrnl: [*]u8, dainkrnl_size: u64, dainkrnl_elf: elf.Heade
     const target = @intToPtr([*]u8, dainkrnl_elf.entry + 8 - 0xffff000000000000 + 0x40000000)[0..4];
     printf(buf[0..], "we will execute: {x:0>2} {x:0>2} {x:0>2} {x:0>2}\r\n", .{ target[0], target[1], target[2], target[3] });
 
-    if (boot_services.exitBootServices(uefi.handle, memory_map_key) != .Success) {
-        puts("failed to exitBootServices\r\n");
-        halt();
-    }
+    const tcr_el1 = TCR_EL1_u64(.{});
+    printf(buf[0..], "TCR_EL: {x:0>16}\r\n", .{tcr_el1});
+
+    check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
 
     // Looks like we're left in EL1. (mrs x2, CurrentEL => x2 = 0x4; PSTATE[3:2] = 0x4 -> EL1)
 
@@ -327,22 +345,48 @@ fn exitBootServices(dainkrnl: [*]u8, dainkrnl_size: u64, dainkrnl_elf: elf.Heade
     // Reset these registers since EDK2 gets in a loop when dumping CPU on crash.
         \\mov x29, #0
         \\mov x30, #0
+        \\.equ SCR_EL3_VALUE, 0x05B1
+        \\.equ SPSR_EL3_VALUE, 0x03C9
 
         // Set up MMU.
+        \\mrs x5, mpidr_el1
+        \\and x5, x5, 0x0f
+        \\cbz x5, 2f
+        \\1: wfe
+        \\   b 1b
+        \\2:
+        \\mrs x5, CurrentEL
+        \\and x5, x5, #0x0C
+        \\cmp x5, #0x0C
+        \\b .
+        \\bne 3f
+        \\ldr x5, =SCR_EL3_VALUE
+        \\msr SCR_EL3, x5
+        \\ldr x5, =SPSR_EL3_VALUE
+        \\msr SPSR_EL3, x5
+        \\adr x5, 3f
+        \\msr ELR_EL3, x5
+        \\eret
+        \\3:
+        \\mrs x5, SCTLR_EL1
+        \\bic x5, x5, 0x04
+        \\msr SCTLR_EL1, x5
+        \\
         \\msr ttbr0_el1, x0
         \\msr ttbr1_el1, x1
         \\msr tcr_el1, x2
         \\msr mair_el1, x3
+        \\dsb ish
         \\isb
         \\mrs x0, sctlr_el1
         \\orr x0, x0, #1
         \\msr sctlr_el1, x0
         \\isb
-        \\br x4
+        \\b .
         :
-        : [ttbr0_el1] "{x0}" (@as(u64, 0)),
-          [ttbr1_el1] "{x1}" (page_table),
-          [tcr_el1] "{x2}" (TCR_EL1_u64(.{})),
+        : [ttbr0_el1] "{x0}" (@ptrToInt(page_table_0) | 1),
+          [ttbr1_el1] "{x1}" (@ptrToInt(page_table_1) | 1),
+          [tcr_el1] "{x2}" (tcr_el1),
           [mair_el1] "{x3}" (@as(u64, 0xFF)),
           [entry] "{x4}" (dainkrnl_elf.entry + 8)
         : "memory"
