@@ -24,6 +24,26 @@ export fn daintree_start(
     halt();
 }
 
+pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) noreturn {
+    const msg_len: framebuffer.CONSOLE_DIMENSION = @truncate(framebuffer.CONSOLE_DIMENSION, "kernel panic: ".len + msg.len);
+    const left: framebuffer.CONSOLE_DIMENSION = framebuffer.console_width - msg_len - 2;
+
+    framebuffer.colour(0x4f);
+    framebuffer.locate(0, left);
+    var x: framebuffer.CONSOLE_DIMENSION = 0;
+    while (x < msg_len + 2) : (x += 1) {
+        framebuffer.print(" ");
+    }
+    framebuffer.locate(1, left);
+    printf(" kernel panic: {s} ", .{msg});
+    framebuffer.locate(2, left);
+    x = 0;
+    while (x < msg_len + 2) : (x += 1) {
+        framebuffer.print(" ");
+    }
+    halt();
+}
+
 fn halt() noreturn {
     asm volatile ("msr daifset, #15");
     while (true) {

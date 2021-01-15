@@ -7,8 +7,9 @@ var fb: [*]u32 = undefined;
 var fb_vert: u32 = undefined;
 var fb_horiz: u32 = undefined;
 
-var console_height: CONSOLE_DIMENSION = undefined;
-var console_width: CONSOLE_DIMENSION = undefined;
+pub var console_height: CONSOLE_DIMENSION = undefined;
+pub var console_width: CONSOLE_DIMENSION = undefined;
+var console_buf: [3700]u16 = undefined;
 
 var console_col: CONSOLE_DIMENSION = 0;
 var console_row: CONSOLE_DIMENSION = 0;
@@ -21,6 +22,10 @@ pub fn init(in_fb: [*]u32, in_vert: u32, in_horiz: u32) void {
 
     console_height = @truncate(CONSOLE_DIMENSION, fb_vert / font.FONT_HEIGHT);
     console_width = @truncate(CONSOLE_DIMENSION, fb_horiz / font.FONT_WIDTH);
+    if (console_height * console_width > console_buf.len) {
+        @panic("can't fit console");
+    }
+    std.mem.set(u16, console_buf[0 .. console_width * console_height], 0);
 
     var y: u32 = 0;
     while (y < fb_vert) : (y += 1) {
@@ -39,6 +44,11 @@ pub fn colour(bgfg: u8) void {
     console_colour = bgfg;
 }
 
+pub fn locate(row: CONSOLE_DIMENSION, col: CONSOLE_DIMENSION) void {
+    console_row = row;
+    console_col = col;
+}
+
 pub fn print(msg: []const u8) void {
     var state: enum { NORMAL, ESCAPE } = .NORMAL;
 
@@ -55,7 +65,8 @@ pub fn print(msg: []const u8) void {
                         console_row += 1;
                     },
                     else => {
-                        font.putChar(console_col, console_row, c, console_colour);
+                        font.putChar(console_row, console_col, c, console_colour);
+                        console_buf[console_row * console_width + console_col] = (@as(u16, console_colour) << 8) | c;
                         console_col += 1;
                     },
                 }

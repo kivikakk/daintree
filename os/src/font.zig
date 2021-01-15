@@ -28,9 +28,9 @@ const CGA_COLORS: [16]u24 = [16]u24{
     0xFFFFFF,
 };
 
-pub fn putChar(col: CONSOLE_DIMENSION, row: CONSOLE_DIMENSION, ch: u8, bgfg: u8) void {
-    const x_origin = @as(u32, col) * FONT_WIDTH;
+pub fn putChar(row: CONSOLE_DIMENSION, col: CONSOLE_DIMENSION, ch: u8, bgfg: u8) void {
     const y_origin = @as(u32, row) * FONT_HEIGHT;
+    const x_origin = @as(u32, col) * FONT_WIDTH;
 
     var char = CP437VGA[@as(usize, FONT_HEIGHT) * ch .. @as(usize, FONT_HEIGHT) * (ch + 1)];
 
