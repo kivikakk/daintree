@@ -24,7 +24,21 @@ pub fn init(
     }
 
     const tcr_el1 = (paging.TCR_EL1{}).toU64();
-    printf("TCR_EL: {x:0>16}\n", .{tcr_el1});
+    printf("TCR_EL1: {x:0>16}\n", .{tcr_el1});
+    asm volatile ("msr tcr_el1, x0"
+        :
+        : [tcr_el1] "{x0}" (tcr_el1)
+        : "memory"
+    );
+
+    const mair_el1 = (paging.MAIR_EL1{ .index = 1, .attrs = 0b00 }).toU64() |
+        (paging.MAIR_EL1{ .index = 0, .attrs = 0b11111111 }).toU64();
+    printf("MAIR_EL1: {x:0>16}\n", .{mair_el1});
+    asm volatile ("msr mair_el1, x0"
+        :
+        : [mair_el1] "{x0}" (mair_el1)
+        : "memory"
+    );
 }
 
 pub var PAGE_TABLE_0: [8192]u64 align(8192) = undefined;

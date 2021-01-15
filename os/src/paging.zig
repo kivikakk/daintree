@@ -1,3 +1,8 @@
+// These all seem to "work".
+// Avoiding packed structs since they're simply broken right now.
+// (was getting @bitSizeOf(x) == 64 but @sizeOf(x) == 9 (!!) --
+// wisdom is to avoid for now.)
+
 // ref Figure D5-15
 pub const PageTableEntry = struct {
     pub fn toU64(pte: PageTableEntry) u64 {
@@ -102,6 +107,15 @@ pub const TCR_EL1 = struct {
     // _res0c: u9 = 0,
 };
 
+pub const MAIR_EL1 = struct {
+    index: u3,
+    attrs: u8,
+
+    pub fn toU64(mair_el1: MAIR_EL1) u64 {
+        return @as(u64, mair_el1.attrs) << (@as(u6, mair_el1.index) * 8);
+    }
+};
+
 comptime {
     if (@bitSizeOf(PageTableEntry) != 64) {
         // @compileLog("PageTableEntry misshapen; ", @bitSizeOf(PageTableEntry));
@@ -113,29 +127,4 @@ comptime {
     if (@bitSizeOf(TCR_EL1) != 64) {
         // @compileLog("TCR_EL1 misshapen; ", @bitSizeOf(TCR_EL1));
     }
-}
-
-fn misc() void {
-    var page_table_0: [*]u64 align(0x1000) = undefined;
-    var page_table_1: [*]u64 align(0x1000) = undefined;
-    check("allocatePages", boot_services.allocatePages(.AllocateAnyPages, .LoaderData, 16, @ptrCast(*[*]align(4096) u8, &page_table_0)));
-    printf(buf[0..], "allocated 16x4KiB pages at 0x{x:0>16} for page table 0\r\n", .{page_table_0});
-    check("allocatePages", boot_services.allocatePages(.AllocateAnyPages, .LoaderData, 16, @ptrCast(*[*]align(4096) u8, &page_table_1)));
-    printf(buf[0..], "allocated 16x4KiB pages at 0x{x:0>16} for page table 1\r\n", .{page_table_1});
-    {
-        var i: u14 = 0;
-        while (i < 8192) : (i += 1) {
-            page_table_0[0..8192][i] = PageTableEntry_u64(.{
-                .oa = i, // 512MB increments
-            });
-            page_table_1[0..8192][i] = PageTableEntry_u64(.{ .oa = i });
-
-            if (i < 2) {
-                printf(buf[0..], "i{}: {x:0>16}\r\n", .{ i, page_table_0[0..8192][i] });
-            }
-        }
-    }
-
-    const tcr_el1 = TCR_EL1_u64(.{});
-    printf(buf[0..], "TCR_EL: {x:0>16}\r\n", .{tcr_el1});
 }
