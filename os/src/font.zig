@@ -1,9 +1,12 @@
+const framebuffer = @import("framebuffer.zig");
+const CONSOLE_DIMENSION = framebuffer.CONSOLE_DIMENSION;
+
 // most of this shamelessly cribbed from myself years ago:
 // https://git.kameliya.ee/kyuubey/tree/sfont.c?id=52d318234f4ea7657d41ae493155cdf77038b217
 
 const CP437VGA = @embedFile("cp437.vga");
-const FONT_HEIGHT = 16;
-const FONT_WIDTH = 8; // this can't really change due to Maths™ -- we rely on FONT_WIDTH=@sizeOf(u8)
+pub const FONT_HEIGHT = 16;
+pub const FONT_WIDTH = 8; // this can't really change due to Maths™ -- we rely on FONT_WIDTH=@sizeOf(u8)
 
 // adorable CGA: https://en.wikipedia.org/wiki/Color_Graphics_Adapter#Color_palette
 const CGA_COLORS: [16]u24 = [16]u24{
@@ -25,24 +28,7 @@ const CGA_COLORS: [16]u24 = [16]u24{
     0xFFFFFF,
 };
 
-const fbPlot = @import("entry.zig").fbPlot;
-
-var termX: u8 = 0;
-var termY: u8 = 0;
-
-pub fn print(msg: []const u8, bgfg: u8) void {
-    for (msg) |c| {
-        if (c == '\n') {
-            termX = 0;
-            termY += 1;
-        } else {
-            putChar(termX, termY, c, bgfg);
-            termX += 1;
-        }
-    }
-}
-
-pub fn putChar(col: u8, row: u8, ch: u8, bgfg: u8) void {
+pub fn putChar(col: CONSOLE_DIMENSION, row: CONSOLE_DIMENSION, ch: u8, bgfg: u8) void {
     const x_origin = @as(u32, col) * FONT_WIDTH;
     const y_origin = @as(u32, row) * FONT_HEIGHT;
 
@@ -53,11 +39,8 @@ pub fn putChar(col: u8, row: u8, ch: u8, bgfg: u8) void {
         var x: u32 = 0;
         var mask: u32 = 0x80;
         while (x < FONT_WIDTH) : (x += 1) {
-            if (char[y] & mask != 0) {
-                fbPlot(x_origin + x, y_origin + y, @as(u32, CGA_COLORS[bgfg & 0xf]));
-            } else {
-                fbPlot(x_origin + x, y_origin + y, @as(u32, CGA_COLORS[(bgfg >> 4) & 0x7]));
-            }
+            const colour = if (char[y] & mask != 0) CGA_COLORS[bgfg & 0xf] else CGA_COLORS[(bgfg >> 4) & 0x7];
+            framebuffer.plot(x_origin + x, y_origin + y, colour);
             mask /= 2;
         }
     }
