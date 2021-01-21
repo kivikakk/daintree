@@ -3,7 +3,7 @@ const std = @import("std");
 // const printf = framebuffer.printf;
 const paging = @import("paging.zig");
 comptime {
-    std.testing.refAllDecls(@import("exception.zig"));
+    _ = @import("exception.zig");
 }
 
 pub fn init(
@@ -125,14 +125,18 @@ pub fn init(
     );
 
     asm volatile (
+        \\mov x0, lr
+        \\b .
         \\mov sp, %[sp]
         \\mov lr, %[lr]
+        \\b .
         \\adr x0, __vbar_el1
         \\msr VBAR_EL1, x0
         \\mrs x0, SCTLR_EL1
         \\orr x0, x0, #1
         \\msr SCTLR_EL1, x0
         \\isb
+        \\ret
         :
         : [sp] "r" (KERNEL_BASE | (theEnd << PAGE_BITS)),
           [lr] "r" (lr - daintree_base + KERNEL_BASE)
@@ -140,7 +144,7 @@ pub fn init(
     );
 }
 
-fn index(comptime level: u2, va: u64) usize {
+inline fn index(comptime level: u2, va: u64) usize {
     if (level == 0) {
         @compileError("level must be 1, 2, 3");
     }
@@ -148,7 +152,7 @@ fn index(comptime level: u2, va: u64) usize {
     return (va & VADDRESS_MASK) >> (@as(u8, 3 - level) * INDEX_BITS + PAGE_BITS);
 }
 
-fn tableSet(table: []u64, ix: usize, address: u64, flags: u64) void {
+inline fn tableSet(table: []u64, ix: usize, address: u64, flags: u64) void {
     table[ix] = address | flags;
 }
 
@@ -206,6 +210,7 @@ const IDENTITY_FLAGS = paging.PageTableEntry{
     .pxn = 0,
     .af = 1,
     .sh = .inner_shareable,
+    .ap = .readwrite_no_el0,
     .attr_indx = MEMORY_MAIR_INDEX,
     .type = .block,
     .oa = 0,
@@ -220,6 +225,7 @@ const KERNEL_DATA_TABLE = paging.PageTableEntry{
     .pxn = 1,
     .af = 1,
     .sh = .inner_shareable,
+    .ap = .readwrite_no_el0,
     .attr_indx = MEMORY_MAIR_INDEX,
     .type = .table,
     .oa = 0,
@@ -234,14 +240,14 @@ const KERNEL_RODATA_TABLE = paging.PageTableEntry{
     .pxn = 1,
     .af = 1,
     .sh = .inner_shareable,
+    .ap = .readonly_no_el0,
     .attr_indx = MEMORY_MAIR_INDEX,
     .type = .table,
     .oa = 0,
 };
 
 comptime {
-    // TODO: make this readonly somehow. Leos uses 1<<9??
-    std.testing.expectEqual(0x00600000_00000703, KERNEL_RODATA_TABLE.toU64());
+    std.testing.expectEqual(0x00600000_00000783, KERNEL_RODATA_TABLE.toU64());
 }
 
 const KERNEL_CODE_TABLE = paging.PageTableEntry{
@@ -249,14 +255,14 @@ const KERNEL_CODE_TABLE = paging.PageTableEntry{
     .pxn = 0,
     .af = 1,
     .sh = .inner_shareable,
+    .ap = .readonly_no_el0,
     .attr_indx = MEMORY_MAIR_INDEX,
     .type = .table,
     .oa = 0,
 };
 
 comptime {
-    // TODO: make this readonly somehow. Leos uses 1<<9??
-    std.testing.expectEqual(0x0040000000000703, KERNEL_CODE_TABLE.toU64());
+    std.testing.expectEqual(0x0040000000000783, KERNEL_CODE_TABLE.toU64());
 }
 
 var TTBR0_IDENTITY: *[INDEX_SIZE]u64 = undefined;

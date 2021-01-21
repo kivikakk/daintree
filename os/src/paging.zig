@@ -5,12 +5,12 @@
 
 // ref Figure D5-15
 pub const PageTableEntry = struct {
-    pub fn toU64(pte: PageTableEntry) u64 {
+    pub inline fn toU64(pte: PageTableEntry) u64 {
         return @as(u64, pte.valid) |
             (@as(u64, @enumToInt(pte.type)) << 1) |
             (@as(u64, pte.attr_indx) << 2) |
             (@as(u64, pte.ns) << 5) |
-            (@as(u64, pte.ap) << 6) |
+            (@as(u64, @enumToInt(pte.ap)) << 6) |
             (@as(u64, @enumToInt(pte.sh)) << 8) |
             (@as(u64, pte.af) << 10) |
             (@as(u64, pte.oa) << 29) |
@@ -26,7 +26,12 @@ pub const PageTableEntry = struct {
 
     attr_indx: u3,
     ns: u1 = 0,
-    ap: u2 = 0b00, // R/W, EL0 access denied
+    ap: enum(u2) {
+        readwrite_no_el0 = 0b00,
+        readwrite_el0_readwrite = 0b01,
+        readonly_no_el0 = 0b10,
+        readonly_el0_readonly = 0b11,
+    },
     sh: enum(u2) {
         inner_shareable = 0b11,
         outer_shareable = 0b10,
@@ -49,7 +54,7 @@ pub const PageTableEntry = struct {
 };
 
 pub const TCR_EL1 = struct {
-    pub fn toU64(tcr: TCR_EL1) u64 {
+    pub inline fn toU64(tcr: TCR_EL1) u64 {
         return @as(u64, tcr.t0sz) |
             (@as(u64, tcr.epd0) << 7) |
             (@as(u64, tcr.irgn0) << 8) |
@@ -113,7 +118,7 @@ pub const MAIR_EL1 = struct {
     index: u3,
     attrs: u8,
 
-    pub fn toU64(mair_el1: MAIR_EL1) u64 {
+    pub inline fn toU64(mair_el1: MAIR_EL1) u64 {
         return @as(u64, mair_el1.attrs) << (@as(u6, mair_el1.index) * 8);
     }
 };
