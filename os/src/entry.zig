@@ -18,6 +18,7 @@ export fn daintree_start(
 
     memory.init(memory_map, memory_map_size, descriptor_size);
 
+    printf("all systems \x1b\x0ago\x1b\x07\n", .{});
     halt();
 }
 

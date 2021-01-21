@@ -30,15 +30,18 @@ pub fn init(
         .tg0 = .K4,
         .t0sz = 64 - ADDRESS_BITS,
     }).toU64();
-    printf("TCR_EL1: {x:0>16}\n", .{tcr_el1});
+    printf("TCR_EL1: {x:0>16} -> {x:0>16}\n", .{ read_register(.TCR_EL1), tcr_el1 });
     write_register(.TCR_EL1, tcr_el1);
 
     const mair_el1 = (paging.MAIR_EL1{ .index = DEVICE_MAIR_INDEX, .attrs = 0b00 }).toU64() |
         (paging.MAIR_EL1{ .index = MEMORY_MAIR_INDEX, .attrs = 0b11111111 }).toU64();
-    printf("MAIR_EL1: {x:0>16}\n", .{mair_el1});
+    printf("MAIR_EL1: {x:0>16} -> {x:0>16}\n", .{ read_register(.MAIR_EL1), mair_el1 });
     write_register(.MAIR_EL1, mair_el1);
 
-    write_register(.TTBR0_EL1, @ptrToInt(&TTBR0_IDENTITY) | 1); // 0b1 = CNP, "common not private"
+    const ttbrx_el1 = @ptrToInt(&TTBR0_IDENTITY) | 1;
+    printf("TTBR0_EL1: {x:0>16} -> {x:0>16}\nTTBR1_EL1: {x:0>16} -> {x:0>16}\n", .{ read_register(.TTBR0_EL1), ttbrx_el1, read_register(.TTBR1_EL1), ttbrx_el1 });
+    write_register(.TTBR0_EL1, ttbrx_el1); // 0b1 = CNP, "common not private"
+    write_register(.TTBR1_EL1, ttbrx_el1); // 0b1 = CNP, "common not private"
 
     const memory_base: u64 = 0x4000_0000;
     const memory_end: u64 = memory_base + 512 * 1048576;
@@ -52,6 +55,12 @@ pub fn init(
         tableSet(TTBR0_IDENTITY[0..], i, address, IDENTITY_FLAGS.toU64());
         address += BLOCK_L1_SIZE;
     }
+
+    printf("SCTLR_EL1: {x:0>16} -> ", .{read_register(.SCTLR_EL1)});
+    or_register(.SCTLR_EL1, 1); // MMU enable
+    printf("{x:0>16}\n", .{read_register(.SCTLR_EL1)});
+
+    asm volatile ("isb");
 }
 
 fn index(comptime level: u2, va: u64) usize {
@@ -66,11 +75,27 @@ fn tableSet(table: []u64, ix: usize, address: u64, flags: u64) void {
     table[ix] = address | flags;
 }
 
-const Register = enum { MAIR_EL1, TCR_EL1, TTBR0_EL1 };
+const Register = enum { MAIR_EL1, TCR_EL1, TTBR0_EL1, TTBR1_EL1, SCTLR_EL1 };
 inline fn write_register(comptime register: Register, value: u64) void {
     asm volatile ("msr " ++ @tagName(register) ++ ", x0"
         :
         : [value] "{x0}" (value)
+        : "memory"
+    );
+}
+
+inline fn read_register(comptime register: Register) u64 {
+    return asm volatile ("mrs x0, " ++ @tagName(register)
+        : [ret] "={x0}" (-> u64)
+    );
+}
+
+inline fn or_register(comptime register: Register, value: u64) void {
+    asm volatile ("mrs x0, " ++ @tagName(register) ++ "\n" ++
+            "orr x0, x0, x1\n" ++
+            "msr " ++ @tagName(register) ++ ", x0\n"
+        :
+        : [value] "{x1}" (value)
         : "memory"
     );
 }
@@ -101,6 +126,6 @@ const IDENTITY_FLAGS = paging.PageTableEntry{
 
 const VADDRESS_MASK = 0x0000007f_fffff000;
 
-pub var TTBR0_IDENTITY: [INDEX_SIZE]u64 align(8192) = undefined;
+pub var TTBR0_IDENTITY: [INDEX_SIZE]u64 align(8192) = undefined; //= [_]u64{0} ** INDEX_SIZE;
 pub var PAGE_TABLE_0: [8192]u64 align(8192) = undefined;
 pub var PAGE_TABLE_1: [8192]u64 align(8192) = undefined;
