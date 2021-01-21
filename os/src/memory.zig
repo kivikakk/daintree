@@ -41,7 +41,22 @@ pub fn init(
     comptime std.testing.expectEqual(0x00000000_000000ff, mair_el1);
     write_register(.MAIR_EL1, mair_el1);
 
-    const ttbr0_el1 = @ptrToInt(&TTBR0_IDENTITY) | 1;
+    var daintree_base: u64 = undefined;
+    var daintree_end: u64 = undefined;
+
+    daintree_base = asm volatile ("adr %[ret], __daintree_base"
+        : [ret] "=r" (-> u64)
+        :
+        : "volatile"
+    );
+    daintree_end = asm volatile ("adr %[ret], __daintree_end"
+        : [ret] "=r" (-> u64)
+        :
+        : "volatile"
+    );
+
+    TTBR0_IDENTITY = @intToPtr(*[INDEX_SIZE]u64, daintree_end);
+    const ttbr0_el1 = @ptrToInt(TTBR0_IDENTITY) | 1;
     // printf("TTBR0_EL1: {x:0>16} -> {x:0>16}\n", .{ read_register(.TTBR0_EL1), ttbr0_el1 });
     write_register(.TTBR0_EL1, ttbr0_el1); // 0b1 = CNP, "common not private"
 
@@ -55,15 +70,18 @@ pub fn init(
     var i = start;
     var address = memory_base;
     while (i < end) : (i += 1) {
-        tableSet(TTBR0_IDENTITY[0..], i, address, IDENTITY_FLAGS.toU64());
+        tableSet(TTBR0_IDENTITY, i, address, IDENTITY_FLAGS.toU64());
         address += BLOCK_L1_SIZE;
     }
 
-    const ttbr1_el1 = @ptrToInt(&TTBR1_L1) | 1;
+    TTBR1_L1 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE);
+    TTBR1_L2 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 2);
+    TTBR1_L3 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 3);
+    const ttbr1_el1 = @ptrToInt(TTBR1_L1) | 1;
     // printf("TTBR1_EL1: {x:0>16} -> {x:0>16}\n", .{ read_register(.TTBR1_EL1), ttbr1_el1 });
     write_register(.TTBR1_EL1, ttbr1_el1);
-    tableSet(TTBR1_L1[0..], 0, @ptrToInt(&TTBR1_L2), KERNEL_DATA_TABLE.toU64());
-    tableSet(TTBR1_L2[0..], 0, @ptrToInt(&TTBR1_L3), KERNEL_DATA_TABLE.toU64());
+    tableSet(TTBR1_L1, 0, @ptrToInt(TTBR1_L2), KERNEL_DATA_TABLE.toU64());
+    tableSet(TTBR1_L2, 0, @ptrToInt(TTBR1_L3), KERNEL_DATA_TABLE.toU64());
 
     // TODO
 
@@ -158,7 +176,12 @@ comptime {
 
 const VADDRESS_MASK = 0x0000007f_fffff000;
 
-pub var TTBR0_IDENTITY: [INDEX_SIZE]u64 align(8192) = [_]u64{0} ** INDEX_SIZE;
-pub var TTBR1_L1: [PAGE_SIZE]u64 align(8192) = std.mem.zeroes([PAGE_SIZE]u64);
-pub var TTBR1_L2: [PAGE_SIZE]u64 align(8192) = std.mem.zeroes([PAGE_SIZE]u64);
-pub var TTBR1_L3: [PAGE_SIZE]u64 align(8192) = std.mem.zeroes([PAGE_SIZE]u64);
+var TTBR0_IDENTITY: *[INDEX_SIZE]u64 = undefined;
+var TTBR1_L1: *[INDEX_SIZE]u64 = undefined;
+var TTBR1_L2: *[INDEX_SIZE]u64 = undefined;
+var TTBR1_L3: *[INDEX_SIZE]u64 = undefined;
+
+// pub var TTBR0_IDENTITY: [INDEX_SIZE]u64 align(8192) = [_]u64{0} ** INDEX_SIZE;
+// pub var TTBR1_L1: [PAGE_SIZE]u64 align(8192) = std.mem.zeroes([PAGE_SIZE]u64);
+// pub var TTBR1_L2: [PAGE_SIZE]u64 align(8192) = std.mem.zeroes([PAGE_SIZE]u64);
+// pub var TTBR1_L3: [PAGE_SIZE]u64 align(8192) = std.mem.zeroes([PAGE_SIZE]u64);
