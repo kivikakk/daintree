@@ -2,9 +2,10 @@ ENTRY(daintree_start)
 OUTPUT_FORMAT(elf64-aarch64)
 
 SECTIONS {
-    /* check this address */
-    /* .text (0xffff800000000000) : ALIGN(0x1000) { */
-    .text (0x40000000) : ALIGN(0x1000) {
+    . = 0xffffff8000000000;
+    
+    __daintree_base = .;
+    .text : {
         *(.text)
     }
     .rodata : ALIGN(0x1000) {
@@ -16,4 +17,7 @@ SECTIONS {
     .bss : ALIGN(0x1000) {
         *(.bss)
     }
+
+    . = ALIGN(0x1000);
+    __daintree_end = .;
 }

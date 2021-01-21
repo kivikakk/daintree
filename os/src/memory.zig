@@ -59,7 +59,14 @@ pub fn init(
         address += BLOCK_L1_SIZE;
     }
 
-    printf("SCTLR_EL1: {x:0>16} -> ", .{read_register(.SCTLR_EL1)});
+    const ttbr1_el1 = @ptrToInt(&TTBR1_L1) | 1;
+    printf("TTBR1_EL1: {x:0>16} -> {x:0>16}\n", .{ read_register(.TTBR1_EL1), ttbr1_el1 });
+    write_register(.TTBR1_EL1, ttbr1_el1);
+    tableSet(TTBR1_L1[0..], 0, @ptrToInt(&TTBR1_L2), KERNEL_DATA_TABLE.toU64());
+    tableSet(TTBR1_L2[0..], 0, @ptrToInt(&TTBR1_L3), KERNEL_DATA_TABLE.toU64());
+
+    var endIx =
+        printf("SCTLR_EL1: {x:0>16} -> ", .{read_register(.SCTLR_EL1)});
     or_register(.SCTLR_EL1, 1); // MMU enable
     printf("{x:0>16}\n", .{read_register(.SCTLR_EL1)});
 
@@ -109,6 +116,7 @@ const DEVICE_MAIR_INDEX = 1;
 const MEMORY_MAIR_INDEX = 0;
 
 const PAGE_BITS = 12;
+const PAGE_SIZE = 1 << PAGE_BITS;
 
 const BLOCK_L1_BITS = 30;
 const BLOCK_L1_SIZE = 1 << BLOCK_L1_BITS;
@@ -133,8 +141,23 @@ comptime {
     std.testing.expectEqual(0x0040000000000701, IDENTITY_FLAGS.toU64());
 }
 
+const KERNEL_DATA_TABLE = paging.PageTableEntry{
+    .uxn = 1,
+    .pxn = 1,
+    .af = 1,
+    .sh = .inner_shareable,
+    .attr_indx = MEMORY_MAIR_INDEX,
+    .type = .table,
+    .oa = 0,
+};
+
+comptime {
+    std.testing.expectEqual(0x00600000_00000703, KERNEL_DATA_TABLE.toU64());
+}
+
 const VADDRESS_MASK = 0x0000007f_fffff000;
 
 pub var TTBR0_IDENTITY: [INDEX_SIZE]u64 align(8192) = [_]u64{0} ** INDEX_SIZE;
-pub var PAGE_TABLE_0: [8192]u64 align(8192) = undefined;
-pub var PAGE_TABLE_1: [8192]u64 align(8192) = undefined;
+pub var TTBR1_L1: [PAGE_SIZE]u64 align(8192) = std.mem.zeroes([PAGE_SIZE]u64);
+pub var TTBR1_L2: [PAGE_SIZE]u64 align(8192) = std.mem.zeroes([PAGE_SIZE]u64);
+pub var TTBR1_L3: [PAGE_SIZE]u64 align(8192) = std.mem.zeroes([PAGE_SIZE]u64);
