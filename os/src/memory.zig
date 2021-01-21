@@ -138,13 +138,6 @@ pub fn init(
         \\orr x0, x0, #1
         \\msr SCTLR_EL1, x0
         \\isb
-        \\b .
-        \\nop
-        \\nop
-        \\nop
-        \\nop
-        \\nop
-        \\nop
         \\ret
         :
         : [sp] "r" (KERNEL_BASE | (theEnd << PAGE_BITS)),
