@@ -2,17 +2,20 @@ const std = @import("std");
 // const framebuffer = @import("framebuffer.zig");
 // const printf = framebuffer.printf;
 const paging = @import("paging.zig");
+comptime {
+    std.testing.refAllDecls(@import("exception.zig"));
+}
 
 pub fn init(
     memory_map: [*]std.os.uefi.tables.MemoryDescriptor,
     memory_map_size: usize,
     descriptor_size: usize,
 ) void {
-    for (memory_map[0 .. memory_map_size / descriptor_size]) |ptr, i| {
-        if (ptr.type == .ConventionalMemory) {
-            // printf("{:2} {s:23} p=0x{x:0>16} size={:16}\n", .{ i, @tagName(ptr.type), ptr.physical_start, ptr.number_of_pages << 12 });
-        }
-    }
+    // for (memory_map[0 .. memory_map_size / descriptor_size]) |ptr, i| {
+    //     if (ptr.type == .ConventionalMemory) {
+    //         printf("{:2} {s:23} p=0x{x:0>16} size={:16}\n", .{ i, @tagName(ptr.type), ptr.physical_start, ptr.number_of_pages << 12 });
+    //     }
+    // }
 
     // printf("framebuffer: {x:0>16}\n", .{@ptrToInt(framebuffer.fb)});
 
@@ -25,7 +28,6 @@ pub fn init(
     //         printf("PTE{}: {x:0>16}\n", .{ i, PAGE_TABLE_0[i] });
     //     }
     // }
-
     const tcr_el1 = comptime (paging.TCR_EL1{
         .ips = .B36,
         .tg1 = .K4,
@@ -76,7 +78,7 @@ pub fn init(
     comptime std.testing.expectEqual(1, end);
     var i = start;
     var address = memory_base;
-    while (i < end) : (i += 1) {
+    while (i <= end) : (i += 1) {
         tableSet(TTBR0_IDENTITY, i, address, IDENTITY_FLAGS.toU64());
         address += BLOCK_L1_SIZE;
     }
@@ -116,29 +118,26 @@ pub fn init(
         address += PAGE_SIZE;
     }
 
-    asm volatile ("mov sp, %[val]"
-        :
-        : [val] "r" (KERNEL_BASE | (theEnd << PAGE_BITS))
-        : "volatile"
-    );
     const lr = asm volatile ("mov %[ret], lr"
         : [ret] "=r" (-> u64)
         :
         : "volatile"
     );
-    asm volatile ("mov lr, %[val]"
+
+    asm volatile (
+        \\mov sp, %[sp]
+        \\mov lr, %[lr]
+        \\adr x0, __vbar_el1
+        \\msr VBAR_EL1, x0
+        \\mrs x0, SCTLR_EL1
+        \\orr x0, x0, #1
+        \\msr SCTLR_EL1, x0
+        \\isb
         :
-        : [val] "r" (lr - daintree_base + KERNEL_BASE)
+        : [sp] "r" (KERNEL_BASE | (theEnd << PAGE_BITS)),
+          [lr] "r" (lr - daintree_base + KERNEL_BASE)
         : "volatile"
     );
-
-    // printf("SCTLR_EL1: {x:0>16} -> ", .{read_register(.SCTLR_EL1)});
-    or_register(.SCTLR_EL1, 1); // MMU enable
-    // printf("{x:0>16}\n", .{read_register(.SCTLR_EL1)});
-
-    // printf("isb: ", .{});
-    asm volatile ("isb");
-    // printf("success.\n", .{});
 }
 
 fn index(comptime level: u2, va: u64) usize {
