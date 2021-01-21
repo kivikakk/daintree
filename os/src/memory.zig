@@ -7,9 +7,9 @@ comptime {
 }
 
 pub fn init(
-    memory_map: [*]std.os.uefi.tables.MemoryDescriptor,
-    memory_map_size: usize,
-    descriptor_size: usize,
+    // memory_map: [*]std.os.uefi.tables.MemoryDescriptor,
+    // memory_map_size: usize,
+    // descriptor_size: usize,
 ) void {
     // for (memory_map[0 .. memory_map_size / descriptor_size]) |ptr, i| {
     //     if (ptr.type == .ConventionalMemory) {
@@ -124,21 +124,32 @@ pub fn init(
         : "volatile"
     );
 
+    const vbar_el1 = asm volatile ("adr %[ret], __vbar_el1"
+        : [ret] "=r" (-> u64)
+        :
+        : "volatile"
+    );
+
     asm volatile (
-        \\mov x0, lr
-        \\b .
+        \\mov x0, %[vbar_el1]
+        \\msr VBAR_EL1, x0
         \\mov sp, %[sp]
         \\mov lr, %[lr]
-        \\b .
-        \\adr x0, __vbar_el1
-        \\msr VBAR_EL1, x0
         \\mrs x0, SCTLR_EL1
         \\orr x0, x0, #1
         \\msr SCTLR_EL1, x0
         \\isb
+        \\nop
+        \\nop
+        \\nop
+        \\nop
+        \\nop
+        \\nop
+        \\nop
         \\ret
         :
         : [sp] "r" (KERNEL_BASE | (theEnd << PAGE_BITS)),
+          [vbar_el1] "r" (vbar_el1 - daintree_base + KERNEL_BASE),
           [lr] "r" (lr - daintree_base + KERNEL_BASE)
         : "volatile"
     );

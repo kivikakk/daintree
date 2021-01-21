@@ -13,7 +13,7 @@ export fn daintree_start(
     fb_vert: u32,
     fb_horiz: u32,
 ) void {
-    memory.init(memory_map, memory_map_size, descriptor_size);
+    memory.init(); //memory_map, memory_map_size, descriptor_size, daintree_main);
     asm volatile ("b .");
     framebuffer.init(fb, fb_vert, fb_horiz);
     printf("\x1b\x0adaintree \x1b\x07{s}\n", .{build_options.version});
