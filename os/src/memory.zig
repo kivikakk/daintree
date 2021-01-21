@@ -1,6 +1,6 @@
 const std = @import("std");
-const framebuffer = @import("framebuffer.zig");
-const printf = framebuffer.printf;
+// const framebuffer = @import("framebuffer.zig");
+// const printf = framebuffer.printf;
 const paging = @import("paging.zig");
 
 pub fn init(
@@ -10,11 +10,11 @@ pub fn init(
 ) void {
     for (memory_map[0 .. memory_map_size / descriptor_size]) |ptr, i| {
         if (ptr.type == .ConventionalMemory) {
-            printf("{:2} {s:23} p=0x{x:0>16} size={:16}\n", .{ i, @tagName(ptr.type), ptr.physical_start, ptr.number_of_pages << 12 });
+            // printf("{:2} {s:23} p=0x{x:0>16} size={:16}\n", .{ i, @tagName(ptr.type), ptr.physical_start, ptr.number_of_pages << 12 });
         }
     }
 
-    printf("framebuffer: {x:0>16}\n", .{@ptrToInt(framebuffer.fb)});
+    // printf("framebuffer: {x:0>16}\n", .{@ptrToInt(framebuffer.fb)});
 
     // var i: u19 = 0;
     // while (i < 8192) : (i += 1) {
@@ -42,7 +42,7 @@ pub fn init(
     write_register(.MAIR_EL1, mair_el1);
 
     const ttbr0_el1 = @ptrToInt(&TTBR0_IDENTITY) | 1;
-    printf("TTBR0_EL1: {x:0>16} -> {x:0>16}\n", .{ read_register(.TTBR0_EL1), ttbr0_el1 });
+    // printf("TTBR0_EL1: {x:0>16} -> {x:0>16}\n", .{ read_register(.TTBR0_EL1), ttbr0_el1 });
     write_register(.TTBR0_EL1, ttbr0_el1); // 0b1 = CNP, "common not private"
 
     const memory_base: u64 = 0x4000_0000;
@@ -60,19 +60,20 @@ pub fn init(
     }
 
     const ttbr1_el1 = @ptrToInt(&TTBR1_L1) | 1;
-    printf("TTBR1_EL1: {x:0>16} -> {x:0>16}\n", .{ read_register(.TTBR1_EL1), ttbr1_el1 });
+    // printf("TTBR1_EL1: {x:0>16} -> {x:0>16}\n", .{ read_register(.TTBR1_EL1), ttbr1_el1 });
     write_register(.TTBR1_EL1, ttbr1_el1);
     tableSet(TTBR1_L1[0..], 0, @ptrToInt(&TTBR1_L2), KERNEL_DATA_TABLE.toU64());
     tableSet(TTBR1_L2[0..], 0, @ptrToInt(&TTBR1_L3), KERNEL_DATA_TABLE.toU64());
 
-    var endIx =
-        printf("SCTLR_EL1: {x:0>16} -> ", .{read_register(.SCTLR_EL1)});
-    or_register(.SCTLR_EL1, 1); // MMU enable
-    printf("{x:0>16}\n", .{read_register(.SCTLR_EL1)});
+    // TODO
 
-    printf("isb: ", .{});
+    // printf("SCTLR_EL1: {x:0>16} -> ", .{read_register(.SCTLR_EL1)});
+    or_register(.SCTLR_EL1, 1); // MMU enable
+    // printf("{x:0>16}\n", .{read_register(.SCTLR_EL1)});
+
+    // printf("isb: ", .{});
     asm volatile ("isb");
-    printf("success.\n", .{});
+    // printf("success.\n", .{});
 }
 
 fn index(comptime level: u2, va: u64) usize {

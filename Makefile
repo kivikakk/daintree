@@ -19,7 +19,8 @@ qemu: dainboot/dainboot.cdr disk.dmg
 		-device usb-kbd \
 		-device usb-mouse \
 		-usb \
-		-s
+		-s \
+		$$EXTRA_ARGS
 
 os/zig-cache/bin/dainkrnl: os/build.zig os/version.zig os/linker.ld os/src/*.zig
 	cd os && zig build
