@@ -8,10 +8,15 @@ SECTIONS {
     .text : {
         *(.text)
     }
+
+    __daintree_rodata_base = .;
     .rodata : ALIGN(0x1000) {
         *(.rodata)
     }
-    .data : ALIGN(0x1000) {
+
+    . = ALIGN(0x1000);
+    __daintree_data_base = .;
+    .data : {
         *(.data)
     }
     .bss : ALIGN(0x1000) {

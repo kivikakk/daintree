@@ -41,15 +41,22 @@ pub fn init(
     comptime std.testing.expectEqual(0x00000000_000000ff, mair_el1);
     write_register(.MAIR_EL1, mair_el1);
 
-    var daintree_base: u64 = undefined;
-    var daintree_end: u64 = undefined;
-
-    daintree_base = asm volatile ("adr %[ret], __daintree_base"
+    var daintree_base: u64 = asm volatile ("adr %[ret], __daintree_base"
         : [ret] "=r" (-> u64)
         :
         : "volatile"
     );
-    daintree_end = asm volatile ("adr %[ret], __daintree_end"
+    var daintree_rodata_base: u64 = asm volatile ("adr %[ret], __daintree_rodata_base"
+        : [ret] "=r" (-> u64)
+        :
+        : "volatile"
+    );
+    var daintree_data_base: u64 = asm volatile ("adr %[ret], __daintree_data_base"
+        : [ret] "=r" (-> u64)
+        :
+        : "volatile"
+    );
+    var daintree_end: u64 = asm volatile ("adr %[ret], __daintree_end"
         : [ret] "=r" (-> u64)
         :
         : "volatile"
@@ -83,7 +90,47 @@ pub fn init(
     tableSet(TTBR1_L1, 0, @ptrToInt(TTBR1_L2), KERNEL_DATA_TABLE.toU64());
     tableSet(TTBR1_L2, 0, @ptrToInt(TTBR1_L3), KERNEL_DATA_TABLE.toU64());
 
-    // TODO
+    var theEnd = (daintree_end - daintree_base) >> PAGE_BITS;
+    if (theEnd > 512) {
+        while (true) {}
+    }
+
+    address = daintree_base;
+    var flags = KERNEL_CODE_TABLE.toU64();
+    i = 0;
+    while (i < theEnd) : (i += 1) {
+        if (address >= daintree_data_base) {
+            flags = KERNEL_DATA_TABLE.toU64();
+        } else if (address >= daintree_rodata_base) {
+            flags = KERNEL_RODATA_TABLE.toU64();
+        }
+        tableSet(TTBR1_L3, i, address, flags);
+    }
+
+    address += 4 * PAGE_SIZE;
+    tableSet(TTBR1_L3, theEnd, 0xDEADBEEF, KERNEL_DATA_TABLE.toU64());
+    i = theEnd + 1;
+    theEnd = i + STACK_PAGES;
+    while (i < theEnd) : (i += 1) {
+        tableSet(TTBR1_L3, i, address, KERNEL_DATA_TABLE.toU64());
+        address += PAGE_SIZE;
+    }
+
+    asm volatile ("mov sp, %[val]"
+        :
+        : [val] "r" (KERNEL_BASE | (theEnd << PAGE_BITS))
+        : "volatile"
+    );
+    const lr = asm volatile ("mov %[ret], lr"
+        : [ret] "=r" (-> u64)
+        :
+        : "volatile"
+    );
+    asm volatile ("mov lr, %[val]"
+        :
+        : [val] "r" (lr - daintree_base + KERNEL_BASE)
+        : "volatile"
+    );
 
     // printf("SCTLR_EL1: {x:0>16} -> ", .{read_register(.SCTLR_EL1)});
     or_register(.SCTLR_EL1, 1); // MMU enable
@@ -136,6 +183,7 @@ const MEMORY_MAIR_INDEX = 0;
 
 const PAGE_BITS = 12;
 const PAGE_SIZE = 1 << PAGE_BITS;
+const PAGE_MASK = PAGE_SIZE - 1;
 
 const BLOCK_L1_BITS = 30;
 const BLOCK_L1_SIZE = 1 << BLOCK_L1_BITS;
@@ -145,6 +193,14 @@ const INDEX_SIZE = 1 << INDEX_BITS;
 
 const TRANSLATION_LEVELS = 3;
 const ADDRESS_BITS = PAGE_BITS + TRANSLATION_LEVELS * INDEX_BITS;
+
+const VADDRESS_MASK = 0x0000007f_fffff000;
+
+const KERNEL_BASE = ~@as(u64, VADDRESS_MASK | PAGE_MASK);
+comptime {
+    std.testing.expectEqual(0xffffff80_00000000, KERNEL_BASE);
+}
+const STACK_PAGES = 4;
 
 const IDENTITY_FLAGS = paging.PageTableEntry{
     .uxn = 1,
@@ -174,7 +230,35 @@ comptime {
     std.testing.expectEqual(0x00600000_00000703, KERNEL_DATA_TABLE.toU64());
 }
 
-const VADDRESS_MASK = 0x0000007f_fffff000;
+const KERNEL_RODATA_TABLE = paging.PageTableEntry{
+    .uxn = 1,
+    .pxn = 1,
+    .af = 1,
+    .sh = .inner_shareable,
+    .attr_indx = MEMORY_MAIR_INDEX,
+    .type = .table,
+    .oa = 0,
+};
+
+comptime {
+    // TODO: make this readonly somehow. Leos uses 1<<9??
+    std.testing.expectEqual(0x00600000_00000703, KERNEL_RODATA_TABLE.toU64());
+}
+
+const KERNEL_CODE_TABLE = paging.PageTableEntry{
+    .uxn = 1,
+    .pxn = 0,
+    .af = 1,
+    .sh = .inner_shareable,
+    .attr_indx = MEMORY_MAIR_INDEX,
+    .type = .table,
+    .oa = 0,
+};
+
+comptime {
+    // TODO: make this readonly somehow. Leos uses 1<<9??
+    std.testing.expectEqual(0x0040000000000703, KERNEL_CODE_TABLE.toU64());
+}
 
 var TTBR0_IDENTITY: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L1: *[INDEX_SIZE]u64 = undefined;
