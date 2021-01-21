@@ -131,15 +131,14 @@ pub fn init(
     );
 
     asm volatile (
-        \\mov x0, %[vbar_el1]
-        \\msr VBAR_EL1, x0
         \\mov sp, %[sp]
         \\mov lr, %[lr]
+        \\msr VBAR_EL1, %[vbar_el1]
         \\mrs x0, SCTLR_EL1
         \\orr x0, x0, #1
         \\msr SCTLR_EL1, x0
         \\isb
-        \\nop
+        \\b .
         \\nop
         \\nop
         \\nop
