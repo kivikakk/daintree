@@ -1,5 +1,6 @@
 const std = @import("std");
-const printf = @import("framebuffer.zig").printf;
+const framebuffer = @import("framebuffer.zig");
+const printf = framebuffer.printf;
 const paging = @import("paging.zig");
 
 pub fn init(
@@ -13,6 +14,8 @@ pub fn init(
         }
     }
 
+    printf("framebuffer: {x:0>16}\n", .{@ptrToInt(framebuffer.fb)});
+
     // var i: u19 = 0;
     // while (i < 8192) : (i += 1) {
     //     PAGE_TABLE_0[i] = (paging.PageTableEntry{ .oa = i }).toU64();
@@ -23,33 +26,33 @@ pub fn init(
     //     }
     // }
 
-    const tcr_el1 = (paging.TCR_EL1{
+    const tcr_el1 = comptime (paging.TCR_EL1{
         .ips = .B36,
         .tg1 = .K4,
         .t1sz = 64 - ADDRESS_BITS, // in practice: 25
         .tg0 = .K4,
         .t0sz = 64 - ADDRESS_BITS,
     }).toU64();
-    printf("TCR_EL1: {x:0>16} -> {x:0>16}\n", .{ read_register(.TCR_EL1), tcr_el1 });
+    comptime std.testing.expectEqual(0x00000001_b5193519, tcr_el1);
     write_register(.TCR_EL1, tcr_el1);
 
-    const mair_el1 = (paging.MAIR_EL1{ .index = DEVICE_MAIR_INDEX, .attrs = 0b00 }).toU64() |
+    const mair_el1 = comptime (paging.MAIR_EL1{ .index = DEVICE_MAIR_INDEX, .attrs = 0b00 }).toU64() |
         (paging.MAIR_EL1{ .index = MEMORY_MAIR_INDEX, .attrs = 0b11111111 }).toU64();
-    printf("MAIR_EL1: {x:0>16} -> {x:0>16}\n", .{ read_register(.MAIR_EL1), mair_el1 });
+    comptime std.testing.expectEqual(0x00000000_000000ff, mair_el1);
     write_register(.MAIR_EL1, mair_el1);
 
-    const ttbrx_el1 = @ptrToInt(&TTBR0_IDENTITY) | 1;
-    printf("TTBR0_EL1: {x:0>16} -> {x:0>16}\nTTBR1_EL1: {x:0>16} -> {x:0>16}\n", .{ read_register(.TTBR0_EL1), ttbrx_el1, read_register(.TTBR1_EL1), ttbrx_el1 });
-    write_register(.TTBR0_EL1, ttbrx_el1); // 0b1 = CNP, "common not private"
-    write_register(.TTBR1_EL1, ttbrx_el1); // 0b1 = CNP, "common not private"
+    const ttbr0_el1 = @ptrToInt(&TTBR0_IDENTITY) | 1;
+    printf("TTBR0_EL1: {x:0>16} -> {x:0>16}\n", .{ read_register(.TTBR0_EL1), ttbr0_el1 });
+    write_register(.TTBR0_EL1, ttbr0_el1); // 0b1 = CNP, "common not private"
 
     const memory_base: u64 = 0x4000_0000;
     const memory_end: u64 = memory_base + 512 * 1048576;
 
-    var i = index(1, memory_base);
-    const end = index(1, memory_end);
-    printf("table range: {} .. {}\n", .{ i, end });
-    printf("IDENTITY FLAGS: {x:0>16}\n", .{IDENTITY_FLAGS.toU64()});
+    const start = comptime index(1, memory_base);
+    const end = comptime index(1, memory_end);
+    comptime std.testing.expectEqual(1, start);
+    comptime std.testing.expectEqual(1, end);
+    var i = start;
     var address = memory_base;
     while (i < end) : (i += 1) {
         tableSet(TTBR0_IDENTITY[0..], i, address, IDENTITY_FLAGS.toU64());
@@ -60,7 +63,9 @@ pub fn init(
     or_register(.SCTLR_EL1, 1); // MMU enable
     printf("{x:0>16}\n", .{read_register(.SCTLR_EL1)});
 
+    printf("isb: ", .{});
     asm volatile ("isb");
+    printf("success.\n", .{});
 }
 
 fn index(comptime level: u2, va: u64) usize {
@@ -124,8 +129,12 @@ const IDENTITY_FLAGS = paging.PageTableEntry{
     .oa = 0,
 };
 
+comptime {
+    std.testing.expectEqual(0x0040000000000701, IDENTITY_FLAGS.toU64());
+}
+
 const VADDRESS_MASK = 0x0000007f_fffff000;
 
-pub var TTBR0_IDENTITY: [INDEX_SIZE]u64 align(8192) = undefined; //= [_]u64{0} ** INDEX_SIZE;
+pub var TTBR0_IDENTITY: [INDEX_SIZE]u64 align(8192) = [_]u64{0} ** INDEX_SIZE;
 pub var PAGE_TABLE_0: [8192]u64 align(8192) = undefined;
 pub var PAGE_TABLE_1: [8192]u64 align(8192) = undefined;
