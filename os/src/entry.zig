@@ -45,7 +45,9 @@ export fn daintree_main(entry_data: *EntryData) void {
     printf("\x1b\x0adaintree \x1b\x07{s}\n", .{build_options.version});
 
     printf("all systems \x1b\x0ago\x1b\x07\n", .{});
-    @intToPtr(*u64, 16).* = 1234;
+    //    @intToPtr(*u64, 16).* = 1234;
+
+    printf("\x1b\x4aOnee \x1b\x2cSama~~~\x1b\x0f u-hu-hu-hu~\n", .{});
     halt();
 }
 
