@@ -1,4 +1,4 @@
-ENTRY(daintree_start)
+ENTRY(daintree_mmu_start)
 OUTPUT_FORMAT(elf64-aarch64)
 
 SECTIONS {

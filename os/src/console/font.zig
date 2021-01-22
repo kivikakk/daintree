@@ -1,5 +1,5 @@
-const framebuffer = @import("framebuffer.zig");
-const CONSOLE_DIMENSION = framebuffer.CONSOLE_DIMENSION;
+const fb = @import("fb.zig");
+const CONSOLE_DIMENSION = fb.CONSOLE_DIMENSION;
 
 // most of this shamelessly cribbed from myself years ago:
 // https://git.kameliya.ee/kyuubey/tree/sfont.c?id=52d318234f4ea7657d41ae493155cdf77038b217
@@ -40,7 +40,7 @@ pub fn putChar(row: CONSOLE_DIMENSION, col: CONSOLE_DIMENSION, ch: u8, bgfg: u8)
         var mask: u32 = 0x80;
         while (x < FONT_WIDTH) : (x += 1) {
             const colour = if (char[y] & mask != 0) CGA_COLORS[bgfg & 0xf] else CGA_COLORS[(bgfg >> 4) & 0x7];
-            framebuffer.plot(x_origin + x, y_origin + y, colour);
+            fb.plot(x_origin + x, y_origin + y, colour);
             mask /= 2;
         }
     }

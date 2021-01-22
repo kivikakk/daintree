@@ -3,7 +3,7 @@ const font = @import("font.zig");
 
 pub const CONSOLE_DIMENSION = u16;
 
-pub var fb: [*]u32 = undefined;
+var fb: [*]u32 = undefined;
 var fb_vert: u32 = undefined;
 var fb_horiz: u32 = undefined;
 
