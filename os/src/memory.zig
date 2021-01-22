@@ -143,6 +143,8 @@ pub export fn daintree_start(
         \\mrs x1, SCTLR_EL1
         \\orr x1, x1, #1
         \\msr SCTLR_EL1, x1
+        \\tlbi vmalle1
+        \\dsb ish
         \\isb
         \\ret
         :
