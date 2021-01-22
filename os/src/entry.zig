@@ -41,18 +41,11 @@ comptime {
 // }
 
 export fn daintree_main(entry_data: *EntryData) void {
-    asm volatile (
-        \\mov x12, %[fb_addr]
-        \\b .
-        :
-        : [fb_addr] "r" (entry_data.fb)
-        : "volatile"
-    );
-    // framebuffer.init(entry_data.fb, entry_data.fb_vert, entry_data.fb_horiz);
-    // printf("\x1b\x0adaintree \x1b\x07{s}\n", .{build_options.version});
+    framebuffer.init(entry_data.fb, entry_data.fb_vert, entry_data.fb_horiz);
+    printf("\x1b\x0adaintree \x1b\x07{s}\n", .{build_options.version});
 
-    // printf("all systems \x1b\x0ago\x1b\x07\n", .{});
-    // halt();
+    printf("all systems \x1b\x0ago\x1b\x07\n", .{});
+    halt();
 }
 
 pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) noreturn {
