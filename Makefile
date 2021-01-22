@@ -22,6 +22,9 @@ qemu: dainboot/dainboot.cdr disk.dmg
 		-s \
 		$$EXTRA_ARGS
 
+.PHONY: build
+build: dainboot/disk/EFI/BOOT/BOOTAA64.efi os/zig-cache/bin/dainkrnl
+
 os/zig-cache/bin/dainkrnl: os/build.zig os/version.zig os/linker.ld os/src/*.zig
 	cd os && zig build
 
