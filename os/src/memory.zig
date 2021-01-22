@@ -114,10 +114,16 @@ pub export fn daintree_start(
     }
 
     // address now points to the stack. make space for EntryData, align.
-    // address -= @sizeOf(entry.EntryData) + 1000; // HACK NO NO NO
-    // address &= ~@as(u64, 15);
-    // @intToPtr(*entry.EntryData, address).* = entry_data;
-    // @intToPtr(*u64, address).* = 0x12345678_9abcdef0;
+    address -= @sizeOf(entry.EntryData);
+    address &= ~@as(u64, 15);
+    @intToPtr(*entry.EntryData, address).* = .{
+        .memory_map = memory_map,
+        .memory_map_size = memory_map_size,
+        .descriptor_size = descriptor_size,
+        .fb = fb,
+        .fb_vert = fb_vert,
+        .fb_horiz = fb_horiz,
+    };
 
     const daintree_main = asm volatile ("adr %[ret], daintree_main"
         : [ret] "=r" (-> u64)
@@ -131,9 +137,9 @@ pub export fn daintree_start(
         : "volatile"
     );
 
-    var new_sp = (KERNEL_BASE | (end << PAGE_BITS));
-    // new_sp -= @sizeOf(entry.EntryData) + 1000; // HACK NO NO NO
-    // new_sp &= ~@as(u64, 15);
+    var new_sp = KERNEL_BASE | (end << PAGE_BITS);
+    new_sp -= @sizeOf(entry.EntryData);
+    new_sp &= ~@as(u64, 15);
 
     asm volatile (
         \\mov sp, %[sp]
@@ -149,7 +155,7 @@ pub export fn daintree_start(
         \\ret
         :
         : [sp] "r" (new_sp),
-          [lr] "r" (daintree_main - daintree_base + KERNEL_BASE + 16),
+          [lr] "r" (daintree_main - daintree_base + KERNEL_BASE),
           [vbar_el1] "r" (vbar_el1 - daintree_base + KERNEL_BASE)
         : "volatile"
     );
