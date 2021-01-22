@@ -17,6 +17,7 @@ pub fn build(b: *Builder) !void {
     };
 
     const exe = b.addExecutable("dainkrnl", "src/entry.zig");
+    exe.addAssemblyFile("src/exception.s");
     exe.setTarget(target);
     exe.setBuildMode(b.standardReleaseOptions());
     exe.setLinkerScriptPath("linker.ld");

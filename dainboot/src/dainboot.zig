@@ -166,16 +166,15 @@ fn exitBootServices(dainkrnl: [*]u8, dainkrnl_size: u64, dainkrnl_elf: elf.Heade
         ));
     }
 
-    // We ask the linker to put text at 0x40000000 (1GiB), which happens to be
-    // where QEMU's situated physical memory.  Copy blindly all PT_LOAD sections
-    // accordingly and jump to it.
+    // The kernel's text section begins at 0xffffff80_00000000. Adjust those down
+    // to 0x40000000 for now.
 
     var elf_source = std.io.fixedBufferStream(dainkrnl[0..dainkrnl_size]);
     var it = dainkrnl_elf.program_header_iterator(&elf_source);
     while (it.next() catch haltMsg("iterating phdrs (2)")) |phdr| {
         if (phdr.p_type == elf.PT_LOAD) {
-            const target = phdr.p_vaddr;
-            printf("loading {} bytes at 0x{x:0>16} into 0x{x:0>16}\r\n", .{ phdr.p_filesz, phdr.p_vaddr, target });
+            const target = phdr.p_vaddr - 0xffffff80_00000000 + 0x40000000;
+            printf("loading 0x{x:0>16} bytes at 0x{x:0>16} into 0x{x:0>16}\r\n", .{ phdr.p_filesz, phdr.p_vaddr, target });
             std.mem.copy(u8, @intToPtr([*]u8, target)[0..phdr.p_filesz], dainkrnl[phdr.p_offset .. phdr.p_offset + phdr.p_filesz]);
             if (phdr.p_memsz > phdr.p_filesz) {
                 printf("  zeroing {} bytes at end\r\n", .{phdr.p_memsz - phdr.p_filesz});
@@ -189,6 +188,8 @@ fn exitBootServices(dainkrnl: [*]u8, dainkrnl_size: u64, dainkrnl_elf: elf.Heade
     }
 
     check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
+
+    const adjusted_entry = dainkrnl_elf.entry - 0xffffff80_00000000 + 0x40000000;
 
     // Looks like we're left in EL1. (mrs x2, CurrentEL => x2 = 0x4; PSTATE[3:2] = 0x4 -> EL1)
     // Disable the MMU and pass to DAINKRNL.
@@ -209,7 +210,7 @@ fn exitBootServices(dainkrnl: [*]u8, dainkrnl_size: u64, dainkrnl_elf: elf.Heade
           [vertres] "{x4}" (graphics.mode.info.vertical_resolution),
           [horizres] "{x5}" (graphics.mode.info.horizontal_resolution),
 
-          [entry] "{x7}" (dainkrnl_elf.entry)
+          [entry] "{x7}" (adjusted_entry)
         : "memory"
     );
 

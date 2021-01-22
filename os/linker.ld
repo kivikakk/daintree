@@ -2,18 +2,23 @@ ENTRY(daintree_start)
 OUTPUT_FORMAT(elf64-aarch64)
 
 SECTIONS {
-    /* check this address */
-    /* .text (0xffff800000000000) : ALIGN(0x1000) { */
-    .text (0x40000000) : ALIGN(0x1000) {
-        *(.text)
-    }
-    .rodata : ALIGN(0x1000) {
-        *(.rodata)
-    }
-    .data : ALIGN(0x1000) {
-        *(.data)
-    }
+    . = 0xffffff8000000000;
+
+    __daintree_base = .;
+    .text : { *(.text*) }
+
+    __daintree_rodata_base = .;
+    .eh_frame : { *(.eh_frame) }
+    .rodata : { *(.rodata*) }
+    . = ALIGN(0x1000);
+
+    __daintree_data_base = .;
+    .data : { *(.data*) }
+
     .bss : ALIGN(0x1000) {
-        *(.bss)
+        *(.bss*)
     }
+
+    . = ALIGN(0x1000);
+    __daintree_end = .;
 }
