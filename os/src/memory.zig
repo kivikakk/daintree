@@ -52,23 +52,34 @@ pub export fn daintree_start(
     comptime {
         std.testing.expectEqual(@sizeOf([INDEX_SIZE]u64), PAGE_SIZE);
     }
-    TTBR0_L1 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 0);
-    TTBR0_L2 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 1);
-    TTBR0_L3 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 2);
+    TTBR0_IDENTITY = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 0);
+    TTBR1_L1 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 1);
+    TTBR1_L2 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 2);
+    TTBR1_L3 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 3);
 
-    TTBR1_L1 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 3);
-    TTBR1_L2 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 4);
-    TTBR1_L3 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 5);
-
-    const ttbr0_el1 = @ptrToInt(TTBR0_L1) | 1;
+    const ttbr0_el1 = @ptrToInt(TTBR0_IDENTITY) | 1;
     const ttbr1_el1 = @ptrToInt(TTBR1_L1) | 1;
     write_register(.TTBR0_EL1, ttbr0_el1);
     write_register(.TTBR1_EL1, ttbr1_el1);
 
-    // user not kernel?
-    tableSet(TTBR0_L1, 0, @ptrToInt(TTBR0_L2), KERNEL_DATA_TABLE.toU64());
-    tableSet(TTBR0_L2, 0, @ptrToInt(TTBR0_L3), KERNEL_DATA_TABLE.toU64());
+    {
+        const memory_base: u64 = 0x4000_0000;
+        const memory_end: u64 = memory_base + 512 * 1048576;
 
+        const l1_start = comptime index(1, memory_base);
+        const l1_end = comptime index(1, memory_end);
+        comptime std.testing.expectEqual(1, l1_start);
+        comptime std.testing.expectEqual(1, l1_end);
+
+        var l1_i = l1_start;
+        var l1_address = memory_base;
+        while (l1_i <= l1_end) : (l1_i += 1) {
+            tableSet(TTBR0_IDENTITY, l1_i, l1_address, IDENTITY_FLAGS.toU64());
+            l1_address += BLOCK_L1_SIZE;
+        }
+    }
+
+    // user not kernel?
     tableSet(TTBR1_L1, 0, @ptrToInt(TTBR1_L2), KERNEL_DATA_TABLE.toU64());
     tableSet(TTBR1_L2, 0, @ptrToInt(TTBR1_L3), KERNEL_DATA_TABLE.toU64());
 
@@ -86,18 +97,15 @@ pub export fn daintree_start(
         } else if (address >= daintree_rodata_base) {
             flags = KERNEL_RODATA_TABLE.toU64();
         }
-        tableSet(TTBR0_L3, i, address, flags);
         tableSet(TTBR1_L3, i, address, flags);
         address += PAGE_SIZE;
     }
 
-    address += 6 * PAGE_SIZE;
-    tableSet(TTBR0_L3, end, 0xDEADBEEF, KERNEL_DATA_TABLE.toU64());
+    address += 4 * PAGE_SIZE;
     tableSet(TTBR1_L3, end, 0xDEADBEEF, KERNEL_DATA_TABLE.toU64());
     i = end + 1;
     end = i + STACK_PAGES;
     while (i < end) : (i += 1) {
-        tableSet(TTBR0_L3, i, address, KERNEL_DATA_TABLE.toU64());
         tableSet(TTBR1_L3, i, address, KERNEL_DATA_TABLE.toU64());
         address += PAGE_SIZE;
     }
@@ -205,6 +213,21 @@ comptime {
 }
 const STACK_PAGES = 4;
 
+const IDENTITY_FLAGS = paging.PageTableEntry{
+    .uxn = 1,
+    .pxn = 0,
+    .af = 1,
+    .sh = .inner_shareable,
+    .ap = .readwrite_no_el0,
+    .attr_indx = MEMORY_MAIR_INDEX,
+    .type = .block,
+    .oa = 0,
+};
+
+comptime {
+    std.testing.expectEqual(0x0040000000000701, IDENTITY_FLAGS.toU64());
+}
+
 const KERNEL_DATA_TABLE = paging.PageTableEntry{
     .uxn = 1,
     .pxn = 1,
@@ -250,9 +273,7 @@ comptime {
     std.testing.expectEqual(0x0040000000000783, KERNEL_CODE_TABLE.toU64());
 }
 
-var TTBR0_L1: *[INDEX_SIZE]u64 = undefined;
-var TTBR0_L2: *[INDEX_SIZE]u64 = undefined;
-var TTBR0_L3: *[INDEX_SIZE]u64 = undefined;
+var TTBR0_IDENTITY: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L1: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L2: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L3: *[INDEX_SIZE]u64 = undefined;
