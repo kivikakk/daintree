@@ -101,9 +101,12 @@ pub export fn daintree_start(
         address += PAGE_SIZE;
     }
 
-    address += 4 * PAGE_SIZE;
-    tableSet(TTBR1_L3, end, 0xDEADBEEF, KERNEL_DATA_TABLE.toU64());
-    i = end + 1;
+    // i = end
+    end += 4;
+    while (i < end) : (i += 1) {
+        tableSet(TTBR1_L3, i, 0, 0);
+        address += PAGE_SIZE;
+    }
     end = i + STACK_PAGES;
     while (i < end) : (i += 1) {
         tableSet(TTBR1_L3, i, address, KERNEL_DATA_TABLE.toU64());
