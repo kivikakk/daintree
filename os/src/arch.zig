@@ -1,27 +1,25 @@
 pub const Register = enum { MAIR_EL1, TCR_EL1, TTBR0_EL1, TTBR1_EL1, SCTLR_EL1 };
 pub inline fn write_register(comptime register: Register, value: u64) void {
-    // TODO %[ret]
-    asm volatile ("msr " ++ @tagName(register) ++ ", x0"
+    asm volatile ("msr " ++ @tagName(register) ++ ", %[value]"
         :
-        : [value] "{x0}" (value)
+        : [value] "r" (value)
         : "memory"
     );
 }
 
 pub inline fn read_register(comptime register: Register) u64 {
-    // TODO %[ret]
-    return asm volatile ("mrs x0, " ++ @tagName(register)
-        : [ret] "={x0}" (-> u64)
+    return asm volatile ("mrs %[ret], " ++ @tagName(register)
+        : [ret] "=r" (-> u64)
     );
 }
 
 pub inline fn or_register(comptime register: Register, value: u64) void {
     asm volatile ("mrs x0, " ++ @tagName(register) ++ "\n" ++
-            "orr x0, x0, x1\n" ++
+            "orr x0, x0, %[value]\n" ++
             "msr " ++ @tagName(register) ++ ", x0\n"
         :
-        : [value] "{x1}" (value)
-        : "memory"
+        : [value] "r" (value)
+        : "memory", "x0"
     );
 }
 

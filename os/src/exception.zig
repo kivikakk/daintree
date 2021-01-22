@@ -29,8 +29,8 @@ export fn el1_sync(ctx: *ExceptionContext) void {
     handle(ctx, "EL1_SYNC");
 }
 
-export fn el1_irq(_ctx: *ExceptionContext) void {
-    // irq::handler();
+export fn el1_irq(ctx: *ExceptionContext) void {
+    handle(ctx, "TODO: EL1_IRQ");
 }
 
 export fn el1_fiq(ctx: *ExceptionContext) void {
