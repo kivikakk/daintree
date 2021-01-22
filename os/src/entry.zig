@@ -45,11 +45,11 @@ export fn daintree_main(entry_data: *EntryData) void {
     printf("\x1b\x0adaintree \x1b\x07{s}\n", .{build_options.version});
 
     printf("all systems \x1b\x0ago\x1b\x07\n", .{});
+    @intToPtr(*u64, 16).* = 1234;
     halt();
 }
 
 pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) noreturn {
-    while (true) {}
     const msg_len: framebuffer.CONSOLE_DIMENSION = @truncate(framebuffer.CONSOLE_DIMENSION, "kernel panic: ".len + msg.len);
     const left: framebuffer.CONSOLE_DIMENSION = framebuffer.console_width - msg_len - 2;
 

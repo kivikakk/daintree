@@ -20,7 +20,6 @@
 .section .text.exceptions
 
 .macro EXCEPTION_VECTOR handler
-    b .
     sub sp, sp, #CONTEXT_SIZE
 
 // store general purpose registers

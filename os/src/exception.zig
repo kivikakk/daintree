@@ -6,7 +6,7 @@ const ExceptionContext = packed struct {
 };
 
 inline fn handle(ctx: *ExceptionContext, name: []const u8) noreturn {
-    while (true) {}
+    @panic(name);
 }
 
 export fn el1_sp0_sync(ctx: *ExceptionContext) void {
