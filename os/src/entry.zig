@@ -35,7 +35,7 @@ pub export fn daintree_mmu_start(
     fb: [*]u32,
     fb_vert: u32,
     fb_horiz: u32,
-) void {
+) noreturn {
     var daintree_base: u64 = asm volatile ("adr %[ret], __daintree_base"
         : [ret] "=r" (-> u64)
     );
@@ -166,10 +166,9 @@ pub export fn daintree_mmu_start(
         : [sp] "r" (new_sp),
           [lr] "r" (daintree_main - daintree_base + KERNEL_BASE),
           [vbar_el1] "r" (vbar_el1 - daintree_base + KERNEL_BASE)
-        : "volatile"
     );
 
-    // unreachable;
+    unreachable;
 }
 
 inline fn index(comptime level: u2, va: u64) usize {

@@ -72,6 +72,7 @@ pub fn print(msg: []const u8) void {
                 }
                 if (console_col >= console_width) {
                     console_row += 1;
+                    console_col = 0;
                 }
                 if (console_row >= console_height) {
                     scroll();

@@ -9,5 +9,17 @@ export fn daintree_main(entry_data: *entry.EntryData) void {
     fb.init(entry_data.fb, entry_data.fb_vert, entry_data.fb_horiz);
     printf("\x1b\x0adaintree \x1b\x07{s}\n", .{build_options.version});
 
+    var i: u9 = 0;
+    while (i < 256) : (i += 1) {
+        if (i == '\n' or i == 0x1b) {
+            printf(" ", .{});
+        } else {
+            printf("{c}", .{@truncate(u8, i)});
+        }
+        if (i % 32 == 0) {
+            printf("\n", .{});
+        }
+    }
+
     halt();
 }
