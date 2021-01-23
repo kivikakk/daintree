@@ -1,25 +1,9 @@
-.extern el1_sp0_sync
-.extern el1_sp0_irq
-.extern el1_sp0_fiq
-.extern el1_sp0_error
-.extern el1_sync
-.extern el1_irq
-.extern el1_fiq
-.extern el1_error
-.extern el0_sync
-.extern el0_irq
-.extern el0_fiq
-.extern el0_error
-.extern el0_32_sync
-.extern el0_32_irq
-.extern el0_32_fiq
-.extern el0_32_error
-
 .equ CONTEXT_SIZE, 264
 
 .section .text.exceptions
 
 .macro EXCEPTION_VECTOR handler
+.extern \handler
     sub sp, sp, #CONTEXT_SIZE
 
     stp x0, x1, [sp, #16 * 0]
