@@ -25,7 +25,8 @@ qemu: dainboot/dainboot.cdr disk.dmg
 .PHONY: build
 build: dainboot/disk/EFI/BOOT/BOOTAA64.efi os/zig-cache/bin/dainkrnl
 
-os/zig-cache/bin/dainkrnl: os/build.zig os/version.zig os/linker.ld os/src/*/*.zig
+OS_FILES=$(shell find os -name zig-cache -prune -o -type f)
+os/zig-cache/bin/dainkrnl: $(OS_FILES)
 	cd os && zig build
 
 disk.dmg: os/zig-cache/bin/dainkrnl
@@ -33,7 +34,7 @@ disk.dmg: os/zig-cache/bin/dainkrnl
 	cp os/zig-cache/bin/dainkrnl target
 	hdiutil detach target
 
-dainboot/disk/EFI/BOOT/BOOTAA64.efi: dainboot/build.zig dainboot/version.zig dainboot/src/*.zig dainboot/src/*.zig
+dainboot/disk/EFI/BOOT/BOOTAA64.efi: dainboot/build.zig dainboot/version.zig dainboot/src/*.zig
 	cd dainboot && zig build
 
 dainboot/dainboot.cdr: dainboot/disk/EFI/BOOT/BOOTAA64.efi

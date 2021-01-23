@@ -5,6 +5,15 @@ const ExceptionContext = packed struct {
     lr: u64,
 };
 
+export fn test_naked() callconv(.Naked) void {
+    asm volatile (
+        \\br x10
+        :
+        :
+        : "memory"
+    );
+}
+
 inline fn handle(ctx: *ExceptionContext, name: []const u8) noreturn {
     @panic(name);
 }

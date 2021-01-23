@@ -26,14 +26,7 @@ pub fn init(in_fb: [*]u32, in_vert: u32, in_horiz: u32) void {
         @panic("can't fit console");
     }
     std.mem.set(u16, console_buf[0 .. console_width * console_height], 0);
-
-    var y: u32 = 0;
-    while (y < fb_vert) : (y += 1) {
-        var x: u32 = 0;
-        while (x < fb_horiz) : (x += 1) {
-            plot(x, y, 0x00000000);
-        }
-    }
+    std.mem.set(u32, fb[0 .. fb_horiz * fb_vert], 0);
 }
 
 pub fn plot(x: u32, y: u32, c: u32) void {

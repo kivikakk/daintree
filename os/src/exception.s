@@ -22,7 +22,6 @@
 .macro EXCEPTION_VECTOR handler
     sub sp, sp, #CONTEXT_SIZE
 
-// store general purpose registers
     stp x0, x1, [sp, #16 * 0]
     stp x2, x3, [sp, #16 * 1]
     stp x4, x5, [sp, #16 * 2]
@@ -39,19 +38,15 @@
     stp x26, x27, [sp, #16 * 13]
     stp x28, x29, [sp, #16 * 14]
 
-// store exception link register and saved processor state register
     mrs x0, elr_el1
     mrs x1, spsr_el1
     stp x0, x1, [sp, #16 * 15]
 
-// store link register which is x30
     str x30, [sp, #16 * 16]
     mov x0, sp
 
-// call exception handler
     bl \handler
 
-// exit exception
     b .exit_exception
 .endm
 
@@ -114,15 +109,12 @@ __vbar_el1:
 .org 0x0800
 
 .exit_exception:
-// restore link register
     ldr x30, [sp, #16 * 16]
 
-// restore exception link register and saved processor state register
     ldp x0, x1, [sp, #16 * 15]
     msr elr_el1, x0
     msr spsr_el1, x1
 
-// restore general purpose registers
     ldp x28, x29, [sp, #16 * 14]
     ldp x26, x27, [sp, #16 * 13]
     ldp x24, x25, [sp, #16 * 12]
@@ -139,7 +131,5 @@ __vbar_el1:
     ldp x2, x3, [sp, #16 * 1]
     ldp x0, x1, [sp, #16 * 0]
 
-// restore stack pointer
     add sp, sp, #CONTEXT_SIZE
     eret
-
