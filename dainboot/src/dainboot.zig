@@ -36,11 +36,22 @@ fn check(comptime method: []const u8, result: uefi.Status) void {
     }
 }
 
+pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) noreturn {
+    const pmsg = [6]u16{ 'p', 'a', 'n', 'i', 'c', 0 };
+    _ = con_out.outputString(@ptrCast(*const [5:0]u16, &pmsg));
+    asm volatile ("b .");
+    unreachable;
+}
+
 pub fn main() void {
     con_out = uefi.system_table.con_out.?;
     boot_services = uefi.system_table.boot_services.?;
 
     printf("daintree bootloader ({s})\r\n", .{build_options.version});
+
+    const pmsg = [6]u16{ 'h', 'e', 'l', 'l', 'o', 0 };
+    _ = con_out.outputString(@ptrCast(*const [5:0]u16, &pmsg));
+    asm volatile ("b .");
 
     // find traversable filesystems
 
