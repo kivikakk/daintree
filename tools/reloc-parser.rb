@@ -3,7 +3,7 @@
 reloc_data = +"".b
 
 state = :nothing
-DATA.read.lines.each do |line|
+STDIN.lines.each do |line|
   case state
   when :nothing
     case line
