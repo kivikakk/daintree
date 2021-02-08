@@ -4,7 +4,7 @@ qemu: dainboot/dainboot.cdr disk.dmg
 	qemu-system-aarch64 \
 		-accel hvf \
 		-m 512 \
-		-cpu cortex-a57 -M virt,highmem=off \
+		-cpu cortex-a53 -M virt,highmem=off \
 		-drive file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd,if=pflash,format=raw,readonly=on \
 		-drive file=ovmf_vars.fd,if=pflash,format=raw \
 		-serial stdio \

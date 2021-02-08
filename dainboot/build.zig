@@ -7,8 +7,9 @@ const version = @import("version.zig").version;
 pub fn build(b: *Builder) !void {
     const target = CrossTarget{
         .cpu_arch = .aarch64,
+        .cpu_model = .{ .explicit = &std.Target.arm.cpu.cortex_a53 },
         .os_tag = .uefi,
-        .abi = .msvc,
+        .abi = .none,
     };
 
     const exe = b.addExecutable("BOOTAA64", "src/dainboot.zig");
