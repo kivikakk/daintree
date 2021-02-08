@@ -40,8 +40,11 @@ while reloc_data.length > 0
   reloc_data = reloc_data[block_size..-1]
   puts "Page RVA: 0x#{page_rva.to_s 16}"
   entries.map! { |e| decode_entry(e) }
-  entries.each do |relo_type, offset|
-    puts "  * 0x#{(page_rva + offset).to_s 16}: #{relo_type}"
+  entries.select! { |relo_type, _| relo_type == :IMAGE_REL_BASED_DIR64 }
+  puts "#{entries.length} relocations:"
+  entries.each_slice(8) do |s|
+    print "  "
+    puts s.map { |_, offset| "0x#{(page_rva + offset).to_s 16}" }.join(" ")
   end
 end
 
