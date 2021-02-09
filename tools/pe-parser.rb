@@ -21,7 +21,7 @@ coff_offset = pe[0x3c...0x40].unpack('V')[0]
 raise "no PE signature" if pe[coff_offset...coff_offset+4] != "PE\x00\x00".b
 machine, section_count, timestamp, _, _, optional_header_size, _ = pe[coff_offset+4...coff_offset+4+20].unpack('vvVVVvv')
 
-puts "machine type: #{machine.to_s(16).rjust(4, "0")}"
+printf "machine type: %04x\n", machine
 puts "sections: #{section_count}"
 puts "created: #{Time.at timestamp}"
 
@@ -40,9 +40,9 @@ if optional_header_size > 0
     puts "sizes:        code: #{code_size}"
     puts "         init data: #{init_data_size}"
     puts "       uninit data: #{uninit_data_size}"
-    puts "entry point: 0x#{entry_point_relative.to_s 16}"
-    puts "bases:  code: 0x#{code_base.to_s 16}"
-    puts "       image: 0x#{image_base.to_s(16).rjust(16, "0")}"
+    printf "entry point: 0x%08x\n", entry_point_relative
+    printf "bases:  code: 0x%08x\n", code_base
+    printf "       image: 0x%08x\n", image_base
     puts "section align #{section_alignment}, file align #{file_alignment}"
     puts "requires OS version #{osvermaj}.#{osvermin}"
     puts "image version #{imagevermaj}.#{imagevermin}"
@@ -50,22 +50,22 @@ if optional_header_size > 0
     puts "  image size: #{imgsize}"
     puts "headers size: #{hdrsize}"
     puts "subsystem: #{subsys}#{subsys == 10 ? " (EFI application)" : ""}"
-    puts "data dictionary entries: #{dd_count}"
     dd_entries = opth[112...112+dd_count*8].unpack('V*').each_slice(2).to_a
 
     sections = Hash[pe[coff_offset+4+20+optional_header_size...coff_offset+4+20+optional_header_size+section_count*40].bytes.each_slice(40).map do |sect|
-      name, vsz, va, rawsz, praw, _, _, _, _, _  = sect.pack('C*').unpack('Z8VVVVVVvvV')
+      name, virt_size, virt_addr, file_size, file_offset, _, _, _, _, _  = sect.pack('C*').unpack('Z8VVVVVVvvV')
+      printf "section % 6s: virt 0x%08x len %08x -- phys 0x%08x len %08x\n", name, virt_addr, virt_size, file_offset, file_size
       [name, {
-        vsz: vsz,
-        va: va,
-        rawsz: rawsz,
-        praw: praw,
+        virt_size: virt_size,
+        virt_addr: virt_addr,
+        file_size: file_size,
+        file_offset: file_offset,
       }]
     end]
 
     if dd_entries[5]
       va, sz = dd_entries[5]
-      reloc_data = pe[sections[".reloc"][:praw] - sections[".reloc"][:va] + va..-1][0...sz]
+      reloc_data = pe[sections[".reloc"][:file_offset] - sections[".reloc"][:virt_addr] + va..-1][0...sz]
       while reloc_data.length > 0
         page_rva, block_size = reloc_data.unpack('VV')
         entries = reloc_data[8...block_size].unpack('v*')
@@ -76,7 +76,7 @@ if optional_header_size > 0
         puts "#{entries.length} relocations:"
         entries.each_slice(8) do |s|
           print "  "
-          puts s.map { |_, offset| "0x#{(page_rva + offset).to_s 16}" }.join(" ")
+          puts s.map { |_, offset| sprintf("0x%04x", page_rva+offset) }.join(" ")
         end
       end
     end
