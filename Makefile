@@ -1,5 +1,8 @@
 .PHONY: qemu mk-ovmf-vars mk-disk
 
+tftp: build
+	tools/update-tftp
+
 qemu: dainboot/dainboot.cdr disk.dmg
 	qemu-system-aarch64 \
 		-accel hvf \

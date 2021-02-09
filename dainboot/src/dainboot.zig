@@ -37,8 +37,7 @@ fn check(comptime method: []const u8, result: uefi.Status) void {
 }
 
 pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) noreturn {
-    const pmsg = [6]u16{ 'p', 'a', 'n', 'i', 'c', 0 };
-    _ = con_out.outputString(@ptrCast(*const [5:0]u16, &pmsg));
+    printf("panic: {s}\n", .{msg});
     asm volatile ("b .");
     unreachable;
 }
@@ -49,9 +48,30 @@ pub fn main() void {
 
     printf("daintree bootloader ({s})\r\n", .{build_options.version});
 
-    const pmsg = [6]u16{ 'h', 'e', 'l', 'l', 'o', 0 };
-    _ = con_out.outputString(@ptrCast(*const [5:0]u16, &pmsg));
-    asm volatile ("b .");
+    var li_proto: ?*uefi.protocols.LoadedImageProtocol = undefined;
+    if (boot_services.openProtocol(
+        uefi.handle,
+        &uefi.protocols.LoadedImageProtocol.guid,
+        @ptrCast(*?*c_void, &li_proto),
+        uefi.handle,
+        null,
+        .{ .get_protocol = true },
+    ) == .Success) {
+        var buffer: [256]u8 = [_]u8{undefined} ** 256;
+        const options_size = li_proto.?.load_options_size;
+        if (options_size > 0) {
+            var ptr: [*]u16 = @ptrCast([*]u16, @alignCast(@alignOf([*]u16), li_proto.?.load_options.?));
+            if (std.unicode.utf16leToUtf8(&buffer, ptr[0 .. options_size / 2])) |sz| {
+                var options = buffer[0..sz];
+                if (options.len > 0 and options[options.len - 1] == 0) {
+                    options = options[0 .. options.len - 1];
+                }
+                handleOptions(options);
+            } else |err| {
+                printf("failed utf16leToUtf8: {}\n", .{err});
+            }
+        }
+    }
 
     // find traversable filesystems
 
@@ -114,27 +134,7 @@ pub fn main() void {
             ));
             check("read", dainkrnl_proto.read(&dainkrnl_size, dainkrnl));
 
-            if (dainkrnl_size < @sizeOf(elf.Elf64_Ehdr)) {
-                printf("found {} byte(s), too small for ELF header ({} bytes)\r\n", .{ dainkrnl_size, @sizeOf(elf.Elf64_Ehdr) });
-                halt();
-            }
-
-            var elf_buffer = std.io.fixedBufferStream(dainkrnl[0..dainkrnl_size]);
-            dainkrnl_elf = elf.Header.read(&elf_buffer) catch |err| {
-                printf("failed to parse ELF: {}\r\n", .{err});
-                halt();
-            };
-
-            printf("ELF entrypoint: {x:0>16} ({}-bit {c}E)\r\n", .{
-                dainkrnl_elf.?.entry,
-                @as(u8, if (dainkrnl_elf.?.is_64) 64 else 32),
-                @as(u8, if (dainkrnl_elf.?.endian == .Big) 'B' else 'L'),
-            });
-
-            var it = dainkrnl_elf.?.program_header_iterator(&elf_buffer);
-            while (it.next() catch haltMsg("iterating phdr")) |phdr| {
-                printf(" * type={x:0>8} off={x:0>16} vad={x:0>16} pad={x:0>16} fsz={x:0>16} msz={x:0>16}\r\n", .{ phdr.p_type, phdr.p_offset, phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz, phdr.p_memsz });
-            }
+            dainkrnl_elf = parseElf(dainkrnl[0..dainkrnl_size]);
         }
 
         _ = boot_services.closeProtocol(handle, &uefi.protocols.SimpleFileSystemProtocol.guid, uefi.handle, null);
@@ -144,14 +144,78 @@ pub fn main() void {
     }
 
     if (dainkrnl_elf) |found| {
-        exitBootServices(dainkrnl, dainkrnl_size, found);
+        exitBootServices(dainkrnl[0..dainkrnl_size], found);
     }
 
     puts("\r\nDAINKRNL not found\r\n");
     _ = boot_services.stall(5 * 1000 * 1000);
 }
 
-fn exitBootServices(dainkrnl: [*]u8, dainkrnl_size: u64, dainkrnl_elf: elf.Header) noreturn {
+fn handleOptions(options: []const u8) void {
+    var it = std.mem.tokenize(options, " ");
+    const opt_name = it.next() orelse return;
+
+    if (std.mem.eql(u8, opt_name, "ramdisk")) {
+        const ramdisk_offset_s = it.next() orelse {
+            printf("ramdisk: missing offset argument\n", .{});
+            return;
+        };
+        const ramdisk_len_s = it.next() orelse {
+            printf("ramdisk: missing length argument\n", .{});
+            return;
+        };
+
+        if (it.next()) |unexp| {
+            printf("ramdisk: unexpected argument '{}'\n", .{unexp});
+            return;
+        }
+
+        const ramdisk_offset = std.fmt.parseInt(u64, ramdisk_offset_s, 0) catch |err| blk: {
+            printf("ramdisk: parse offset '{}' error: {}\n", .{ ramdisk_offset_s, err });
+            break :blk 0;
+        };
+        const ramdisk_len = std.fmt.parseInt(u64, ramdisk_len_s, 0) catch |err| blk: {
+            printf("ramdisk: parse len '{}' error: {}\n", .{ ramdisk_len_s, err });
+            break :blk 0;
+        };
+
+        printf("loading kernel in ramdisk at 0x{x:0>16} ({} bytes)\n", .{ ramdisk_offset, ramdisk_len });
+
+        const dainkrnl = @intToPtr([*]const u8, ramdisk_offset)[0..ramdisk_len];
+        const dainkrnl_elf = parseElf(dainkrnl);
+        exitBootServices(dainkrnl, dainkrnl_elf);
+    } else {
+        printf("unknown option '{s}'\n", .{opt_name});
+    }
+}
+
+fn parseElf(dainkrnl: []const u8) elf.Header {
+    if (dainkrnl.len < @sizeOf(elf.Elf64_Ehdr)) {
+        printf("found {} byte(s), too small for ELF header ({} bytes)\r\n", .{ dainkrnl.len, @sizeOf(elf.Elf64_Ehdr) });
+        halt();
+    }
+
+    var elf_buffer = std.io.fixedBufferStream(dainkrnl);
+    var dainkrnl_elf = elf.Header.read(&elf_buffer) catch |err| {
+        printf("failed to parse ELF: {}\r\n", .{err});
+        halt();
+    };
+
+    printf("ELF entrypoint: {x:0>16} ({}-bit {c}E)\r\n", .{
+        dainkrnl_elf.entry,
+        @as(u8, if (dainkrnl_elf.is_64) 64 else 32),
+        @as(u8, if (dainkrnl_elf.endian == .Big) 'B' else 'L'),
+    });
+
+    var it = dainkrnl_elf.program_header_iterator(&elf_buffer);
+    while (it.next() catch haltMsg("iterating phdr")) |phdr| {
+        printf(" * type={x:0>8} off={x:0>16} vad={x:0>16} pad={x:0>16} fsz={x:0>16} msz={x:0>16}\r\n", .{ phdr.p_type, phdr.p_offset, phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz, phdr.p_memsz });
+    }
+
+    return dainkrnl_elf;
+}
+
+fn exitBootServices(dainkrnl: []const u8, dainkrnl_elf: elf.Header) noreturn {
     var graphics: *uefi.protocols.GraphicsOutputProtocol = undefined;
     check("locateProtocol", boot_services.locateProtocol(&uefi.protocols.GraphicsOutputProtocol.guid, null, @ptrCast(*?*c_void, &graphics)));
     var fb: [*]u8 = @intToPtr([*]u8, graphics.mode.frame_buffer_base);
@@ -180,7 +244,7 @@ fn exitBootServices(dainkrnl: [*]u8, dainkrnl_size: u64, dainkrnl_elf: elf.Heade
     // The kernel's text section begins at 0xffffff80_00000000. Adjust those down
     // to 0x40000000 for now.
 
-    var elf_source = std.io.fixedBufferStream(dainkrnl[0..dainkrnl_size]);
+    var elf_source = std.io.fixedBufferStream(dainkrnl);
     var it = dainkrnl_elf.program_header_iterator(&elf_source);
     while (it.next() catch haltMsg("iterating phdrs (2)")) |phdr| {
         if (phdr.p_type == elf.PT_LOAD) {
