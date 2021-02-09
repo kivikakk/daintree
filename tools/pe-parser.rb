@@ -65,7 +65,9 @@ if optional_header_size > 0
 
     if dd_entries[5]
       va, sz = dd_entries[5]
-      reloc_data = pe[sections[".reloc"][:file_offset] - sections[".reloc"][:virt_addr] + va..-1][0...sz]
+      reloc_data_phys_offset = sections[".reloc"][:file_offset] - sections[".reloc"][:virt_addr] + va
+      printf "reloc data physical offset: 0x%08x\n", reloc_data_phys_offset
+      reloc_data = pe[reloc_data_phys_offset...reloc_data_phys_offset+sz]
       while reloc_data.length > 0
         page_rva, block_size = reloc_data.unpack('VV')
         entries = reloc_data[8...block_size].unpack('v*')
