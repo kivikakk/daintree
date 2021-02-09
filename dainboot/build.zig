@@ -13,10 +13,9 @@ pub fn build(b: *Builder) !void {
 
     const board = try common.getBoard(b);
     const exe = b.addExecutable(b.fmt("BOOTAA64.{s}", .{@tagName(board)}), "src/dainboot.zig");
-
     exe.setTarget(target);
     exe.setBuildMode(b.standardReleaseOptions());
-    exe.addBuildOption([:0]const u8, "version", try b.allocator.dupeZ(u8, try common.version(b)));
+    try common.addBuildOptions(b, exe, board);
     exe.install();
 
     b.default_step.dependOn(&exe.step);

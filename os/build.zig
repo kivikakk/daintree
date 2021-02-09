@@ -23,7 +23,7 @@ pub fn build(b: *Builder) !void {
     exe.setBuildMode(b.standardReleaseOptions());
     exe.setLinkerScriptPath("linker.ld");
     exe.setVerboseLink(true);
-    exe.addBuildOption([:0]const u8, "version", try b.allocator.dupeZ(u8, try common.version(b)));
+    try common.addBuildOptions(b, exe, board);
     exe.install();
 
     b.default_step.dependOn(&exe.step);

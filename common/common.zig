@@ -1,5 +1,5 @@
 const std = @import("std");
-const Builder = std.build.Builder;
+const build = std.build;
 
 const daintree_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 1 };
 
@@ -8,14 +8,19 @@ pub const Board = enum {
     rockpro64,
 };
 
-pub fn getBoard(b: *Builder) !Board {
+pub fn getBoard(b: *build.Builder) !Board {
     return b.option(Board, "board", "Target board.") orelse
         error.UnknownBoard;
 }
 
-// version from Zig's own build.zig:
+pub fn addBuildOptions(b: *build.Builder, exe: *build.LibExeObjStep, board: Board) !void {
+    exe.addBuildOption([:0]const u8, "version", try b.allocator.dupeZ(u8, try getVersion(b)));
+    exe.addBuildOption([:0]const u8, "board", try b.allocator.dupeZ(u8, @tagName(board)));
+}
+
+// adapted from Zig's own build.zig:
 // https://github.com/ziglang/zig/blob/a021c7b1b2428ecda85e79e281d43fa1c92f8c94/build.zig#L140-L188
-pub fn version(b: *Builder) ![]u8 {
+fn getVersion(b: *build.Builder) ![]u8 {
     const version_string = b.fmt("{d}.{d}.{d}", .{ daintree_version.major, daintree_version.minor, daintree_version.patch });
 
     var code: u8 = undefined;

@@ -46,7 +46,7 @@ pub fn main() void {
     con_out = uefi.system_table.con_out.?;
     boot_services = uefi.system_table.boot_services.?;
 
-    printf("daintree bootloader ({s})\r\n", .{build_options.version});
+    printf("daintree bootloader {s} on {s}\r\n", .{ build_options.version, build_options.board });
 
     var li_proto: ?*uefi.protocols.LoadedImageProtocol = undefined;
     if (boot_services.openProtocol(
@@ -280,15 +280,6 @@ fn exitBootServices(dainkrnl: []const u8, dainkrnl_elf: elf.Header) noreturn {
     check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
 
     const adjusted_entry = dainkrnl_elf.entry - 0xffffff80_00000000 + 0x40000000;
-
-    var j: u32 = 0;
-    while (j < 1024 * 600 * 4) : (j += 4) {
-        fb[j] = @truncate(u8, @divTrunc(j, 256));
-        fb[j + 1] = @truncate(u8, @divTrunc(j, 1536));
-        fb[j + 2] = @truncate(u8, @divTrunc(j, 2560));
-    }
-
-    while (true) {}
 
     // Looks like we're left in EL1. (mrs x2, CurrentEL => x2 = 0x4; PSTATE[3:2] = 0x4 -> EL1)
     // Disable the MMU and pass to DAINKRNL.
