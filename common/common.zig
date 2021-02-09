@@ -3,6 +3,16 @@ const Builder = std.build.Builder;
 
 const daintree_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 1 };
 
+pub const Board = enum {
+    qemu,
+    rockpro64,
+};
+
+pub fn getBoard(b: *Builder) !Board {
+    return b.option(Board, "board", "Target board.") orelse
+        error.UnknownBoard;
+}
+
 // version from Zig's own build.zig:
 // https://github.com/ziglang/zig/blob/a021c7b1b2428ecda85e79e281d43fa1c92f8c94/build.zig#L140-L188
 pub fn version(b: *Builder) ![]u8 {

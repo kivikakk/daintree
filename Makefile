@@ -1,6 +1,6 @@
 .PHONY: qemu mk-ovmf-vars mk-disk
 
-tftp: build
+tftp: dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi os/zig-cache/bin/dainkrnl.rockpro64
 	tools/update-tftp
 
 qemu: dainboot/dainboot.cdr disk.dmg
@@ -25,20 +25,21 @@ qemu: dainboot/dainboot.cdr disk.dmg
 		-s \
 		$$EXTRA_ARGS
 
-.PHONY: build
-build: dainboot/disk/EFI/BOOT/BOOTAA64.efi os/zig-cache/bin/dainkrnl
-
 OS_FILES=$(shell find os -name zig-cache -prune -o -type f)
-os/zig-cache/bin/dainkrnl: $(OS_FILES)
-	cd os && zig build
+os/zig-cache/bin/dainkrnl.%: $(OS_FILES)
+	cd os && zig build -Dboard=$*
 
-disk.dmg: os/zig-cache/bin/dainkrnl
+disk.dmg: os/zig-cache/bin/dainkrnl.qemu
 	hdiutil attach -mountpoint target disk.dmg
-	cp os/zig-cache/bin/dainkrnl target
+	cp $< target/dainkrnl
 	hdiutil detach target
 
-dainboot/disk/EFI/BOOT/BOOTAA64.efi: dainboot/build.zig dainboot/version.zig dainboot/src/*.zig
-	cd dainboot && zig build
+DAINBOOT_FILES=$(shell find dainboot -name zig-cache -prune -o -type f -name \*.zig)
+dainboot/zig-cache/bin/BOOTAA64.%.efi: $(DAINBOOT_FILES)
+	cd dainboot && zig build -Dboard=$*
+
+dainboot/disk/EFI/BOOT/BOOTAA64.efi: dainboot/zig-cache/bin/BOOTAA64.qemu.efi
+	cp $< $@
 
 dainboot/dainboot.cdr: dainboot/disk/EFI/BOOT/BOOTAA64.efi
 	hdiutil create -fs fat32 -ov -size 48m -volname DAINTREE -format UDTO -srcfolder dainboot/disk dainboot/dainboot.cdr
