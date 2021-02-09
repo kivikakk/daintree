@@ -262,9 +262,33 @@ fn exitBootServices(dainkrnl: []const u8, dainkrnl_elf: elf.Header) noreturn {
         haltMsg("horizontal res != pixels per scan line");
     }
 
+    printf("what's in the framebuffer?\n", .{});
+    const info = graphics.mode.info;
+    printf("  max_mode: {}\n", .{graphics.mode.max_mode});
+    printf("  mode: {}\n", .{graphics.mode.mode});
+    printf("  info: {*:0>16}\n", .{graphics.mode.info});
+    printf("  size_of_info: {}\n", .{graphics.mode.size_of_info});
+    printf("  frame_buffer_base: {x:0>16}\n", .{graphics.mode.frame_buffer_base});
+    printf("  frame_buffer_size: {}\n", .{graphics.mode.frame_buffer_size});
+    printf("  version: {}\n", .{info.version});
+    printf("  horizontal_resolution: {}\n", .{info.horizontal_resolution});
+    printf("  vertical_resolution: {}\n", .{info.vertical_resolution});
+    printf("  pixel_format: {}\n", .{info.pixel_format});
+    printf("  pixel_information: {}\n", .{info.pixel_information});
+    printf("  pixels_per_scan_line: {}\n", .{info.pixels_per_scan_line});
+
     check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
 
     const adjusted_entry = dainkrnl_elf.entry - 0xffffff80_00000000 + 0x40000000;
+
+    var j: u32 = 0;
+    while (j < 1024 * 600 * 4) : (j += 4) {
+        fb[j] = @truncate(u8, @divTrunc(j, 256));
+        fb[j + 1] = @truncate(u8, @divTrunc(j, 1536));
+        fb[j + 2] = @truncate(u8, @divTrunc(j, 2560));
+    }
+
+    while (true) {}
 
     // Looks like we're left in EL1. (mrs x2, CurrentEL => x2 = 0x4; PSTATE[3:2] = 0x4 -> EL1)
     // Disable the MMU and pass to DAINKRNL.
