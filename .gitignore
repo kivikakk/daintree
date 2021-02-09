@@ -6,3 +6,4 @@ dainboot/dainboot.cdr
 *.pdb
 *.efi
 zig-cache
+dtb/qemu.dtb

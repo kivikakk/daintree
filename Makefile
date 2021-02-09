@@ -1,10 +1,6 @@
 .PHONY: qemu mk-ovmf-vars mk-disk
 
-tftp: dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi os/zig-cache/bin/dainkrnl.rockpro64
-	tools/update-tftp
-
-qemu: dainboot/dainboot.cdr disk.dmg
-	qemu-system-aarch64 \
+QEMU_CMD = qemu-system-aarch64 \
 		-accel hvf \
 		-m 512 \
 		-cpu cortex-a53 -M virt,highmem=off \
@@ -22,8 +18,15 @@ qemu: dainboot/dainboot.cdr disk.dmg
 		-device usb-kbd \
 		-device usb-mouse \
 		-usb \
-		-s \
-		$$EXTRA_ARGS
+
+tftp: dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi os/zig-cache/bin/dainkrnl.rockpro64
+	tools/update-tftp
+
+qemu: dainboot/dainboot.cdr disk.dmg
+	$(QEMU_CMD) -s $$EXTRA_ARGS
+
+dtb/qemu.dtb:
+	$(QEMU_CMD) -machine dumpdtb=$@
 
 OS_FILES=$(shell find os -name zig-cache -prune -o -type f)
 os/zig-cache/bin/dainkrnl.%: $(OS_FILES)
