@@ -33,11 +33,13 @@ const FDTProp = packed struct {
     nameoff: u32,
 };
 
-pub const Error = error{
+pub const Error = mem.Allocator.Error || error{
     Truncated,
     BadMagic,
     UnsupportedVersion,
     BadStructure,
+    MissingCells,
+    UnsupportedCells,
 };
 
 const PropertyTypeMapping = struct {
@@ -72,12 +74,127 @@ fn bigToNative(comptime T: type, s: T) T {
 }
 
 pub const Node = struct {
-    name: []u8,
+    name: []const u8,
     props: []Prop,
     children: []Node,
+
+    pub fn deinit(node: Node, allocator: *mem.Allocator) void {
+        for (node.props) |prop| {
+            prop.deinit(allocator);
+        }
+        allocator.free(node.props);
+        for (node.children) |child| {
+            child.deinit(allocator);
+        }
+        allocator.free(node.children);
+    }
+
+    pub fn format(node: Node, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        try node.formatNode(writer, 0);
+    }
+
+    fn formatNode(node: Node, writer: anytype, depth: usize) std.os.WriteError!void {
+        try indent(writer, depth);
+        try std.fmt.format(writer, "Node <{s}> ({} props, {} children)\n", .{ node.name, node.props.len, node.children.len });
+        for (node.props) |prop| {
+            try indent(writer, depth);
+            try std.fmt.format(writer, " {}\n", .{prop});
+        }
+        for (node.children) |child| {
+            try child.formatNode(writer, depth + 1);
+        }
+    }
+
+    fn indent(writer: anytype, depth: usize) !void {
+        var i: usize = 0;
+        while (i < depth) : (i += 1) {
+            try writer.writeAll("  ");
+        }
+    }
 };
 
-pub fn parse(allocator: *mem.Allocator, fdt: []const u8) Error!u64 {
+pub const Prop = union(enum) {
+    AddressCells: u32,
+    SizeCells: u32,
+    Reg: [][2]u64,
+    Unknown: PropUnknown,
+
+    pub fn format(prop: Prop, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        switch (prop) {
+            .AddressCells => |v| try std.fmt.format(writer, "#address-cells: 0x{x:0>8}", .{v}),
+            .SizeCells => |v| try std.fmt.format(writer, "#size-cells: 0x{x:0>8}", .{v}),
+            .Reg => |v| {
+                try writer.writeAll("reg: <");
+                for (v) |pair, i| {
+                    if (i != 0) {
+                        try writer.writeByte(' ');
+                    }
+                    try std.fmt.format(writer, "0x{x} 0x{x}", .{ pair[0], pair[1] });
+                }
+                try writer.writeByte('>');
+            },
+            .Unknown => |v| try std.fmt.format(writer, "{s}: {}", .{ v.name, v.value }),
+        }
+    }
+
+    pub fn deinit(prop: Prop, allocator: *mem.Allocator) void {
+        switch (prop) {
+            .Reg => |v| allocator.free(v),
+            else => {},
+        }
+    }
+};
+
+pub const PropUnknown = struct {
+    name: []const u8,
+    value: []const u8,
+};
+
+const Parser = struct {
+    fdt: []const u8,
+    header: FDTHeader,
+    offset: usize,
+
+    fn aligned(parser: *@This(), comptime T: type) T {
+        const size = @sizeOf(T);
+        const value = @ptrCast(*const T, @alignCast(@alignOf(T), parser.fdt[parser.offset .. parser.offset + size])).*;
+        parser.offset += size;
+        return value;
+    }
+
+    fn buffer(parser: *@This(), length: usize) []const u8 {
+        const value = parser.fdt[parser.offset .. parser.offset + length];
+        parser.offset += length;
+        return value;
+    }
+
+    fn token(parser: *@This()) FDTToken {
+        return @intToEnum(FDTToken, std.mem.bigToNative(u32, parser.aligned(u32)));
+    }
+
+    fn object(parser: *@This(), comptime T: type) T {
+        return bigToNative(T, parser.aligned(T));
+    }
+
+    fn cstring(parser: *@This()) []const u8 {
+        const length = std.mem.lenZ(@ptrCast([*c]const u8, parser.fdt[parser.offset..]));
+        const value = parser.fdt[parser.offset .. parser.offset + length];
+        parser.offset += length + 1;
+        return value;
+    }
+
+    fn cstringFromSectionOffset(parser: @This(), offset: usize) []const u8 {
+        const length = std.mem.lenZ(@ptrCast([*c]const u8, parser.fdt[parser.header.off_dt_strings + offset ..]));
+        return parser.fdt[parser.header.off_dt_strings + offset ..][0..length];
+    }
+
+    fn alignTo(parser: *@This(), comptime T: type) void {
+        parser.offset += @sizeOf(T) - 1;
+        parser.offset &= ~@as(usize, @sizeOf(T) - 1);
+    }
+};
+
+pub fn parse(allocator: *mem.Allocator, fdt: []const u8) Error!Node {
     if (fdt.len < @sizeOf(FDTHeader)) {
         return error.Truncated;
     }
@@ -92,99 +209,104 @@ pub fn parse(allocator: *mem.Allocator, fdt: []const u8) Error!u64 {
         return error.UnsupportedVersion;
     }
 
-    // iterate memory reservations
-    // XXX These appear unused? Maybe past versions of DTBs relied on them more.
-    const memRsvBlock = @ptrCast([*]const FDTReserveEntry, fdt[header.off_mem_rsvmap..].ptr);
-    var i: usize = 0;
-    while (memRsvBlock[i].address != 0 or memRsvBlock[i].size != 0) : (i += 1) {
-        const block = bigToNative(FDTReserveEntry, memRsvBlock[i]);
-        std.debug.print("mem rsv {}: 0x{x:0>16} sz 0x{x:0>16}\n", .{ i, block.address, block.size });
+    var parser = Parser{ .fdt = fdt, .header = header, .offset = header.off_dt_struct };
+    if (parser.token() != .BeginNode) {
+        return error.BadStructure;
     }
 
-    var memoryOffset: ?usize = null;
-    var memorySize: ?usize = null;
+    var root = try parseBeginNode(allocator, &parser, null, null);
 
-    var addressCells: ?u32 = null;
-    var sizeCells: ?u32 = null;
+    if (parser.token() != .End) {
+        return error.BadStructure;
+    }
+    if (parser.offset != header.off_dt_struct + header.size_dt_struct) {
+        return error.BadStructure;
+    }
 
-    var index = fdt[header.off_dt_struct..];
-    var depth: usize = 0;
+    return root;
+}
+
+fn parseBeginNode(allocator: *mem.Allocator, parser: *Parser, address_cells_in: ?u32, size_cells_in: ?u32) Error!Node {
+    const node_name = parser.cstring();
+    parser.alignTo(u32);
+
+    var address_cells = address_cells_in;
+    var size_cells = size_cells_in;
+
+    var props = std.ArrayList(Prop).init(allocator);
+    var children = std.ArrayList(Node).init(allocator);
+
     loop: while (true) {
-        var token = @intToEnum(FDTToken, std.mem.bigToNative(u32, @ptrCast(*const u32, @alignCast(@alignOf(u32), index.ptr)).*));
-        index = index[@sizeOf(u32)..];
-        switch (token) {
+        switch (parser.token()) {
             .BeginNode => {
-                depth += 1;
-                var name_end: usize = 0;
-                while (index[name_end] != 0) : (name_end += 1) {}
-                const name = index[0..name_end];
-                var j: usize = 0;
-                while (j < depth) : (j += 1) {
-                    std.debug.print("*", .{});
-                }
-                std.debug.print(" {s}\n", .{name});
-                name_end += 1; // NUL byte
-                index = index[(name_end + 3) & ~@as(usize, 3) ..];
+                var subnode = try parseBeginNode(allocator, parser, address_cells, size_cells);
+                try children.append(subnode);
             },
             .EndNode => {
-                if (depth == 0) {
-                    return error.BadStructure;
-                }
-                depth -= 1;
+                break :loop;
             },
             .Prop => {
-                const prop = bigToNative(FDTProp, @ptrCast(*const FDTProp, index.ptr).*);
-                var j: usize = 0;
-                while (j < depth) : (j += 1) {
-                    std.debug.print(" ", .{});
-                }
-                const name_len = std.mem.lenZ(@ptrCast([*c]const u8, fdt[header.off_dt_strings + prop.nameoff ..]));
-                const name = fdt[header.off_dt_strings + prop.nameoff ..][0..name_len];
-                std.debug.print("  - {s}: {} bytes\n", .{ name, prop.len });
-                index = index[@sizeOf(FDTProp)..];
-                const prop_value = index[0..prop.len];
-                j = 0;
-                while (j < depth) : (j += 1) {
-                    std.debug.print(" ", .{});
-                }
-                std.debug.print("    ", .{});
-                if (std.mem.eql(u8, name, "#address-cells")) {
-                    // only paying attention to root #address/#size-cells for now
-                    if (addressCells == null) {
-                        addressCells = std.mem.bigToNative(u32, propertyValue("#address-cells", prop_value));
-                        std.debug.print("{} x u32 ({} bits)\n", .{ addressCells.?, addressCells.? * 32 });
+                const prop = parser.object(FDTProp);
+                const prop_name = parser.cstringFromSectionOffset(prop.nameoff);
+                const prop_value = parser.buffer(prop.len);
+                if (std.mem.eql(u8, prop_name, "#address-cells")) {
+                    address_cells = std.mem.bigToNative(u32, propertyValue("#address-cells", prop_value));
+                    try props.append(Prop{ .AddressCells = address_cells.? });
+                } else if (std.mem.eql(u8, prop_name, "#size-cells")) {
+                    size_cells = std.mem.bigToNative(u32, propertyValue("#size-cells", prop_value));
+                    try props.append(Prop{ .SizeCells = size_cells.? });
+                } else if (std.mem.eql(u8, prop_name, "reg")) {
+                    if (address_cells == null or size_cells == null) {
+                        return error.MissingCells;
                     }
-                } else if (std.mem.eql(u8, name, "#size-cells")) {
-                    if (sizeCells == null) {
-                        sizeCells = std.mem.bigToNative(u32, propertyValue("#size-cells", prop_value));
-                        std.debug.print("{} x u32 ({} bits)\n", .{ sizeCells.?, sizeCells.? * 32 });
+                    if (address_cells.? > 2 or size_cells.? > 2) {
+                        return error.UnsupportedCells;
                     }
-                } else if (std.mem.eql(u8, name, "reg")) {
+                    const pair_size = (address_cells.? + size_cells.?) * @sizeOf(u32);
+                    if (prop_value.len % pair_size != 0) {
+                        return error.BadStructure;
+                    }
+
+                    var pairs: [][2]u64 = try allocator.alloc([2]u64, prop_value.len / pair_size);
                     var off: usize = 0;
+                    while (off < prop_value.len) {
+                        off += address_cells.? * @sizeOf(u32);
+                        off += size_cells.? * @sizeOf(u32);
+                    }
+
+                    try props.append(Prop{ .Reg = pairs });
                 } else {
-                    std.debug.print("\"{s}\"\n", .{prop_value});
+                    try props.append(Prop{ .Unknown = .{ .name = prop_name, .value = prop_value } });
                 }
-                index = index[(prop.len + 3) & ~@as(usize, 3) ..];
+                parser.alignTo(u32);
             },
             .Nop => {},
             .End => {
-                if (depth != 0 or index.ptr != fdt[header.off_dt_struct + header.size_dt_struct ..].ptr) {
-                    return error.BadStructure;
-                }
-                break :loop;
+                return error.BadStructure;
             },
         }
     }
 
-    return 7;
+    return Node{
+        .name = node_name,
+        .props = props.toOwnedSlice(),
+        .children = children.toOwnedSlice(),
+    };
 }
 
 const qemu_dtb = @embedFile("../qemu.dtb");
 const rockpro64_dtb = @embedFile("../rk3399-rockpro64.dtb");
 
 test "basic add functionality" {
+    var dtb = try parse(std.testing.allocator, qemu_dtb);
+    std.debug.print("====\nqemu\n====\n{}\n\n", .{dtb});
+    dtb.deinit(std.testing.allocator);
+
+    dtb = try parse(std.testing.allocator, rockpro64_dtb);
+    std.debug.print("=========\nrockpro64\n=========\n{}\n\n", .{dtb});
+    dtb.deinit(std.testing.allocator);
     // QEMU places memory at 1GiB.
-    testing.expectEqual(@as(u64, 0x40000000), try parseAndGetMemoryOffset(qemu_dtb));
+    // testing.expectEqual(@as(u64, 0x40000000), try parseAndGetMemoryOffset(qemu_dtb));
     // Rockpro64 at ?
-    testing.expectEqual(@as(u64, 123), try parseAndGetMemoryOffset(rockpro64_dtb));
+    // testing.expectEqual(@as(u64, 123), try parseAndGetMemoryOffset(rockpro64_dtb));
 }
