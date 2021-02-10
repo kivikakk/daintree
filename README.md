@@ -5,6 +5,8 @@ An ARMv8-A operating system, plus a UEFI bootloader, all written in Zig. Current
 * QEMU (using HVF acceleration on macOS), with EDK2
 * ROCKPro64, with U-Boot ([patch required](https://patchwork.ozlabs.org/project/uboot/patch/20210209062150.mmshhxissljf6fak@talia.n4wrvuuuhszuhem3na2pm5saea.px.internal.cloudapp.net/))
 
+There's a little [dev blog](https://github.com/kivikakk/daintree/discussions/1) I hope to maintain as I go.
+
 ## dainboot
 
 A gentle introduction to Zig's UEFI support. Boots like this:
