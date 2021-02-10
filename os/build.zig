@@ -5,15 +5,15 @@ const Builder = std.build.Builder;
 const common = @import("common.zig");
 
 pub fn build(b: *Builder) !void {
-    // force strict alignment since we run without MMU, very hacky
-    var features = std.Target.Cpu.Feature.Set.empty;
-    features.addFeature(@enumToInt(std.Target.aarch64.Feature.strict_align));
-
+    // We used to force strict alignment since we run without MMU. Now we do enable it,
+    // but maybe we'll need to put it back on again later if our pre-MMU code generates a badly aligned access?
+    // var features = std.Target.Cpu.Feature.Set.empty;
+    // features.addFeature(@enumToInt(std.Target.aarch64.Feature.strict_align));
     const target = CrossTarget{
         .cpu_arch = .aarch64,
         .os_tag = .freestanding,
         .abi = .none,
-        .cpu_features_add = features,
+        // .cpu_features_add = features,
     };
 
     const board = try common.getBoard(b);
