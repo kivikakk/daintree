@@ -241,20 +241,42 @@ fn exitBootServices(dainkrnl: []const u8, dainkrnl_elf: elf.Header) noreturn {
         ));
     }
 
-    for (memory_map[0 .. memory_map_size / descriptor_size]) |ptr, i| {
+    var largest_conventional: ?*uefi.tables.MemoryDescriptor = null;
+
+    printf("descriptor size: {}\r\n", .{descriptor_size});
+    var offset: usize = 0;
+    var i: usize = 0;
+    while (offset < memory_map_size) : ({
+        offset += descriptor_size;
+        i += 1;
+    }) {
+        const ptr = @intToPtr(*uefi.tables.MemoryDescriptor, @ptrToInt(memory_map) + offset);
+        printf("{:2} {s:23} p=0x{x:0>16} size={x:16} ({} mb starting at {} mb)\r\n", .{ i, @tagName(ptr.type), ptr.physical_start, ptr.number_of_pages << 12, ptr.number_of_pages >> 8, ptr.physical_start >> 20 });
         if (ptr.type == .ConventionalMemory) {
-            printf("{:2} p=0x{x:0>16} size={x:16} ({} mb starting at {} mb)\r\n", .{ i, ptr.physical_start, ptr.number_of_pages << 12, (ptr.number_of_pages << 12) / 1048576, ptr.physical_start / 1048576 });
+            if (largest_conventional) |current_largest| {
+                if (ptr.number_of_pages > current_largest.number_of_pages) {
+                    largest_conventional = ptr;
+                }
+            } else {
+                largest_conventional = ptr;
+            }
         }
     }
 
+    // Just take the single biggest bit of conventional memory.
+    const conventional_start = largest_conventional.?.physical_start;
+    const conventional_bytes = largest_conventional.?.number_of_pages << 12;
+
+    printf("Using {}mb of memory starting at 0x{x:0>16}\n", .{ conventional_bytes >> 20, conventional_start });
+
     // The kernel's text section begins at 0xffffff80_00000000. Adjust those down
-    // to 0x40000000 for now.
+    // to conventional_start now.
 
     var elf_source = std.io.fixedBufferStream(dainkrnl);
     var it = dainkrnl_elf.program_header_iterator(&elf_source);
     while (it.next() catch haltMsg("iterating phdrs (2)")) |phdr| {
         if (phdr.p_type == elf.PT_LOAD) {
-            const target = phdr.p_vaddr - 0xffffff80_00000000 + 0x40000000;
+            const target = phdr.p_vaddr - 0xffffff80_00000000 + conventional_start;
             printf("loading 0x{x:0>16} bytes at 0x{x:0>16} into 0x{x:0>16}\r\n", .{ phdr.p_filesz, phdr.p_vaddr, target });
             std.mem.copy(u8, @intToPtr([*]u8, target)[0..phdr.p_filesz], dainkrnl[phdr.p_offset .. phdr.p_offset + phdr.p_filesz]);
             if (phdr.p_memsz > phdr.p_filesz) {
@@ -287,7 +309,7 @@ fn exitBootServices(dainkrnl: []const u8, dainkrnl_elf: elf.Header) noreturn {
 
     check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
 
-    const adjusted_entry = dainkrnl_elf.entry - 0xffffff80_00000000 + 0x40000000;
+    const adjusted_entry = dainkrnl_elf.entry - 0xffffff80_00000000 + conventional_start;
 
     // Looks like we're left in EL1. (mrs x2, CurrentEL => x2 = 0x4; PSTATE[3:2] = 0x4 -> EL1)
     // Disable the MMU and pass to DAINKRNL.
@@ -295,20 +317,22 @@ fn exitBootServices(dainkrnl: []const u8, dainkrnl_elf: elf.Header) noreturn {
     asm volatile (
         \\mov x29, #0
         \\mov x30, #0
-        \\mrs x8, sctlr_el1
-        \\bic x8, x8, #1
-        \\msr sctlr_el1, x8
+        \\mrs x9, sctlr_el1
+        \\bic x9, x9, #1
+        \\msr sctlr_el1, x9
         \\isb
-        \\br x7
+        \\br x8
         :
         : [memory_map] "{x0}" (memory_map),
           [memory_map_size] "{x1}" (memory_map_size),
           [descriptor_size] "{x2}" (descriptor_size),
-          [fb] "{x3}" (fb),
-          [vertres] "{x4}" (graphics.mode.info.vertical_resolution),
-          [horizres] "{x5}" (graphics.mode.info.horizontal_resolution),
+          [conventional_start] "{x3}" (conventional_start),
+          [conventional_bytes] "{x4}" (conventional_bytes),
+          [fb] "{x5}" (fb),
+          [vertres] "{x6}" (graphics.mode.info.vertical_resolution),
+          [horizres] "{x7}" (graphics.mode.info.horizontal_resolution),
 
-          [entry] "{x7}" (adjusted_entry)
+          [entry] "{x8}" (adjusted_entry)
         : "memory"
     );
 

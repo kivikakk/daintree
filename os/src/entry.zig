@@ -13,13 +13,15 @@ pub const EntryData = packed struct {
     memory_map: [*]std.os.uefi.tables.MemoryDescriptor,
     memory_map_size: usize,
     descriptor_size: usize,
+    conventional_start: usize,
+    conventional_bytes: usize,
     fb: [*]u32,
     fb_vert: u32,
     fb_horiz: u32,
 };
 
 comptime {
-    std.testing.expectEqual(40, @sizeOf(EntryData));
+    std.testing.expectEqual(56, @sizeOf(EntryData));
 }
 
 var TTBR0_IDENTITY: *[INDEX_SIZE]u64 = undefined;
@@ -32,6 +34,8 @@ pub export fn daintree_mmu_start(
     memory_map: [*]std.os.uefi.tables.MemoryDescriptor,
     memory_map_size: usize,
     descriptor_size: usize,
+    conventional_start: usize,
+    conventional_bytes: usize,
     fb: [*]u32,
     fb_vert: u32,
     fb_horiz: u32,
@@ -84,16 +88,11 @@ pub export fn daintree_mmu_start(
     arch.write_register(.TTBR1_EL1, ttbr1_el1);
 
     {
-        const memory_base: u64 = 0x4000_0000;
-        const memory_end: u64 = memory_base + 512 * 1048576;
-
-        const l1_start = comptime index(1, memory_base);
-        const l1_end = comptime index(1, memory_end);
-        comptime std.testing.expectEqual(1, l1_start);
-        comptime std.testing.expectEqual(1, l1_end);
+        const l1_start = index(1, conventional_start);
+        const l1_end = index(1, conventional_start + conventional_bytes);
 
         var l1_i = l1_start;
-        var l1_address = memory_base;
+        var l1_address = conventional_start;
         while (l1_i <= l1_end) : (l1_i += 1) {
             tableSet(TTBR0_IDENTITY, l1_i, l1_address, IDENTITY_FLAGS.toU64());
             l1_address += BLOCK_L1_SIZE;
@@ -140,6 +139,8 @@ pub export fn daintree_mmu_start(
         .memory_map = memory_map,
         .memory_map_size = memory_map_size,
         .descriptor_size = descriptor_size,
+        .conventional_start = conventional_start,
+        .conventional_bytes = conventional_bytes,
         .fb = fb,
         .fb_vert = fb_vert,
         .fb_horiz = fb_horiz,
