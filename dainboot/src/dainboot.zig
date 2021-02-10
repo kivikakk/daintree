@@ -290,21 +290,6 @@ fn exitBootServices(dainkrnl: []const u8, dainkrnl_elf: elf.Header) noreturn {
         haltMsg("horizontal res != pixels per scan line");
     }
 
-    // printf("what's in the framebuffer?\n", .{});
-    // const info = graphics.mode.info;
-    // printf("  max_mode: {}\n", .{graphics.mode.max_mode});
-    // printf("  mode: {}\n", .{graphics.mode.mode});
-    // printf("  info: {*:0>16}\n", .{graphics.mode.info});
-    // printf("  size_of_info: {}\n", .{graphics.mode.size_of_info});
-    // printf("  frame_buffer_base: {x:0>16}\n", .{graphics.mode.frame_buffer_base});
-    // printf("  frame_buffer_size: {}\n", .{graphics.mode.frame_buffer_size});
-    // printf("  version: {}\n", .{info.version});
-    // printf("  horizontal_resolution: {}\n", .{info.horizontal_resolution});
-    // printf("  vertical_resolution: {}\n", .{info.vertical_resolution});
-    // printf("  pixel_format: {}\n", .{info.pixel_format});
-    // printf("  pixel_information: {}\n", .{info.pixel_information});
-    // printf("  pixels_per_scan_line: {}\n", .{info.pixels_per_scan_line});
-
     printf("exiting boot services\r\n", .{});
 
     check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));

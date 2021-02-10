@@ -40,6 +40,19 @@ pub export fn daintree_mmu_start(
     fb_vert: u32,
     fb_horiz: u32,
 ) noreturn {
+    var x: usize = 0;
+    while (x < fb_horiz) : (x += 1) {
+        var y: usize = 0;
+        while (y < fb_vert) : (y += 1) {
+            const r = (x + y) % 256;
+            const g = (x + y) / 3 % 256;
+            const b = ((fb_horiz - x) + y) / 5 % 256;
+            fb[fb_horiz * y + x] = @as(u32, @truncate(u8, r)) << 16 | @as(u32, @truncate(u8, g)) << 8 | @truncate(u8, b);
+        }
+    }
+
+    while (true) {}
+
     var daintree_base: u64 = asm volatile ("adr %[ret], __daintree_base"
         : [ret] "=r" (-> u64)
     );

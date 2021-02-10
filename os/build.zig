@@ -11,6 +11,7 @@ pub fn build(b: *Builder) !void {
     // features.addFeature(@enumToInt(std.Target.aarch64.Feature.strict_align));
     const target = CrossTarget{
         .cpu_arch = .aarch64,
+        .cpu_model = .{ .explicit = &std.Target.arm.cpu.cortex_a53 },
         .os_tag = .freestanding,
         .abi = .none,
         // .cpu_features_add = features,
