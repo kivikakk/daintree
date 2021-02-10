@@ -27,6 +27,11 @@ qemu: dainboot/dainboot.cdr disk.dmg
 
 dtb/qemu.dtb:
 	$(QEMU_CMD) -machine dumpdtb=$@
+	dtc $@ -o $@
+
+.PHONY: dts
+%.dts:
+	dtc -I dtb -O dts $*
 
 OS_FILES=$(shell find os -name zig-cache -prune -o -type f)
 os/zig-cache/bin/dainkrnl.%: $(OS_FILES)
