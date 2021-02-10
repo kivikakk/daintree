@@ -290,6 +290,7 @@ fn exitBootServices(dainkrnl: []const u8, dainkrnl_elf: elf.Header) noreturn {
         haltMsg("horizontal res != pixels per scan line");
     }
 
+    printf("framebuffer is at {*}\r\n", .{fb});
     printf("exiting boot services\r\n", .{});
 
     check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
