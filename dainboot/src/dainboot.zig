@@ -241,6 +241,12 @@ fn exitBootServices(dainkrnl: []const u8, dainkrnl_elf: elf.Header) noreturn {
         ));
     }
 
+    for (memory_map[0 .. memory_map_size / descriptor_size]) |ptr, i| {
+        if (ptr.type == .ConventionalMemory) {
+            printf("{:2} p=0x{x:0>16} size={x:16} ({} mb starting at {} mb)\r\n", .{ i, ptr.physical_start, ptr.number_of_pages << 12, (ptr.number_of_pages << 12) / 1048576, ptr.physical_start / 1048576 });
+        }
+    }
+
     // The kernel's text section begins at 0xffffff80_00000000. Adjust those down
     // to 0x40000000 for now.
 
