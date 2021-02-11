@@ -24,12 +24,11 @@ tftp: dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi os/zig-cache/bin/dainkrnl.ro
 
 qemu: dainboot/dainboot.cdr disk.dmg
 	$(QEMU_CMD) -s $$EXTRA_ARGS
-
+	
 dtb/qemu.dtb:
 	$(QEMU_CMD) -machine dumpdtb=$@
 	dtc $@ -o $@
 
-.PHONY: dts
 %.dts:
 	dtc -I dtb -O dts $*
 
@@ -58,3 +57,10 @@ mk-ovmf-vars:
 mk-disk:
 	hdiutil create -fs fat32 -size 128m -layout GPTSPUD -volname DAINDISK disk.dmg
 
+ci: dainboot/zig-cache/bin/BOOTAA64.qemu.efi \
+	dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi \
+	os/zig-cache/bin/dainkrnl.qemu \
+	os/zig-cache/bin/dainkrnl.rockpro64 \
+
+clean:
+	-rm -rf dtb/zig-cache os/zig-cache dainboot/zig-cache
