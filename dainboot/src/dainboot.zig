@@ -3,6 +3,7 @@ const uefi = std.os.uefi;
 const build_options = @import("build_options");
 const elf = @import("elf.zig");
 const dtblib = @import("dtb");
+const searchDtbForUartBase = @import("dtb.zig").searchDtbForUartBase;
 
 usingnamespace @import("util.zig");
 
@@ -331,29 +332,10 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
     printf("framebuffer is at {*}\r\n", .{fb});
     printf("looking up serial base in DTB ... ", .{});
-    var uart_base: u64 = 0;
-    dtb: {
-        var fba = std.heap.FixedBufferAllocator.init(dtb_scratch);
-        var root = dtblib.parse(&fba.allocator, dtb) catch |err| {
-            printf("failed to parse dtb: {}", .{err});
-            break :dtb;
-        };
-
-        // try pl011, or a serial that doesn't have a 'bluetooth' node.
-        for (root.children) |child| {
-            if (std.mem.startsWith(u8, child.name, "pl011@")) {
-                // YOU'LL DO
-                uart_base = @truncate(u64, child.prop(.Reg).?[0][0]);
-                break :dtb;
-            } else if (std.mem.startsWith(u8, child.name, "serial@")) {
-                if (child.child("bluetooth") == null and child.prop(.Status).? == .Okay) {
-                    uart_base = @truncate(u64, child.prop(.Reg).?[0][0]);
-                    break :dtb;
-                }
-            }
-        }
-    }
-
+    var uart_base: u64 = searchDtbForUartBase(dtb) catch |err| dtb: {
+        printf("failed to parse dtb: {}", .{err});
+        break :dtb 0;
+    };
     printf("0x{x:0>8}\r\n", .{uart_base});
 
     printf("exiting boot services\r\n", .{});
