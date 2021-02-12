@@ -25,6 +25,7 @@ pub fn main() void {
 
     var options_buffer: [256]u8 = [_]u8{undefined} ** 256;
     if (getLoadOptions(&options_buffer)) |options| {
+        printf("load options: \"{s}\"\r\n", .{options});
         load_context.handleOptions(options);
     }
 

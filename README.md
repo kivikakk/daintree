@@ -12,11 +12,14 @@ There's a little [dev blog](https://github.com/kivikakk/daintree/discussions/1) 
 A gentle introduction to Zig's UEFI support. Boots like this:
 
 - Checks loaded image options.
-  - You can pass `ramdisk 0x12345678 0x1234` to give it the location of the kernel already loaded in RAM. Useful for TFTP boot, which itself is handy for faster development cycles on bare metal.
-- Scans filesystems the UEFI system knows about, looking for files called `dainkrnl` and `dtb` in the root of any of them.
-- Loads the kernel into memory somewhere vaguely reasonable.
+  - You can pass `kernel 0x12345678 0x1234` to give it the location of the kernel already loaded in RAM. Useful for TFTP boot, which itself is handy for faster development cycles on bare metal.
+  - You may also pass `dtb 0x12345678 0x1234` to give information about a DTB/FDT (device tree blob/flattened device tree) already in memory.
+  - Separate successive options with spaces, i.e. `kernel <addr> <len> dtb <addr> <len>`.
+- If kernel or DTB (or both) were not loaded from memory, scans filesystems the UEFI system knows about, looking in the root directories for files named `dainkrnl` and `dtb`.
+- Picks the biggest unused slab of conventional memory and places the kernel there.
+- Parses the DTB and attempts to locate the serial UART port.
 - Exits UEFI boot services.
-- Jumps to the kernel, passing the memory map and framebuffer prepared by UEFI.
+- Jumps to the kernel, passing the memory map, UART port, and framebuffer prepared by UEFI.
 
 |              qemu              |              rockpro64              |
 | :----------------------------: | :---------------------------------: |
