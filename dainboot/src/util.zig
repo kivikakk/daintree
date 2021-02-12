@@ -3,7 +3,7 @@ const uefi = std.os.uefi;
 
 pub var con_out: *uefi.protocols.SimpleTextOutputProtocol = undefined;
 
-fn puts(msg: []const u8) void {
+pub fn puts(msg: []const u8) void {
     for (msg) |c| {
         const c_ = [2]u16{ c, 0 };
         _ = con_out.outputString(@ptrCast(*const [1:0]u16, &c_));

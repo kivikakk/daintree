@@ -353,6 +353,8 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         haltMsg("horizontal res != pixels per scan line");
     }
 
+    puts("^");
+
     check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
 
     const adjusted_entry = dainkrnl_elf.entry - 0xffffff80_00000000 + conventional_start;
@@ -391,25 +393,30 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             // to DAINKRNL.
             \\.el2:
             // Don't trap EL0/EL1 accesses to the EL1 physical counter and timer registers.
-            \\mov x10, #3
+            \\mov x10, #3 // hi?
             \\msr cnthctl_el2, x10
+
             // Reset virtual offset register.
             \\mov x10, xzr
             \\msr cntvoff_el2, x10
+
             // Set EL1 execution state to AArch64, not AArch32.
             \\mov x10, #(1 << 31)
             // EL1 execution of DC ISW performs the same invalidation as DC CISW.
             \\orr x10, x10, #(1 << 1)
             \\msr hcr_el2, x10
+
             // Prepare the simulated exception.
-            \\mov x10, #5
-            \\orr x10, x10, #(1 << 9)
-            \\orr x10, x10, #(1 << 8)
-            \\orr x10, x10, #(1 << 7)
-            \\orr x10, x10, #(1 << 6)
+            \\mov x10, #5                // 0b0101: EL1
+            \\orr x10, x10, #(1 << 9)    // D
+            \\orr x10, x10, #(1 << 8)    // A
+            \\orr x10, x10, #(1 << 7)    // I
+            \\orr x10, x10, #(1 << 6)    // F
             \\msr spsr_el2, x10
+
             // Prepare the return address.
             \\msr elr_el2, x9
+
             // Fire.
             \\eret
         :
