@@ -377,10 +377,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             \\mov x10, #0x0800
             \\movk x10, #0x30d0, lsl #16
             \\msr sctlr_el1, x10
-            \\tlbi vmalle1
-            \\dsb ish
             \\isb
-
 
             // Check if other cores are running.
             \\mrs x10, mpidr_el1
@@ -463,6 +460,9 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             \\.eret_target:
             \\msr spsel, #1        // Enable our own stack.
             \\mov sp, x11          // Write it again, for good measure.
+            \\dsb sy
+            \\dmb sy
+            \\isb
             \\mov x10, #0x48       // XXX Record progress "H"
             \\strb w10, [x7]       // XXX
             \\br x9
