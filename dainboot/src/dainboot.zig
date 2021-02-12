@@ -353,7 +353,9 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         haltMsg("horizontal res != pixels per scan line");
     }
 
-    puts("^");
+    printf("^ {x} ", .{asm volatile ("mrs %[ret], sctlr_el1"
+        : [ret] "=r" (-> u64)
+    )});
 
     check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
 
@@ -370,9 +372,10 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             \\
         else
             "") ++
-            // Disable the MMU.
-            \\mrs x10, sctlr_el1
-            \\bic x10, x10, #1
+            // Disable MMU, alignment checking, SP alignment checking;
+            // set little endian in EL0 and EL1.
+            \\mov x10, #0x0800
+            \\movk x10, #0x30d0, lsl #16
             \\msr sctlr_el1, x10
             \\isb
 
@@ -393,6 +396,10 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             // to DAINKRNL.
             \\.el2:
 
+            // Copy stack. Is this even okay?
+            \\mov x10, sp
+            \\msr sp_el1, x10
+
             // Don't trap EL0/EL1 accesses to the EL1 physical counter and timer registers.
             \\mov x10, #3
             \\msr cnthctl_el2, x10
@@ -407,18 +414,20 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             \\orr x10, x10, #(1 << 1)
             \\msr hcr_el2, x10
 
-            // Prepare the simulated exception.
-            \\mov x10, #5                // 0b0101: EL1
-            \\orr x10, x10, #(1 << 9)    // D
-            \\orr x10, x10, #(1 << 8)    // A
-            \\orr x10, x10, #(1 << 7)    // I
-            \\orr x10, x10, #(1 << 6)    // F
-            \\msr spsr_el2, x10
+            // Clear hypervisor system trap register.
+            \\msr hstr_el2, xzr
 
-            // Copy stack across, and select per-EL SP.
-            \\mov x10, sp
-            \\msr sp_el1, x10
-            \\msr spsel, #1
+            // I saw someone on StackOverflow set this this way.
+            // "The CPTR_EL2 controls trapping to EL2 for accesses to CPACR, Trace functionality
+            // and registers associated with Advanced SIMD and floating-point execution. It also
+            // controls EL2 access to this functionality."
+            // This sets TFP to 0, TCPAC to 0, and everything else to RES values.
+            \\mov x10, #0x33ff
+            \\msr cptr_el2, x10
+
+            // Prepare the simulated exception.
+            \\mov x10, #0x3c5            // DAIF+EL1
+            \\msr spsr_el2, x10
 
             // Prepare the return address.
             \\msr elr_el2, x9

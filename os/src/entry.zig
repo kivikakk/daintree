@@ -105,6 +105,7 @@ pub export fn daintree_mmu_start(
         : [ret] "=r" (-> u64)
     );
     const current_el = arch.readRegister(.CurrentEL) >> 2;
+    const sctlr_el1 = arch.readRegister(.SCTLR_EL1);
 
     mmioWriteCarefully(uart, "daintree_base: 0x");
     mmioWriteCarefullyHex(uart, daintree_base);
@@ -119,7 +120,9 @@ pub export fn daintree_mmu_start(
     mmioWriteCarefully(uart, "\r\nvbar_el1: 0x");
     mmioWriteCarefullyHex(uart, vbar_el1);
     mmioWriteCarefully(uart, "\r\nCurrentEL: 0x");
-    mmioWriteCarefullyHex(uart, @as(u64, current_el));
+    mmioWriteCarefullyHex(uart, current_el);
+    mmioWriteCarefully(uart, "\r\nSCTLR_EL1: 0x");
+    mmioWriteCarefullyHex(uart, sctlr_el1);
     mmioWriteCarefully(uart, "\r\n");
 
     const tcr_el1 = comptime (arch.TCR_EL1{
