@@ -37,10 +37,11 @@ pub export fn daintree_mmu_start(
     conventional_start: usize,
     conventional_bytes: usize,
     fb: [*]u32,
-    fb_vert: u32,
-    fb_horiz: u32,
+    verthoriz: u64,
     uart_base: u64,
 ) noreturn {
+    const fb_vert: u32 = @truncate(u32, (verthoriz >> 32) & 0xffffffff);
+    const fb_horiz: u32 = @truncate(u32, verthoriz & 0xffffffff);
     var x: usize = 0;
     while (x < fb_horiz) : (x += 1) {
         var y: usize = 0;

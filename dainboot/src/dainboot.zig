@@ -257,6 +257,10 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     check("locateProtocol", boot_services.locateProtocol(&uefi.protocols.GraphicsOutputProtocol.guid, null, @ptrCast(*?*c_void, &graphics)));
     var fb: [*]u8 = @intToPtr([*]u8, graphics.mode.frame_buffer_base);
 
+    var dtb_scratch_ptr: [*]u8 = undefined;
+    check("allocatePool", boot_services.allocatePool(uefi.tables.MemoryType.BootServicesData, 128 * 1024, @ptrCast(*[*]align(8) u8, &dtb_scratch_ptr)));
+    var dtb_scratch = dtb_scratch_ptr[0 .. 128 * 1024];
+
     var memory_map: [*]uefi.tables.MemoryDescriptor = undefined;
     var memory_map_size: usize = 0;
     var memory_map_key: usize = undefined;
@@ -329,8 +333,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     printf("looking up serial base in DTB ... ", .{});
     var uart_base: u64 = 0;
     dtb: {
-        var buf = [_]u8{undefined} ** 32768;
-        var fba = std.heap.FixedBufferAllocator.init(buf[0..]);
+        var fba = std.heap.FixedBufferAllocator.init(dtb_scratch);
         var root = dtblib.parse(&fba.allocator, dtb) catch |err| {
             printf("failed to parse dtb: {}", .{err});
             break :dtb;
@@ -342,6 +345,11 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
                 // YOU'LL DO
                 uart_base = @truncate(u64, child.prop(.Reg).?[0][0]);
                 break :dtb;
+            } else if (std.mem.startsWith(u8, child.name, "serial@")) {
+                if (child.child("bluetooth") == null and child.prop(.Status).? == .Okay) {
+                    uart_base = @truncate(u64, child.prop(.Reg).?[0][0]);
+                    break :dtb;
+                }
             }
         }
     }
@@ -354,12 +362,14 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
     const adjusted_entry = dainkrnl_elf.entry - 0xffffff80_00000000 + conventional_start;
 
+    const verthoriz: u64 = @as(u64, graphics.mode.info.vertical_resolution) << 32 | graphics.mode.info.horizontal_resolution;
+
     // Looks like we're left in EL1. (mrs x2, CurrentEL => x2 = 0x4; PSTATE[3:2] = 0x4 -> EL1)
     // Disable the MMU and pass to DAINKRNL.
     // Also clear x29, x30 so we get nice stacks from QEMU.
     asm volatile (
-        \\mov x29, #0
-        \\mov x30, #0
+        \\mov x29, xzr
+        \\mov x30, xzr
         \\mrs x10, sctlr_el1
         \\bic x10, x10, #1
         \\msr sctlr_el1, x10
@@ -372,9 +382,8 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
           [conventional_start] "{x3}" (conventional_start),
           [conventional_bytes] "{x4}" (conventional_bytes),
           [fb] "{x5}" (fb),
-          [vertres] "{x6}" (graphics.mode.info.vertical_resolution),
-          [horizres] "{x7}" (graphics.mode.info.horizontal_resolution),
-          [uart_base] "{x8}" (uart_base),
+          [verthoriz] "{x6}" (verthoriz),
+          [uart_base] "{x7}" (uart_base),
 
           [entry] "{x9}" (adjusted_entry)
         : "memory"
