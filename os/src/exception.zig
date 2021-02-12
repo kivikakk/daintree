@@ -14,7 +14,7 @@ export fn test_naked() callconv(.Naked) void {
     );
 }
 
-inline fn handle(ctx: *ExceptionContext, name: []const u8) noreturn {
+fn handle(ctx: *ExceptionContext, name: []const u8) callconv(.Inline) noreturn {
     @panic(name);
 }
 

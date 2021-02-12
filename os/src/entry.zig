@@ -16,18 +16,43 @@ pub const EntryData = packed struct {
     conventional_start: usize,
     conventional_bytes: usize,
     fb: [*]u32,
-    fb_vert: u32,
-    fb_horiz: u32,
+    verthoriz: u64,
+    uart_base: u64,
 };
 
 comptime {
-    std.testing.expectEqual(56, @sizeOf(EntryData));
+    std.testing.expectEqual(64, @sizeOf(EntryData));
 }
 
 var TTBR0_IDENTITY: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L1: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L2: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L3: *[INDEX_SIZE]u64 = undefined;
+
+fn mmioWriteCarefully(uart: *volatile u8, comptime msg: []const u8) callconv(.Inline) void {
+    inline for (msg) |c| uart.* = c;
+}
+
+fn mmioWriteCarefullyHex(uart: *volatile u8, n: u64) callconv(.Inline) void {
+    var digits: usize = 0;
+    var c = n;
+    while (c > 0) : (c /= 16) {
+        digits += 1;
+    }
+    c = n;
+    var pow: usize = std.math.powi(u64, 16, digits - 1) catch 0;
+    while (pow > 0) : (pow /= 16) {
+        var digit = c / pow;
+        if (digit >= 0 and digit <= 9) {
+            uart.* = '0' + @truncate(u8, digit);
+        } else if (digit >= 10 and digit <= 16) {
+            uart.* = 'a' + @truncate(u8, digit) - 10;
+        } else {
+            uart.* = '?';
+        }
+        c -= (digit * pow);
+    }
+}
 
 // UEFI passes control here. MMU is **off**.
 pub export fn daintree_mmu_start(
@@ -40,10 +65,8 @@ pub export fn daintree_mmu_start(
     verthoriz: u64,
     uart_base: u64,
 ) noreturn {
-    const mmio_ptr = @intToPtr(*volatile u8, uart_base);
-    mmio_ptr.* = 0x44;
-
-    while (true) {}
+    const uart = @intToPtr(*volatile u8, uart_base);
+    mmioWriteCarefully(uart, "dainkrnl pre-MMU stage\r\n");
 
     var daintree_base: u64 = asm volatile ("adr %[ret], __daintree_base"
         : [ret] "=r" (-> u64)
@@ -64,6 +87,20 @@ pub export fn daintree_mmu_start(
         : [ret] "=r" (-> u64)
     );
 
+    mmioWriteCarefully(uart, "daintree_base: 0x");
+    mmioWriteCarefullyHex(uart, daintree_base);
+    mmioWriteCarefully(uart, "\r\ndaintree_rodata_base: 0x");
+    mmioWriteCarefullyHex(uart, daintree_rodata_base);
+    mmioWriteCarefully(uart, "\r\ndaintree_data_base: 0x");
+    mmioWriteCarefullyHex(uart, daintree_data_base);
+    mmioWriteCarefully(uart, "\r\ndaintree_end: 0x");
+    mmioWriteCarefullyHex(uart, daintree_end);
+    mmioWriteCarefully(uart, "\r\ndaintree_main: 0x");
+    mmioWriteCarefullyHex(uart, daintree_main);
+    mmioWriteCarefully(uart, "\r\nvbar_el1: 0x");
+    mmioWriteCarefullyHex(uart, vbar_el1);
+    mmioWriteCarefully(uart, "\r\n");
+
     const tcr_el1 = comptime (arch.TCR_EL1{
         .ips = .B36,
         .tg1 = .K4,
@@ -72,12 +109,12 @@ pub export fn daintree_mmu_start(
         .t0sz = 64 - ADDRESS_BITS,
     }).toU64();
     comptime std.testing.expectEqual(0x00000001_b5193519, tcr_el1);
-    arch.write_register(.TCR_EL1, tcr_el1);
+    arch.writeRegister(.TCR_EL1, tcr_el1);
 
     const mair_el1 = comptime (arch.MAIR_EL1{ .index = DEVICE_MAIR_INDEX, .attrs = 0b00 }).toU64() |
         (arch.MAIR_EL1{ .index = MEMORY_MAIR_INDEX, .attrs = 0b11111111 }).toU64();
     comptime std.testing.expectEqual(0x00000000_000000ff, mair_el1);
-    arch.write_register(.MAIR_EL1, mair_el1);
+    arch.writeRegister(.MAIR_EL1, mair_el1);
 
     comptime {
         std.testing.expectEqual(@sizeOf([INDEX_SIZE]u64), PAGE_SIZE);
@@ -89,8 +126,8 @@ pub export fn daintree_mmu_start(
 
     const ttbr0_el1 = @ptrToInt(TTBR0_IDENTITY) | 1;
     const ttbr1_el1 = @ptrToInt(TTBR1_L1) | 1;
-    arch.write_register(.TTBR0_EL1, ttbr0_el1);
-    arch.write_register(.TTBR1_EL1, ttbr1_el1);
+    arch.writeRegister(.TTBR0_EL1, ttbr0_el1);
+    arch.writeRegister(.TTBR1_EL1, ttbr1_el1);
 
     {
         const l1_start = index(1, conventional_start);
@@ -147,8 +184,8 @@ pub export fn daintree_mmu_start(
         .conventional_start = conventional_start,
         .conventional_bytes = conventional_bytes,
         .fb = fb,
-        .fb_vert = fb_vert,
-        .fb_horiz = fb_horiz,
+        .verthoriz = verthoriz,
+        .uart_base = uart_base,
     };
 
     var new_sp = KERNEL_BASE | (end << PAGE_BITS);
@@ -177,7 +214,7 @@ pub export fn daintree_mmu_start(
     unreachable;
 }
 
-inline fn index(comptime level: u2, va: u64) usize {
+fn index(comptime level: u2, va: u64) callconv(.Inline) usize {
     if (level == 0) {
         @compileError("level must be 1, 2, 3");
     }
@@ -185,7 +222,7 @@ inline fn index(comptime level: u2, va: u64) usize {
     return (va & VADDRESS_MASK) >> (@as(u8, 3 - level) * INDEX_BITS + PAGE_BITS);
 }
 
-inline fn tableSet(table: []u64, ix: usize, address: u64, flags: u64) void {
+fn tableSet(table: []u64, ix: usize, address: u64, flags: u64) callconv(.Inline) void {
     table[ix] = address | flags;
 }
 

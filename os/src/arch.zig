@@ -1,5 +1,5 @@
 pub const Register = enum { MAIR_EL1, TCR_EL1, TTBR0_EL1, TTBR1_EL1, SCTLR_EL1 };
-pub inline fn write_register(comptime register: Register, value: u64) void {
+pub fn writeRegister(comptime register: Register, value: u64) callconv(.Inline) void {
     asm volatile ("msr " ++ @tagName(register) ++ ", %[value]"
         :
         : [value] "r" (value)
@@ -7,13 +7,13 @@ pub inline fn write_register(comptime register: Register, value: u64) void {
     );
 }
 
-pub inline fn read_register(comptime register: Register) u64 {
+pub fn readRegister(comptime register: Register) callconv(.Inline) u64 {
     return asm volatile ("mrs %[ret], " ++ @tagName(register)
         : [ret] "=r" (-> u64)
     );
 }
 
-pub inline fn or_register(comptime register: Register, value: u64) void {
+pub fn orRegister(comptime register: Register, value: u64) callconv(.Inline) void {
     asm volatile ("mrs x0, " ++ @tagName(register) ++ "\n" ++
             "orr x0, x0, %[value]\n" ++
             "msr " ++ @tagName(register) ++ ", x0\n"
@@ -29,7 +29,7 @@ pub inline fn or_register(comptime register: Register, value: u64) void {
 
 // ref Figure D5-15
 pub const PageTableEntry = struct {
-    pub inline fn toU64(pte: PageTableEntry) u64 {
+    pub fn toU64(pte: PageTableEntry) callconv(.Inline) u64 {
         return @as(u64, pte.valid) |
             (@as(u64, @enumToInt(pte.type)) << 1) |
             (@as(u64, pte.attr_indx) << 2) |
@@ -78,7 +78,7 @@ pub const PageTableEntry = struct {
 };
 
 pub const TCR_EL1 = struct {
-    pub inline fn toU64(tcr: TCR_EL1) u64 {
+    pub fn toU64(tcr: TCR_EL1) callconv(.Inline) u64 {
         return @as(u64, tcr.t0sz) |
             (@as(u64, tcr.epd0) << 7) |
             (@as(u64, tcr.irgn0) << 8) |
@@ -142,7 +142,7 @@ pub const MAIR_EL1 = struct {
     index: u3,
     attrs: u8,
 
-    pub inline fn toU64(mair_el1: MAIR_EL1) u64 {
+    pub fn toU64(mair_el1: MAIR_EL1) callconv(.Inline) u64 {
         return @as(u64, mair_el1.attrs) << (@as(u6, mair_el1.index) * 8);
     }
 };

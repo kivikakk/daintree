@@ -6,7 +6,9 @@ const halt = @import("halt.zig").halt;
 
 // From daintree_mmu_start.
 export fn daintree_main(entry_data: *entry.EntryData) void {
-    fb.init(entry_data.fb, entry_data.fb_vert, entry_data.fb_horiz);
+    var fb_vert: u32 = @truncate(u32, (entry_data.verthoriz >> 32) & 0xffffffff);
+    var fb_horiz: u32 = @truncate(u32, entry_data.verthoriz & 0xffffffff);
+    fb.init(entry_data.fb, fb_vert, fb_horiz);
     printf("\x1b\x0adaintree \x1b\x07{s} on {s}\n", .{ build_options.version, build_options.board });
 
     var i: u9 = 0;
