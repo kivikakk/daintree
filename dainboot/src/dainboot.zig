@@ -414,9 +414,9 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             \\.el2:
 
             // Make up a stack, 1MiB past the entry point.
-            \\mov x10, x9
-            \\add x10, x10, #0x100000
-            \\msr sp_el1, x10
+            \\mov x11, x9
+            \\add x11, x11, #0x100000
+            \\msr sp_el1, x11
 
             // Don't trap EL0/EL1 accesses to the EL1 physical counter and timer registers.
             \\mrs x10, cnthctl_el2
@@ -456,13 +456,13 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             \\strb w10, [x7]       // XXX
 
             // Fire.
-            \\ldr x20, [x9]
-            \\brk #1
             \\eret
-            \\brk #1
+            \\brk #1               // Should not execute; if it did, U-Boot would say hi.
 
             // Are we in EL1 yet?
             \\.eret_target:
+            \\msr spsel, #1        // Enable our own stack.
+            \\mov sp, x11          // Write it again, for good measure.
             \\mov x10, #0x48       // XXX Record progress "H"
             \\strb w10, [x7]       // XXX
             \\br x9
