@@ -377,10 +377,25 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             \\mov x10, #0x0800
             \\movk x10, #0x30d0, lsl #16
             \\msr sctlr_el1, x10
+            \\tlbi vmalle1
+            \\dsb ish
             \\isb
+
+
+            // Check if other cores are running.
+            \\mrs x10, mpidr_el1
+            \\and x10, x10, #3
+            \\cbz x10, .cpu_zero
+
+            // Non-zero core
+            \\mov x10, #0x44       // XXX Record progress "D"
+            \\strb w10, [x7]       // XXX
+            \\1: wfe
+            \\b 1b
 
             // Check if we're in EL1 (EDK2 does this for us).
             // If so, go straight to DAINKRNL.
+            \\.cpu_zero:
             \\mrs x10, CurrentEL
             \\cmp x10, #0x4
             \\b.ne .not_el1
