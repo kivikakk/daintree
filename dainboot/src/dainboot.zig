@@ -384,7 +384,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             \\mrs x10, CurrentEL
             \\cmp x10, #0x4
             \\b.ne .not_el1
-            \\mov x10, #0x45       // XXX Record progress
+            \\mov x10, #0x45       // XXX Record progress "E"
             \\strb w10, [x7]       // XXX
             \\br x9
 
@@ -399,7 +399,8 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             \\.el2:
 
             // Copy stack. Is this even okay?
-            \\mov x10, sp
+            \\mov x10, x9
+            \\add x10, x10, #0x100000    // Add 1MiB past kernel.
             \\msr sp_el1, x10
 
             // Don't trap EL0/EL1 accesses to the EL1 physical counter and timer registers.
@@ -433,7 +434,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
             // Prepare the return address.
             \\msr elr_el2, x9
-            \\mov x10, #0x46       // XXX Record progress
+            \\mov x10, #0x46       // XXX Record progress "F"
             \\strb w10, [x7]       // XXX
 
             // Fire.
