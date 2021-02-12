@@ -415,6 +415,11 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             \\orr x10, x10, #(1 << 6)    // F
             \\msr spsr_el2, x10
 
+            // Copy stack across, and select per-EL SP.
+            \\mov x10, sp
+            \\msr sp_el1, x10
+            \\msr spsel, #1
+
             // Prepare the return address.
             \\msr elr_el2, x9
             \\mov x10, #0x42       // XXX Record progress
@@ -432,7 +437,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
           [verthoriz] "{x6}" (verthoriz),
           [uart_base] "{x7}" (uart_base),
 
-          [entry] "{x9}" (adjusted_entry)
+          [entry] "{x9}" (adjusted_entry + 52)
         : "memory"
     );
 
