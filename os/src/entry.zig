@@ -29,8 +29,18 @@ var TTBR1_L1: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L2: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L3: *[INDEX_SIZE]u64 = undefined;
 
+fn busyLoop() callconv(.Inline) void {
+    var i: usize = 0;
+    while (i < 1_000_000) : (i += 1) {
+        asm volatile ("nop");
+    }
+}
+
 fn mmioWriteCarefully(uart: *volatile u8, comptime msg: []const u8) callconv(.Inline) void {
-    inline for (msg) |c| uart.* = c;
+    inline for (msg) |c| {
+        uart.* = c;
+        busyLoop();
+    }
 }
 
 fn mmioWriteCarefullyHex(uart: *volatile u8, n: u64) callconv(.Inline) void {
@@ -50,6 +60,7 @@ fn mmioWriteCarefullyHex(uart: *volatile u8, n: u64) callconv(.Inline) void {
         } else {
             uart.* = '?';
         }
+        busyLoop();
         c -= (digit * pow);
     }
 }
@@ -86,6 +97,7 @@ pub export fn daintree_mmu_start(
     const vbar_el1 = asm volatile ("adr %[ret], __vbar_el1"
         : [ret] "=r" (-> u64)
     );
+    const current_el = arch.readRegister(.CurrentEL) >> 2;
 
     mmioWriteCarefully(uart, "daintree_base: 0x");
     mmioWriteCarefullyHex(uart, daintree_base);
@@ -99,6 +111,8 @@ pub export fn daintree_mmu_start(
     mmioWriteCarefullyHex(uart, daintree_main);
     mmioWriteCarefully(uart, "\r\nvbar_el1: 0x");
     mmioWriteCarefullyHex(uart, vbar_el1);
+    mmioWriteCarefully(uart, "\r\nCurrentEL: 0x");
+    mmioWriteCarefullyHex(uart, @as(u64, current_el));
     mmioWriteCarefully(uart, "\r\n");
 
     const tcr_el1 = comptime (arch.TCR_EL1{
