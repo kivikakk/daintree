@@ -2,6 +2,7 @@ const std = @import("std");
 const uefi = std.os.uefi;
 const build_options = @import("build_options");
 const elf = @import("elf.zig");
+const dtblib = @import("dtb");
 
 usingnamespace @import("util.zig");
 
@@ -21,7 +22,8 @@ pub fn main() void {
 
     var load_context = LoadContext{};
 
-    if (getLoadOptions()) |options| {
+    var options_buffer: [256]u8 = [_]u8{undefined} ** 256;
+    if (getLoadOptions(&options_buffer)) |options| {
         load_context.handleOptions(options);
     }
 
@@ -57,8 +59,8 @@ const LoadContext = struct {
                 const loc = handleOptionsLoc("dtb", &it) orelse continue :loop;
                 printf("using dtb in ramdisk at 0x{x:0>16} ({} bytes)\r\n", .{ loc.offset, loc.len });
                 self.dtb = @intToPtr([*]u8, loc.offset)[0..loc.len];
-            } else if (std.mem.eql(u8, opt_name, "ramdisk")) {
-                const loc = handleOptionsLoc("ramdisk", &it) orelse continue :loop;
+            } else if (std.mem.eql(u8, opt_name, "kernel")) {
+                const loc = handleOptionsLoc("kernel", &it) orelse continue :loop;
                 printf("using kernel in ramdisk at 0x{x:0>16} ({} bytes)\r\n", .{ loc.offset, loc.len });
                 self.dainkrnl = @intToPtr([*]u8, loc.offset)[0..loc.len];
             } else {
@@ -160,7 +162,7 @@ const LoadContext = struct {
     }
 };
 
-fn getLoadOptions() ?[]const u8 {
+fn getLoadOptions(buffer: *[256]u8) ?[]const u8 {
     var li_proto: ?*uefi.protocols.LoadedImageProtocol = undefined;
     if (boot_services.openProtocol(
         uefi.handle,
@@ -173,14 +175,13 @@ fn getLoadOptions() ?[]const u8 {
         return null;
     }
 
-    var buffer: [256]u8 = [_]u8{undefined} ** 256;
     const options_size = li_proto.?.load_options_size;
     if (options_size == 0) {
         return null;
     }
 
     var ptr: [*]u16 = @ptrCast([*]u16, @alignCast(@alignOf([*]u16), li_proto.?.load_options.?));
-    if (std.unicode.utf16leToUtf8(&buffer, ptr[0 .. options_size / 2])) |sz| {
+    if (std.unicode.utf16leToUtf8(buffer[0..], ptr[0 .. options_size / 2])) |sz| {
         var options = buffer[0..sz];
         if (options.len > 0 and options[options.len - 1] == 0) {
             options = options[0 .. options.len - 1];
@@ -326,7 +327,26 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
     printf("framebuffer is at {*}\r\n", .{fb});
     printf("looking up serial base in DTB ... ", .{});
-    const uart_base: u64 = 0;
+    var uart_base: u64 = 0;
+    dtb: {
+        var buf = [_]u8{undefined} ** 32768;
+        var fba = std.heap.FixedBufferAllocator.init(buf[0..]);
+        var root = dtblib.parse(&fba.allocator, dtb) catch |err| {
+            printf("failed to parse dtb: {}", .{err});
+            break :dtb;
+        };
+
+        // try pl011, or a serial that doesn't have a 'bluetooth' node.
+        for (root.children) |child| {
+            if (std.mem.startsWith(u8, child.name, "pl011@")) {
+                // YOU'LL DO
+                uart_base = @truncate(u64, child.prop(.Reg).?[0][0]);
+                break :dtb;
+            }
+        }
+    }
+
+    printf("0x{x:0>8}\r\n", .{uart_base});
 
     printf("exiting boot services\r\n", .{});
 

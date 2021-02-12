@@ -16,6 +16,7 @@ pub fn build(b: *Builder) !void {
     exe.setTarget(target);
     exe.setBuildMode(b.standardReleaseOptions());
     try common.addBuildOptions(b, exe, board);
+    exe.addPackagePath("dtb", "../dtb/src/dtb.zig");
     exe.install();
 
     b.default_step.dependOn(&exe.step);
