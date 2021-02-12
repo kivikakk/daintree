@@ -392,8 +392,9 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             // U-Boot leaves us in EL2. Prepare to eret down to EL1
             // to DAINKRNL.
             \\.el2:
+
             // Don't trap EL0/EL1 accesses to the EL1 physical counter and timer registers.
-            \\mov x10, #3 // hi?
+            \\mov x10, #3
             \\msr cnthctl_el2, x10
 
             // Reset virtual offset register.
@@ -416,6 +417,8 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
             // Prepare the return address.
             \\msr elr_el2, x9
+            \\mov x10, #0x42       // XXX Record progress
+            \\strb w10, [x7]       // XXX
 
             // Fire.
             \\eret
