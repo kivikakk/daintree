@@ -359,19 +359,59 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
     const verthoriz: u64 = @as(u64, graphics.mode.info.vertical_resolution) << 32 | graphics.mode.info.horizontal_resolution;
 
-    // Disable the MMU and pass to DAINKRNL.
-    // Also clear x29, x30 so we get nice stacks from QEMU.
+    // Check for EL2: we get
+    // and pass to DAINKRNL.
     asm volatile ((if (comptime std.mem.eql(u8, "qemu", build_options.board))
+            // QEMU only: clear x29, x30. EDK2 trips over when generating stacks otherwise.
             \\mov x29, xzr
             \\mov x30, xzr
             \\
         else
             "") ++
+            // Disable the MMU.
             \\mrs x10, sctlr_el1
             \\bic x10, x10, #1
             \\msr sctlr_el1, x10
             \\isb
+
+            // Check if we're in EL1 (EDK2 does this for us).
+            // If so, go straight to DAINKRNL.
+            \\mrs x10, CurrentEL
+            \\cmp x10, #0x4
+            \\b.ne .not_el1
             \\br x9
+
+            // Assert we are in EL2.
+            \\.not_el1:
+            \\cmp x10, #0x8
+            \\b.eq .el2
+            \\brk #1
+
+            // U-Boot leaves us in EL2. Prepare to eret down to EL1
+            // to DAINKRNL.
+            \\.el2:
+            // Don't trap EL0/EL1 accesses to the EL1 physical counter and timer registers.
+            \\mov x10, #3
+            \\msr cnthctl_el2, x10
+            // Reset virtual offset register.
+            \\mov x10, xzr
+            \\msr cntvoff_el2, x10
+            // Set EL1 execution state to AArch64, not AArch32.
+            \\mov x10, #(1 << 31)
+            // EL1 execution of DC ISW performs the same invalidation as DC CISW.
+            \\orr x10, x10, #(1 << 1)
+            \\msr hcr_el2, x10
+            // Prepare the simulated exception.
+            \\mov x10, #5
+            \\orr x10, x10, #(1 << 9)
+            \\orr x10, x10, #(1 << 8)
+            \\orr x10, x10, #(1 << 7)
+            \\orr x10, x10, #(1 << 6)
+            \\msr spsr_el2, x10
+            // Prepare the return address.
+            \\msr elr_el2, x9
+            // Fire.
+            \\eret
         :
         : [memory_map] "{x0}" (memory_map),
           [memory_map_size] "{x1}" (memory_map_size),
