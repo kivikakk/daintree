@@ -78,9 +78,9 @@ pub export fn daintree_mmu_start(
     uart_base: u64,
 ) noreturn {
     asm volatile (
-        \\mov x10, #0x47      // XXX Record progress "G"
-        \\strb w10, [x7]      // XXX
-        \\b .                 // XXX
+        \\1: mov x10, #0x47      // XXX Record progress "G"
+        \\   strb w10, [x7]      // XXX
+        \\   b 1b                // XXX
     );
     const uart = @intToPtr(*volatile u8, uart_base);
     mmioWriteCarefully(uart, "dainkrnl pre-MMU stage on " ++ build_options.board ++ "\r\n");

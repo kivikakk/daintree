@@ -413,24 +413,25 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             // to DAINKRNL.
             \\.el2:
 
-            // Copy stack. Is this even okay?
+            // Make up a stack, 1MiB past the entry point.
             \\mov x10, x9
-            \\add x10, x10, #0x100000    // Add 1MiB past kernel.
+            \\add x10, x10, #0x100000
             \\msr sp_el1, x10
 
             // Don't trap EL0/EL1 accesses to the EL1 physical counter and timer registers.
-            \\mov x10, #3
+            \\mrs x10, cnthctl_el2
+            \\orr x10, x10, #3
             \\msr cnthctl_el2, x10
 
             // Reset virtual offset register.
-            \\mov x10, xzr
-            \\msr cntvoff_el2, x10
+            \\msr cntvoff_el2, xzr
 
             // Set EL1 execution state to AArch64, not AArch32.
             \\mov x10, #(1 << 31)
             // EL1 execution of DC ISW performs the same invalidation as DC CISW.
             \\orr x10, x10, #(1 << 1)
             \\msr hcr_el2, x10
+            \\mrs x10, hcr_el2 // ?
 
             // Clear hypervisor system trap register.
             \\msr hstr_el2, xzr
@@ -444,16 +445,27 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             \\msr cptr_el2, x10
 
             // Prepare the simulated exception.
-            \\mov x10, #0x3c5            // DAIF+EL1
+            // Trying EL1t (0x3c4) didn't make a difference in practice.
+            \\mov x10, #0x3c5            // DAIF+EL1+h (h = 0b1 = use SP_ELx, not SP0)
             \\msr spsr_el2, x10
 
             // Prepare the return address.
-            \\msr elr_el2, x9
+            \\adr x10, .eret_target
+            \\msr elr_el2, x10
             \\mov x10, #0x46       // XXX Record progress "F"
             \\strb w10, [x7]       // XXX
 
             // Fire.
+            \\ldr x20, [x9]
+            \\brk #1
             \\eret
+            \\brk #1
+
+            // Are we in EL1 yet?
+            \\.eret_target:
+            \\mov x10, #0x48       // XXX Record progress "H"
+            \\strb w10, [x7]       // XXX
+            \\br x9
         :
         : [memory_map] "{x0}" (memory_map),
           [memory_map_size] "{x1}" (memory_map_size),
