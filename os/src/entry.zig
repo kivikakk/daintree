@@ -78,9 +78,8 @@ pub export fn daintree_mmu_start(
     uart_base: u64,
 ) noreturn {
     asm volatile (
-        \\mov x10, #0x43
-        \\mov x9, #0xff1a0000
-        \\strb w10, [x9]
+        \\mov x10, #0x47
+        \\strb w10, [x7]
         \\b .
     );
     const uart = @intToPtr(*volatile u8, uart_base);

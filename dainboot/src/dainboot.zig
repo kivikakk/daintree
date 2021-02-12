@@ -384,6 +384,8 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             \\mrs x10, CurrentEL
             \\cmp x10, #0x4
             \\b.ne .not_el1
+            \\mov x10, #0x45       // XXX Record progress
+            \\strb w10, [x7]       // XXX
             \\br x9
 
             // Assert we are in EL2.
@@ -431,7 +433,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
             // Prepare the return address.
             \\msr elr_el2, x9
-            \\mov x10, #0x42       // XXX Record progress
+            \\mov x10, #0x46       // XXX Record progress
             \\strb w10, [x7]       // XXX
 
             // Fire.
