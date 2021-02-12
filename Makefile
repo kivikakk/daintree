@@ -39,6 +39,7 @@ os/zig-cache/bin/dainkrnl.%: $(OS_FILES)
 disk.dmg: os/zig-cache/bin/dainkrnl.qemu
 	hdiutil attach -mountpoint target disk.dmg
 	cp $< target/dainkrnl
+	cp dtb/qemu.dtb target/dtb
 	hdiutil detach target
 
 DAINBOOT_FILES=$(shell find dainboot -name zig-cache -prune -o -type f -name \*.zig)

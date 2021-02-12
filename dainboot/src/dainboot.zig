@@ -97,10 +97,11 @@ pub fn main() void {
 
     const handle_count = handle_list_size / @sizeOf(uefi.Handle);
 
-    printf("searching for DAINKRNL on {} volume(s) ", .{handle_count});
-    var dainkrnl: [*]u8 = undefined;
-    var dainkrnl_size: u64 = undefined;
+    printf("searching for DAINKRNL and DTB on {} volume(s) ", .{handle_count});
+    var dainkrnl: ?[]const u8 = null;
     var dainkrnl_elf: ?elf.Header = null;
+
+    var dtb: ?[]const u8 = null;
 
     for (handle_list[0..handle_count]) |handle| {
         var sfs_proto: ?*uefi.protocols.SimpleFileSystemProtocol = undefined;
@@ -119,74 +120,124 @@ pub fn main() void {
         var f_proto: *uefi.protocols.FileProtocol = undefined;
         check("openVolume", sfs_proto.?.openVolume(&f_proto));
 
-        var dainkrnl_proto: *uefi.protocols.FileProtocol = undefined;
-        if (f_proto.open(&dainkrnl_proto, &[_:0]u16{ 'd', 'a', 'i', 'n', 'k', 'r', 'n', 'l' }, uefi.protocols.FileProtocol.efi_file_mode_read, 0) == .Success) {
-            check("setPosition", dainkrnl_proto.setPosition(uefi.protocols.FileProtocol.efi_file_position_end_of_file));
-            check("getPosition", dainkrnl_proto.getPosition(&dainkrnl_size));
-            printf(" {} bytes\r\n", .{dainkrnl_size});
-
-            check("setPosition", dainkrnl_proto.setPosition(0));
-
-            check("allocatePool", boot_services.allocatePool(
-                .BootServicesData,
-                dainkrnl_size,
-                @ptrCast(*[*]align(8) u8, &dainkrnl),
-            ));
-            check("read", dainkrnl_proto.read(&dainkrnl_size, dainkrnl));
-
-            dainkrnl_elf = parseElf(dainkrnl[0..dainkrnl_size]);
+        if (dainkrnl == null) {
+            if (tryLoadFromFileProtocol(f_proto, "dainkrnl")) |bin| {
+                dainkrnl = bin;
+                dainkrnl_elf = parseElf(bin);
+            }
+        }
+        if (dtb == null) {
+            dtb = tryLoadFromFileProtocol(f_proto, "dtb");
         }
 
         _ = boot_services.closeProtocol(handle, &uefi.protocols.SimpleFileSystemProtocol.guid, uefi.handle, null);
-        if (dainkrnl_elf != null) {
+
+        if (dainkrnl != null and dtb != null) {
             break;
         }
     }
 
-    if (dainkrnl_elf) |found| {
-        exitBootServices(dainkrnl[0..dainkrnl_size], found);
+    if (dainkrnl_elf) |dainkrnl_elf_found| {
+        if (dtb) |dtb_found| {
+            exitBootServices(dainkrnl.?, dainkrnl_elf_found, dtb_found);
+        } else {
+            puts("\r\nDTB not found\r\n");
+        }
+    } else {
+        puts("\r\nDAINKRNL not found\r\n");
+    }
+    _ = boot_services.stall(5 * 1000 * 1000);
+}
+
+fn tryLoadFromFileProtocol(f_proto: *uefi.protocols.FileProtocol, comptime file_name: []const u8) ?[]const u8 {
+    var proto: *uefi.protocols.FileProtocol = undefined;
+    var size: u64 = undefined;
+    var mem: [*]u8 = undefined;
+
+    const file_name_u16: [:0]const u16 = comptime blk: {
+        var n: [:0]const u16 = &[_:0]u16{};
+        for (file_name) |c| {
+            n = n ++ [_]u16{c};
+        }
+        break :blk n;
+    };
+
+    if (f_proto.open(&proto, file_name_u16, uefi.protocols.FileProtocol.efi_file_mode_read, 0) != .Success) {
+        return null;
     }
 
-    puts("\r\nDAINKRNL not found\r\n");
-    _ = boot_services.stall(5 * 1000 * 1000);
+    check("setPosition", proto.setPosition(uefi.protocols.FileProtocol.efi_file_position_end_of_file));
+    check("getPosition", proto.getPosition(&size));
+    printf(" \"{s}\" {} bytes ", .{ file_name, size });
+
+    check("setPosition", proto.setPosition(0));
+
+    check("allocatePool", boot_services.allocatePool(
+        .BootServicesData,
+        size,
+        @ptrCast(*[*]align(8) u8, &mem),
+    ));
+    check("read", proto.read(&size, mem));
+    return mem[0..size];
 }
 
 fn handleOptions(options: []const u8) void {
     var it = std.mem.tokenize(options, " ");
-    const opt_name = it.next() orelse return;
+    var dtb: ?[]u8 = null;
 
-    if (std.mem.eql(u8, opt_name, "ramdisk")) {
-        const ramdisk_offset_s = it.next() orelse {
-            printf("ramdisk: missing offset argument\n", .{});
-            return;
-        };
-        const ramdisk_len_s = it.next() orelse {
-            printf("ramdisk: missing length argument\n", .{});
-            return;
-        };
+    while (it.next()) |opt_name| {
+        if (std.mem.eql(u8, opt_name, "dtb")) {
+            const loc = handleOptionsLoc("dtb", &it) orelse return;
+            printf("using dtb in ramdisk at 0x{x:0>16} ({} bytes)\r\n", .{ loc.offset, loc.len });
+            dtb = @intToPtr([*]u8, loc.offset)[0..loc.len];
+        } else if (std.mem.eql(u8, opt_name, "ramdisk")) {
+            const loc = handleOptionsLoc("ramdisk", &it) orelse return;
 
-        if (it.next()) |unexp| {
-            printf("ramdisk: unexpected argument '{}'\n", .{unexp});
-            return;
+            if (dtb == null) {
+                printf("can't load kernel in ramdisk without dtb\r\n", .{});
+                return;
+            }
+
+            printf("loading kernel in ramdisk at 0x{x:0>16} ({} bytes)\r\n", .{ loc.offset, loc.len });
+
+            const dainkrnl = @intToPtr([*]u8, loc.offset)[0..loc.len];
+            const dainkrnl_elf = parseElf(dainkrnl);
+            exitBootServices(dainkrnl, dainkrnl_elf, dtb.?);
+        } else {
+            printf("unknown option '{s}'\n", .{opt_name});
         }
-
-        const ramdisk_offset = std.fmt.parseInt(u64, ramdisk_offset_s, 0) catch |err| blk: {
-            printf("ramdisk: parse offset '{}' error: {}\n", .{ ramdisk_offset_s, err });
-            break :blk 0;
-        };
-        const ramdisk_len = std.fmt.parseInt(u64, ramdisk_len_s, 0) catch |err| blk: {
-            printf("ramdisk: parse len '{}' error: {}\n", .{ ramdisk_len_s, err });
-            break :blk 0;
-        };
-
-        printf("loading kernel in ramdisk at 0x{x:0>16} ({} bytes)\n", .{ ramdisk_offset, ramdisk_len });
-
-        const dainkrnl = @intToPtr([*]const u8, ramdisk_offset)[0..ramdisk_len];
-        const dainkrnl_elf = parseElf(dainkrnl);
-        exitBootServices(dainkrnl, dainkrnl_elf);
-    } else {
-        printf("unknown option '{s}'\n", .{opt_name});
     }
+}
+
+const Loc = struct {
+    offset: u64,
+    len: u64,
+};
+
+fn handleOptionsLoc(comptime opt_name: []const u8, it: *std.mem.TokenIterator) ?Loc {
+    const offset_s = it.next() orelse {
+        printf(opt_name ++ ": missing offset argument\n", .{});
+        return null;
+    };
+    const len_s = it.next() orelse {
+        printf(opt_name ++ ": missing length argument\n", .{});
+        return null;
+    };
+
+    if (it.next()) |unexp| {
+        printf(opt_name ++ ": unexpected argument '{s}'\n", .{unexp});
+        return null;
+    }
+
+    const offset = std.fmt.parseInt(u64, offset_s, 0) catch |err| {
+        printf(opt_name ++ ": parse offset '{s}' error: {}\n", .{ offset_s, err });
+        return null;
+    };
+    const len = std.fmt.parseInt(u64, len_s, 0) catch |err| {
+        printf(opt_name ++ ": parse len '{s}' error: {}\n", .{ len_s, err });
+        return null;
+    };
+    return Loc{ .offset = offset, .len = len };
 }
 
 fn parseElf(dainkrnl: []const u8) elf.Header {
@@ -215,12 +266,10 @@ fn parseElf(dainkrnl: []const u8) elf.Header {
     return dainkrnl_elf;
 }
 
-fn exitBootServices(dainkrnl: []const u8, dainkrnl_elf: elf.Header) noreturn {
+fn exitBootServices(dainkrnl: []const u8, dainkrnl_elf: elf.Header, dtb: []const u8) noreturn {
     var graphics: *uefi.protocols.GraphicsOutputProtocol = undefined;
     check("locateProtocol", boot_services.locateProtocol(&uefi.protocols.GraphicsOutputProtocol.guid, null, @ptrCast(*?*c_void, &graphics)));
     var fb: [*]u8 = @intToPtr([*]u8, graphics.mode.frame_buffer_base);
-
-    var buf: [256]u8 = undefined;
 
     var memory_map: [*]uefi.tables.MemoryDescriptor = undefined;
     var memory_map_size: usize = 0;
@@ -291,6 +340,9 @@ fn exitBootServices(dainkrnl: []const u8, dainkrnl_elf: elf.Header) noreturn {
     }
 
     printf("framebuffer is at {*}\r\n", .{fb});
+    printf("looking up serial base in DTB ... ", .{});
+    const uart_base: u64 = 0;
+
     printf("exiting boot services\r\n", .{});
 
     check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
@@ -303,11 +355,11 @@ fn exitBootServices(dainkrnl: []const u8, dainkrnl_elf: elf.Header) noreturn {
     asm volatile (
         \\mov x29, #0
         \\mov x30, #0
-        \\mrs x9, sctlr_el1
-        \\bic x9, x9, #1
-        \\msr sctlr_el1, x9
+        \\mrs x10, sctlr_el1
+        \\bic x10, x10, #1
+        \\msr sctlr_el1, x10
         \\isb
-        \\br x8
+        \\br x9
         :
         : [memory_map] "{x0}" (memory_map),
           [memory_map_size] "{x1}" (memory_map_size),
@@ -317,8 +369,9 @@ fn exitBootServices(dainkrnl: []const u8, dainkrnl_elf: elf.Header) noreturn {
           [fb] "{x5}" (fb),
           [vertres] "{x6}" (graphics.mode.info.vertical_resolution),
           [horizres] "{x7}" (graphics.mode.info.horizontal_resolution),
+          [uart_base] "{x8}" (uart_base),
 
-          [entry] "{x8}" (adjusted_entry)
+          [entry] "{x9}" (adjusted_entry)
         : "memory"
     );
 

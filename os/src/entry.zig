@@ -39,6 +39,7 @@ pub export fn daintree_mmu_start(
     fb: [*]u32,
     fb_vert: u32,
     fb_horiz: u32,
+    uart_base: u64,
 ) noreturn {
     var x: usize = 0;
     while (x < fb_horiz) : (x += 1) {
@@ -50,6 +51,9 @@ pub export fn daintree_mmu_start(
             fb[fb_horiz * y + x] = @as(u32, @truncate(u8, r)) << 16 | @as(u32, @truncate(u8, g)) << 8 | @truncate(u8, b);
         }
     }
+
+    const mmio_ptr = @intToPtr(*volatile u8, uart_base);
+    mmio_ptr.* = 0x44;
 
     while (true) {}
 
