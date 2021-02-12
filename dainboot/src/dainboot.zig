@@ -255,6 +255,19 @@ fn parseElf(bytes: []const u8) elf.Header {
 
 fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     const dainkrnl_elf = parseElf(dainkrnl);
+    var elf_source = std.io.fixedBufferStream(dainkrnl);
+    {
+        var it = dainkrnl_elf.program_header_iterator(&elf_source);
+        while (it.next() catch haltMsg("iterating phdrs (2)")) |phdr| {
+            if (phdr.p_type == elf.PT_LOAD) {
+                const target = phdr.p_vaddr - 0xffffff80_00000000;
+                printf("will load 0x{x:0>16} bytes at 0x{x:0>16} into offset+0x{x:0>16}\r\n", .{ phdr.p_filesz, phdr.p_vaddr, target });
+                if (phdr.p_memsz > phdr.p_filesz) {
+                    printf("  and zeroing {} bytes at end\r\n", .{phdr.p_memsz - phdr.p_filesz});
+                }
+            }
+        }
+    }
     var graphics: *uefi.protocols.GraphicsOutputProtocol = undefined;
     check("locateProtocol", boot_services.locateProtocol(&uefi.protocols.GraphicsOutputProtocol.guid, null, @ptrCast(*?*c_void, &graphics)));
     var fb: [*]u8 = @intToPtr([*]u8, graphics.mode.frame_buffer_base);
@@ -269,6 +282,14 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         break :dtb 0;
     };
     printf("0x{x:0>8}\r\n", .{uart_base});
+
+    printf("going quiet before obtaining memory map\r\n", .{});
+
+    // *****************************************************************
+    // * Minimise logging between here and boot services exit.         *
+    // * Otherwise the chance a console log will cause our firmware to *
+    // * allocate memory and invalidate the memory map will increase.  *
+    // *****************************************************************
 
     var memory_map: [*]uefi.tables.MemoryDescriptor = undefined;
     var memory_map_size: usize = 0;
@@ -291,44 +312,38 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
     var largest_conventional: ?*uefi.tables.MemoryDescriptor = null;
 
-    printf("descriptor size: {}\r\n", .{descriptor_size});
-    var offset: usize = 0;
-    var i: usize = 0;
-    while (offset < memory_map_size) : ({
-        offset += descriptor_size;
-        i += 1;
-    }) {
-        const ptr = @intToPtr(*uefi.tables.MemoryDescriptor, @ptrToInt(memory_map) + offset);
-        printf("{:2} {s:23} p=0x{x:0>16} size={x:16} ({} mb starting at {} mb)\r\n", .{ i, @tagName(ptr.type), ptr.physical_start, ptr.number_of_pages << 12, ptr.number_of_pages >> 8, ptr.physical_start >> 20 });
-        if (ptr.type == .ConventionalMemory) {
-            if (largest_conventional) |current_largest| {
-                if (ptr.number_of_pages > current_largest.number_of_pages) {
+    {
+        var offset: usize = 0;
+        var i: usize = 0;
+        while (offset < memory_map_size) : ({
+            offset += descriptor_size;
+            i += 1;
+        }) {
+            const ptr = @intToPtr(*uefi.tables.MemoryDescriptor, @ptrToInt(memory_map) + offset);
+            if (ptr.type == .ConventionalMemory) {
+                if (largest_conventional) |current_largest| {
+                    if (ptr.number_of_pages > current_largest.number_of_pages) {
+                        largest_conventional = ptr;
+                    }
+                } else {
                     largest_conventional = ptr;
                 }
-            } else {
-                largest_conventional = ptr;
             }
         }
     }
-
     // Just take the single biggest bit of conventional memory.
     const conventional_start = largest_conventional.?.physical_start;
     const conventional_bytes = largest_conventional.?.number_of_pages << 12;
 
-    printf("Using {}mb of memory starting at 0x{x:0>16}\r\n", .{ conventional_bytes >> 20, conventional_start });
-
     // The kernel's text section begins at 0xffffff80_00000000. Adjust those down
     // to conventional_start now.
 
-    var elf_source = std.io.fixedBufferStream(dainkrnl);
     var it = dainkrnl_elf.program_header_iterator(&elf_source);
     while (it.next() catch haltMsg("iterating phdrs (2)")) |phdr| {
         if (phdr.p_type == elf.PT_LOAD) {
             const target = phdr.p_vaddr - 0xffffff80_00000000 + conventional_start;
-            printf("loading 0x{x:0>16} bytes at 0x{x:0>16} into 0x{x:0>16}\r\n", .{ phdr.p_filesz, phdr.p_vaddr, target });
             std.mem.copy(u8, @intToPtr([*]u8, target)[0..phdr.p_filesz], dainkrnl[phdr.p_offset .. phdr.p_offset + phdr.p_filesz]);
             if (phdr.p_memsz > phdr.p_filesz) {
-                printf("  zeroing {} bytes at end\r\n", .{phdr.p_memsz - phdr.p_filesz});
                 std.mem.set(u8, @intToPtr([*]u8, target)[phdr.p_filesz..phdr.p_memsz], 0);
             }
         }
@@ -338,10 +353,6 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         haltMsg("horizontal res != pixels per scan line");
     }
 
-    printf("framebuffer is at {*}\r\n", .{fb});
-
-    printf("exiting boot services\r\n", .{});
-
     check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
 
     const adjusted_entry = dainkrnl_elf.entry - 0xffffff80_00000000 + conventional_start;
@@ -350,7 +361,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
     // Disable the MMU and pass to DAINKRNL.
     // Also clear x29, x30 so we get nice stacks from QEMU.
-    asm volatile ((if (comptime std.mem.eql(u8, build_options.board, "qemu"))
+    asm volatile ((if (comptime std.mem.eql(u8, "qemu", build_options.board))
             \\mov x29, xzr
             \\mov x30, xzr
             \\
