@@ -263,6 +263,13 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     check("allocatePool", boot_services.allocatePool(uefi.tables.MemoryType.BootServicesData, 128 * 1024, @ptrCast(*[*]align(8) u8, &dtb_scratch_ptr)));
     var dtb_scratch = dtb_scratch_ptr[0 .. 128 * 1024];
 
+    printf("looking up serial base in DTB ... ", .{});
+    var uart_base: u64 = searchDtbForUartBase(dtb) catch |err| dtb: {
+        printf("failed to parse dtb: {}", .{err});
+        break :dtb 0;
+    };
+    printf("0x{x:0>8}\r\n", .{uart_base});
+
     var memory_map: [*]uefi.tables.MemoryDescriptor = undefined;
     var memory_map_size: usize = 0;
     var memory_map_key: usize = undefined;
@@ -332,12 +339,6 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     }
 
     printf("framebuffer is at {*}\r\n", .{fb});
-    printf("looking up serial base in DTB ... ", .{});
-    var uart_base: u64 = searchDtbForUartBase(dtb) catch |err| dtb: {
-        printf("failed to parse dtb: {}", .{err});
-        break :dtb 0;
-    };
-    printf("0x{x:0>8}\r\n", .{uart_base});
 
     printf("exiting boot services\r\n", .{});
 
@@ -347,17 +348,19 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
     const verthoriz: u64 = @as(u64, graphics.mode.info.vertical_resolution) << 32 | graphics.mode.info.horizontal_resolution;
 
-    // Looks like we're left in EL1. (mrs x2, CurrentEL => x2 = 0x4; PSTATE[3:2] = 0x4 -> EL1)
     // Disable the MMU and pass to DAINKRNL.
     // Also clear x29, x30 so we get nice stacks from QEMU.
-    asm volatile (
-        \\mov x29, xzr
-        \\mov x30, xzr
-        \\mrs x10, sctlr_el1
-        \\bic x10, x10, #1
-        \\msr sctlr_el1, x10
-        \\isb
-        \\br x9
+    asm volatile ((if (comptime std.mem.eql(u8, build_options.board, "qemu"))
+            \\mov x29, xzr
+            \\mov x30, xzr
+            \\
+        else
+            "") ++
+            \\mrs x10, sctlr_el1
+            \\bic x10, x10, #1
+            \\msr sctlr_el1, x10
+            \\isb
+            \\br x9
         :
         : [memory_map] "{x0}" (memory_map),
           [memory_map_size] "{x1}" (memory_map_size),

@@ -3,6 +3,7 @@ pub const panic = @import("panic.zig").panic;
 
 const std = @import("std");
 const arch = @import("arch.zig");
+const build_options = @import("build_options");
 comptime {
     _ = @import("exception.zig");
     _ = @import("main.zig");
@@ -77,7 +78,7 @@ pub export fn daintree_mmu_start(
     uart_base: u64,
 ) noreturn {
     const uart = @intToPtr(*volatile u8, uart_base);
-    mmioWriteCarefully(uart, "dainkrnl pre-MMU stage\r\n");
+    mmioWriteCarefully(uart, "dainkrnl pre-MMU stage on " ++ build_options.board ++ "\r\n");
 
     var daintree_base: u64 = asm volatile ("adr %[ret], __daintree_base"
         : [ret] "=r" (-> u64)

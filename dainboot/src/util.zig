@@ -29,6 +29,9 @@ pub fn halt() noreturn {
 
 pub fn check(comptime method: []const u8, result: uefi.Status) void {
     if (result != .Success) {
-        haltMsg(method ++ " failed");
+        puts(method ++ " failed: ");
+        puts(@tagName(result));
+        puts("\r\nhalted");
+        halt();
     }
 }
