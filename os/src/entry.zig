@@ -30,41 +30,7 @@ var TTBR1_L1: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L2: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L3: *[INDEX_SIZE]u64 = undefined;
 
-fn busyLoop() callconv(.Inline) void {
-    var i: usize = 0;
-    while (i < 1_000_000) : (i += 1) {
-        asm volatile ("nop");
-    }
-}
-
-fn mmioWriteCarefully(uart: *volatile u8, comptime msg: []const u8) callconv(.Inline) void {
-    inline for (msg) |c| {
-        uart.* = c;
-        busyLoop();
-    }
-}
-
-fn mmioWriteCarefullyHex(uart: *volatile u8, n: u64) callconv(.Inline) void {
-    var digits: usize = 0;
-    var c = n;
-    while (c > 0) : (c /= 16) {
-        digits += 1;
-    }
-    c = n;
-    var pow: usize = std.math.powi(u64, 16, digits - 1) catch 0;
-    while (pow > 0) : (pow /= 16) {
-        var digit = c / pow;
-        if (digit >= 0 and digit <= 9) {
-            uart.* = '0' + @truncate(u8, digit);
-        } else if (digit >= 10 and digit <= 16) {
-            uart.* = 'a' + @truncate(u8, digit) - 10;
-        } else {
-            uart.* = '?';
-        }
-        busyLoop();
-        c -= (digit * pow);
-    }
-}
+usingnamespace @import("hacks.zig");
 
 // UEFI passes control here. MMU is **off**.
 pub export fn daintree_mmu_start(
@@ -89,8 +55,7 @@ pub export fn daintree_mmu_start(
         \\   strb w10, [x7]      // XXX
         \\   strb w10, [x7]      // XXX
     );
-    const uart = @intToPtr(*volatile u8, uart_base);
-    mmioWriteCarefully(uart, "dainkrnl pre-MMU stage on " ++ build_options.board ++ "\r\n");
+    HACK_uartWriteCarefully("dainkrnl pre-MMU stage on " ++ build_options.board ++ "\r\n");
 
     var daintree_base: u64 = asm volatile ("adr %[ret], __daintree_base"
         : [ret] "=r" (-> u64)
@@ -113,23 +78,23 @@ pub export fn daintree_mmu_start(
     const current_el = arch.readRegister(.CurrentEL) >> 2;
     const sctlr_el1 = arch.readRegister(.SCTLR_EL1);
 
-    mmioWriteCarefully(uart, "daintree_base: 0x");
-    mmioWriteCarefullyHex(uart, daintree_base);
-    mmioWriteCarefully(uart, "\r\ndaintree_rodata_base: 0x");
-    mmioWriteCarefullyHex(uart, daintree_rodata_base);
-    mmioWriteCarefully(uart, "\r\ndaintree_data_base: 0x");
-    mmioWriteCarefullyHex(uart, daintree_data_base);
-    mmioWriteCarefully(uart, "\r\ndaintree_end: 0x");
-    mmioWriteCarefullyHex(uart, daintree_end);
-    mmioWriteCarefully(uart, "\r\ndaintree_main: 0x");
-    mmioWriteCarefullyHex(uart, daintree_main);
-    mmioWriteCarefully(uart, "\r\nvbar_el1: 0x");
-    mmioWriteCarefullyHex(uart, vbar_el1);
-    mmioWriteCarefully(uart, "\r\nCurrentEL: 0x");
-    mmioWriteCarefullyHex(uart, current_el);
-    mmioWriteCarefully(uart, "\r\nSCTLR_EL1: 0x");
-    mmioWriteCarefullyHex(uart, sctlr_el1);
-    mmioWriteCarefully(uart, "\r\n");
+    HACK_uartWriteCarefully("daintree_base: 0x");
+    HACK_uartWriteCarefullyHex(daintree_base);
+    HACK_uartWriteCarefully("\r\ndaintree_rodata_base: 0x");
+    HACK_uartWriteCarefullyHex(daintree_rodata_base);
+    HACK_uartWriteCarefully("\r\ndaintree_data_base: 0x");
+    HACK_uartWriteCarefullyHex(daintree_data_base);
+    HACK_uartWriteCarefully("\r\ndaintree_end: 0x");
+    HACK_uartWriteCarefullyHex(daintree_end);
+    HACK_uartWriteCarefully("\r\ndaintree_main: 0x");
+    HACK_uartWriteCarefullyHex(daintree_main);
+    HACK_uartWriteCarefully("\r\nvbar_el1: 0x");
+    HACK_uartWriteCarefullyHex(vbar_el1);
+    HACK_uartWriteCarefully("\r\nCurrentEL: 0x");
+    HACK_uartWriteCarefullyHex(current_el);
+    HACK_uartWriteCarefully("\r\nSCTLR_EL1: 0x");
+    HACK_uartWriteCarefullyHex(sctlr_el1);
+    HACK_uartWriteCarefully("\r\n");
 
     const tcr_el1 = comptime (arch.TCR_EL1{
         .ips = .B36,

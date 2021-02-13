@@ -6,12 +6,15 @@ SECTIONS {
 
     __daintree_base = .;
     .text : {
-        SORT_BY_NAME(.text*)
+        SORT_BY_NAME(*(.text*))
     }
+
+    . = ALIGN(0x1000);
 
     __daintree_rodata_base = .;
     .eh_frame : { *(.eh_frame) }
     .rodata : { *(.rodata*) }
+
     . = ALIGN(0x1000);
 
     __daintree_data_base = .;
