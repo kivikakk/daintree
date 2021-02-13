@@ -5,7 +5,9 @@ SECTIONS {
     . = 0xffffff8000000000;
 
     __daintree_base = .;
-    .text : { *(.text*) }
+    .text : {
+        SORT_BY_NAME(.text*)
+    }
 
     __daintree_rodata_base = .;
     .eh_frame : { *(.eh_frame) }
