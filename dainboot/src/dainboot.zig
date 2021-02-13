@@ -353,9 +353,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         haltMsg("horizontal res != pixels per scan line");
     }
 
-    printf("^ {x} ", .{asm volatile ("mrs %[ret], sctlr_el1"
-        : [ret] "=r" (-> u64)
-    )});
+    printf("{x} ", .{conventional_start});
 
     check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
 
@@ -460,11 +458,30 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             \\.eret_target:
             \\msr spsel, #1        // Enable our own stack.
             \\mov sp, x11          // Write it again, for good measure.
+            \\msr vbar_el1, x12    // Set the interrupt vector.
             \\dsb sy
+            \\dsb ish
             \\dmb sy
             \\isb
             \\mov x10, #0x48       // XXX Record progress "H"
             \\strb w10, [x7]       // XXX
+            // \\mrs x10, CurrentEL   // XX
+            // \\asr x10, x10, #2     // XX
+            // \\add x10, x10, #0x30  // XX
+            // \\strb w10, [x7]       // XX output the digit of what EL we're at
+            \\mov x10, x9
+            \\strb w10, [x7]
+            \\asr x10, x10, #8
+            \\strb w10, [x7]
+            \\asr x10, x10, #8
+            \\strb w10, [x7]
+            \\asr x10, x10, #8
+            \\strb w10, [x7]
+            \\ic ialluis
+            \\isb sy
+            \\tlbi vmalle1
+            \\dsb sy
+            \\isb
             \\br x9
         :
         : [memory_map] "{x0}" (memory_map),
@@ -478,7 +495,8 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
           [entry] "{x9}" (adjusted_entry +
             // HACK: jump straight to the UART write on rockpro so we don't touch the stack.
-            if (comptime std.mem.eql(u8, build_options.board, "rockpro64")) 52 else 0)
+            if (comptime std.mem.eql(u8, build_options.board, "rockpro64")) 52 else 0),
+          [vbar_el1] "{x12}" (@as(u64, 0xffffff80_00000000))
         : "memory"
     );
 
