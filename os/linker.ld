@@ -6,6 +6,7 @@ SECTIONS {
 
     __daintree_base = .;
     .text : {
+        *(.text.exceptions)
         SORT_BY_NAME(*(.text*))
     }
 

@@ -476,7 +476,9 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
           [verthoriz] "{x6}" (verthoriz),
           [uart_base] "{x7}" (uart_base),
 
-          [entry] "{x9}" (adjusted_entry + 52)
+          [entry] "{x9}" (adjusted_entry +
+            // HACK: jump straight to the UART write on rockpro so we don't touch the stack.
+            if (comptime std.mem.eql(u8, build_options.board, "rockpro64")) 52 else 0)
         : "memory"
     );
 
