@@ -1,5 +1,5 @@
 #!/bin/bash
 
-scp dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi toaster:/volume1/docker/tftp/efi/boot/BOOTAA64.efi
-scp os/zig-cache/bin/dainkrnl.rockpro64 toaster:/volume1/docker/tftp/dainkrnl
-scp dtb/rk3399-rockpro64.dtb toaster:/volume1/docker/tftp/dtb/rockchip/
+rsync -av dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi toaster.local:/volume1/docker/tftp/efi/boot/BOOTAA64.efi
+rsync -av os/zig-cache/bin/dainkrnl.rockpro64 toaster.local:/volume1/docker/tftp/dainkrnl
+rsync -av dtb/rk3399-rockpro64.dtb toaster.local:/volume1/docker/tftp/dtb/rockchip/
