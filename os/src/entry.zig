@@ -43,18 +43,6 @@ pub export fn daintree_mmu_start(
     verthoriz: u64,
     uart_base: u64,
 ) noreturn {
-    asm volatile (
-        \\1: mov x10, #0x47      // XXX Record progress "G"
-        \\   strb w10, [x7]      // XXX
-        \\   strb w10, [x7]      // XXX
-        \\   strb w10, [x7]      // XXX
-        \\   strb w10, [x7]      // XXX
-        \\   strb w10, [x7]      // XXX
-        \\   strb w10, [x7]      // XXX
-        \\   strb w10, [x7]      // XXX
-        \\   strb w10, [x7]      // XXX
-        \\   strb w10, [x7]      // XXX
-    );
     HACK_uartWriteCarefully("dainkrnl pre-MMU stage on " ++ build_options.board ++ "\r\n");
 
     var daintree_base: u64 = asm volatile ("adr %[ret], __daintree_base"
@@ -78,17 +66,17 @@ pub export fn daintree_mmu_start(
     const current_el = arch.readRegister(.CurrentEL) >> 2;
     const sctlr_el1 = arch.readRegister(.SCTLR_EL1);
 
-    HACK_uartWriteCarefully("daintree_base: 0x");
+    HACK_uartWriteCarefully("__daintree_base: 0x");
     HACK_uartWriteCarefullyHex(daintree_base);
-    HACK_uartWriteCarefully("\r\ndaintree_rodata_base: 0x");
+    HACK_uartWriteCarefully("\r\n__daintree_rodata_base: 0x");
     HACK_uartWriteCarefullyHex(daintree_rodata_base);
-    HACK_uartWriteCarefully("\r\ndaintree_data_base: 0x");
+    HACK_uartWriteCarefully("\r\n__daintree_data_base: 0x");
     HACK_uartWriteCarefullyHex(daintree_data_base);
-    HACK_uartWriteCarefully("\r\ndaintree_end: 0x");
+    HACK_uartWriteCarefully("\r\n__daintree_end: 0x");
     HACK_uartWriteCarefullyHex(daintree_end);
     HACK_uartWriteCarefully("\r\ndaintree_main: 0x");
     HACK_uartWriteCarefullyHex(daintree_main);
-    HACK_uartWriteCarefully("\r\nvbar_el1: 0x");
+    HACK_uartWriteCarefully("\r\n__vbar_el1: 0x");
     HACK_uartWriteCarefullyHex(vbar_el1);
     HACK_uartWriteCarefully("\r\nCurrentEL: 0x");
     HACK_uartWriteCarefullyHex(current_el);

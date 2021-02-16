@@ -460,10 +460,9 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             // to DAINKRNL.
             \\.el2:
 
-            // Make up a stack, 1MiB past the entry point.
-            \\mov x11, x9
-            \\add x11, x11, #0x100000
-            \\msr sp_el1, x11
+            // Copy our stack.
+            \\mov x10, sp
+            \\msr sp_el1, x10
 
             // Don't trap EL0/EL1 accesses to the EL1 physical counter and timer registers.
             \\mrs x10, cnthctl_el2
@@ -509,30 +508,6 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             // Are we in EL1 yet?
             \\.eret_target:
             \\msr spsel, #1        // Enable our own stack.
-            \\mov sp, x11          // Write it again, for good measure.
-            \\dsb sy
-            \\dsb ish
-            \\dmb sy
-            \\isb
-            \\mov x10, #0x48       // XXX Record progress "H"
-            \\strb w10, [x7]       // XXX
-            // \\mrs x10, CurrentEL   // XX
-            // \\asr x10, x10, #2     // XX
-            // \\add x10, x10, #0x30  // XX
-            // \\strb w10, [x7]       // XX output the digit of what EL we're at
-            \\mov x10, x9
-            \\strb w10, [x7]
-            \\asr x10, x10, #8
-            \\strb w10, [x7]
-            \\asr x10, x10, #8
-            \\strb w10, [x7]
-            \\asr x10, x10, #8
-            \\strb w10, [x7]
-            \\ic ialluis
-            \\isb sy
-            \\tlbi vmalle1
-            \\dsb sy
-            \\isb
             \\br x9
         :
         : [memory_map] "{x0}" (memory_map),
