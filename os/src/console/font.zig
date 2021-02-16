@@ -2,7 +2,7 @@ const fb = @import("fb.zig");
 const CONSOLE_DIMENSION = fb.CONSOLE_DIMENSION;
 
 // most of this shamelessly cribbed from myself years ago:
-// https://git.kameliya.ee/kyuubey/tree/sfont.c?id=52d318234f4ea7657d41ae493155cdf77038b217
+// https://git.src.kameliya.ee/~kameliya/kyuubey/tree/52d318234f4ea7657d41ae493155cdf77038b217/item/sfont.c
 
 const CP437VGA = @embedFile("../assets/cp437.vga");
 pub const FONT_HEIGHT = 16;
