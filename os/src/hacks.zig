@@ -59,18 +59,25 @@ pub fn HACK_uart2(n: u64) void {
 
 pub const HACK = enum {
     UART_Runtime,
+    UART_Char,
 };
 
 pub fn HACK_uartAt(base: *volatile u8, parts: anytype) callconv(.Inline) void {
     comptime const parts_info = std.meta.fields(@TypeOf(parts));
     comptime var i = 0;
-    comptime var next_is_runtime: bool = false;
+    comptime var next_hack: ?HACK = null;
     inline while (i < parts_info.len) : (i += 1) {
         if (parts_info[i].field_type == HACK) {
-            next_is_runtime = true;
-        } else if (next_is_runtime) {
-            next_is_runtime = false;
-            HACK_uartWrite(base, parts[i]);
+            next_hack = parts[i];
+        } else if (next_hack) |hack| {
+            next_hack = null;
+            switch (hack) {
+                .UART_Runtime => HACK_uartWrite(base, parts[i]),
+                .UART_Char => {
+                    base.* = parts[i];
+                    busyLoop();
+                },
+            }
         } else if (comptime std.meta.trait.isPtrTo(.Array)(parts_info[i].field_type) or comptime std.meta.trait.isSliceOf(.Int)(parts_info[i].field_type)) {
             HACK_uartWriteCarefully(base, parts[i]);
         } else if (comptime std.meta.trait.isUnsignedInt(parts_info[i].field_type)) {

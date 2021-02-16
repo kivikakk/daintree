@@ -1,5 +1,6 @@
 const std = @import("std");
 const font = @import("font.zig");
+const arch = @import("../arch.zig");
 
 usingnamespace @import("../hacks.zig");
 
@@ -35,10 +36,15 @@ pub fn init(in_fb: [*]u32, in_vert: u32, in_horiz: u32) void {
     std.mem.set(u16, console_buf[0 .. console_width * console_height], 0);
     std.mem.set(u32, fb[0 .. fb_horiz * fb_vert], 0);
 
-    drawEnergyStar();
+    arch.sleep(500);
+    drawEnergyStar(false);
+    arch.sleep(50);
+    drawEnergyStar(true);
+    arch.sleep(50);
+    drawEnergyStar(false);
 }
 
-fn drawEnergyStar() void {
+fn drawEnergyStar(comptime allWhite: bool) void {
     const WIDTH = 138;
     const HEIGHT = 103;
     const DATA = @embedFile("../assets/energystar.vga");
@@ -49,7 +55,11 @@ fn drawEnergyStar() void {
         while (x < WIDTH) : (x += 1) {
             var s = DATA[(WIDTH * y + x) * 3 .. (WIDTH * y + x + 1) * 3];
             const c = (@as(u32, s[0]) << 16) | (@as(u32, s[1]) << 8) | @as(u32, s[2]);
-            plot(left + x, y, c);
+            if (allWhite) {
+                plot(left + x, y, if (c != 0) 0xffffff else 0);
+            } else {
+                plot(left + x, y, c);
+            }
         }
     }
 }
@@ -81,8 +91,10 @@ pub fn print(msg: []const u8) void {
                     '\n' => {
                         console_col = 0;
                         console_row += 1;
+                        HACK_uart(.{"\r\n"});
                     },
                     else => {
+                        HACK_uart(.{ HACK.UART_Char, c });
                         font.putChar(console_row, console_col, c, console_colour);
                         console_buf[console_row * console_width + console_col] = (@as(u16, console_colour) << 8) | c;
                         console_col += 1;

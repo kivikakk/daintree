@@ -354,7 +354,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         }
     }
 
-    cleanInvalidateDCacheICache(conventional_start, conventional_bytes);
+    cleanInvalidateDCacheICache(conventional_start, kernel_size);
 
     if (graphics.mode.info.horizontal_resolution != graphics.mode.info.pixels_per_scan_line) {
         haltMsg("horizontal res != pixels per scan line");
@@ -362,11 +362,19 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
     printf("{x} ", .{conventional_start});
 
-    check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
-
     const adjusted_entry = dainkrnl_elf.entry - 0xffffff80_00000000 + conventional_start;
 
+    if (memory_map_size & 0xffffffff != memory_map_size) {
+        haltMsg("huge memory map?");
+    }
+    if (descriptor_size & 0xffffffff != descriptor_size) {
+        haltMsg("huge descriptor size?");
+    }
+
+    const memmapsz_descsz: u64 = memory_map_size << 32 | descriptor_size;
     const verthoriz: u64 = @as(u64, graphics.mode.info.vertical_resolution) << 32 | graphics.mode.info.horizontal_resolution;
+
+    check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
 
     // Check for EL2: we get
     // and pass to DAINKRNL.
@@ -471,8 +479,8 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             \\br x9
         :
         : [memory_map] "{x0}" (memory_map),
-          [memory_map_size] "{x1}" (memory_map_size),
-          [descriptor_size] "{x2}" (descriptor_size),
+          [memmapsz_descsz] "{x1}" (memmapsz_descsz),
+          [dtb] "{x2}" (dtb.ptr),
           [conventional_start] "{x3}" (conventional_start),
           [conventional_bytes] "{x4}" (conventional_bytes),
           [fb] "{x5}" (fb),

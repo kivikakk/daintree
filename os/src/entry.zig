@@ -12,8 +12,8 @@ comptime {
 // From dainboot.
 pub const EntryData = packed struct {
     memory_map: [*]std.os.uefi.tables.MemoryDescriptor,
-    memory_map_size: usize,
-    descriptor_size: usize,
+    memmapsz_descsz: u64,
+    dtb_ptr: usize,
     conventional_start: usize,
     conventional_bytes: usize,
     fb: [*]u32,
@@ -35,8 +35,8 @@ usingnamespace @import("hacks.zig");
 // UEFI passes control here. MMU is **off**.
 pub export fn daintree_mmu_start(
     memory_map: [*]std.os.uefi.tables.MemoryDescriptor,
-    memory_map_size: usize,
-    descriptor_size: usize,
+    memmapsz_descsz: u64,
+    dtb_ptr: usize,
     conventional_start: usize,
     conventional_bytes: usize,
     fb: [*]u32,
@@ -171,8 +171,8 @@ pub export fn daintree_mmu_start(
     address &= ~@as(u64, 15);
     @intToPtr(*EntryData, address).* = .{
         .memory_map = memory_map,
-        .memory_map_size = memory_map_size,
-        .descriptor_size = descriptor_size,
+        .memmapsz_descsz = memmapsz_descsz,
+        .dtb_ptr = dtb_ptr,
         .conventional_start = conventional_start,
         .conventional_bytes = conventional_bytes,
         .fb = fb,

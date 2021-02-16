@@ -1,9 +1,11 @@
+const std = @import("std");
 const build_options = @import("build_options");
 const entry = @import("entry.zig");
 const fb = @import("console/fb.zig");
 const printf = fb.printf;
 const putchar = fb.putchar;
 const halt = @import("halt.zig").halt;
+const Shell = @import("shell.zig").Shell;
 
 usingnamespace @import("hacks.zig");
 
@@ -22,13 +24,7 @@ export fn daintree_main(entry_data: *entry.EntryData) void {
 
     printf("\x1b\x0adaintree \x1b\x07{s} on {s}\n\n", .{ build_options.version, build_options.board });
 
-    var i: u9 = 0;
-    while (i < 256) : (i += 1) {
-        putchar(@truncate(u8, i));
-        if (i % 32 == 31) {
-            printf("\n", .{});
-        }
-    }
+    Shell.run();
 
     halt();
 }

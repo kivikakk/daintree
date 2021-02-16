@@ -33,6 +33,30 @@ pub fn orRegister(comptime register: Register, value: u64) callconv(.Inline) voi
     );
 }
 
+pub fn sleep(ms: u64) void {
+    // CURSED
+    // CURSED
+    // CURSED
+    asm volatile (
+        \\   isb
+        \\   mrs x1, cntpct_el0
+        \\   mrs x2, cntfrq_el0            // x2 has ticks pers second (Hz)
+        \\   mov x3, #1000
+        \\   udiv x2, x2, x3               // x2 has ticks per millisecond
+        \\   mul x2, x2, x0                // x2 has ticks per `ms` milliseconds
+        \\   add x2, x1, x2                // x2 has start time + ticks
+        \\1: cmp x1, x2
+        \\   b.ge 2f
+        \\   isb
+        \\   mrs x1, cntpct_el0
+        \\   b 1b
+        \\2: nop
+        : [ms] "={x0}" (ms)
+        :
+        : "x1"
+    );
+}
+
 // Avoiding packed structs since they're simply broken right now.
 // (was getting @bitSizeOf(x) == 64 but @sizeOf(x) == 9 (!!) --
 // wisdom is to avoid for now.)
