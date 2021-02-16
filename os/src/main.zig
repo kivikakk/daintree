@@ -11,6 +11,7 @@ export fn daintree_main(entry_data: *entry.EntryData) void {
     HACK_uartAt(@intToPtr(*volatile u8, entry_data.uart_base), .{ "daintree_main ", @ptrToInt(entry_data), "\r\n" });
     uart_global = @intToPtr(*volatile u8, entry_data.uart_base);
     HACK_uart(.{ "trying thru uart_global @ ", @ptrToInt(&uart_global), "\r\n" });
+
     var fb_vert: u32 = @truncate(u32, (entry_data.verthoriz >> 32) & 0xffffffff);
     var fb_horiz: u32 = @truncate(u32, entry_data.verthoriz & 0xffffffff);
     fb.init(entry_data.fb, fb_vert, fb_horiz);

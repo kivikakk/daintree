@@ -26,7 +26,7 @@ pub const HACK = enum {
 };
 
 pub fn HACK_uartAt(base: *volatile u8, parts: anytype) callconv(.Inline) void {
-    const parts_info = std.meta.fields(@TypeOf(parts));
+    comptime const parts_info = std.meta.fields(@TypeOf(parts));
     comptime var i = 0;
     comptime var next_is_runtime: bool = false;
     inline while (i < parts_info.len) : (i += 1) {
