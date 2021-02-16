@@ -26,6 +26,7 @@ pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) nore
     } else {
         HACK_uart(.{"no ert\r\n"});
     }
+    HACK_uart(.{ "@returnAddress: ", @returnAddress(), "\r\n" });
 
     HACK_uart(.{ "panic message ptr: ", @ptrToInt(msg.ptr), "\r\n<" });
     HACK_uart(.{ HACK.UART_Runtime, msg, ">\r\n" });

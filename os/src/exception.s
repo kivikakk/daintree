@@ -25,9 +25,10 @@
     mrs x0, elr_el1
     mrs x1, spsr_el1
     stp x0, x1, [sp, #16 * 15]
-
     str x30, [sp, #16 * 16]
+
     mov x0, sp
+    // Hack: throw ELR_EL1 and ESR_EL1 in as secondary arguments.
     mrs x1, elr_el1
     mrs x2, esr_el1
 

@@ -62,6 +62,7 @@ export fn el1_sp0_error(ctx: *ExceptionContext) void {
 }
 
 export fn el1_sync(ctx: *ExceptionContext, elr_el1: u64, esr_el1: u64) void {
+    // HACK: dump ELR_EL1/ESR_EL1 before we try to reach through any pointers.
     HACK_uart2(elr_el1);
     HACK_uart2(esr_el1);
     handle(ctx, "EL1_SYNC");

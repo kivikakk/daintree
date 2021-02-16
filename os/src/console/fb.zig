@@ -109,18 +109,20 @@ fn refresh() void {
 
 var printf_buf: [1024]u8 = undefined;
 pub fn printf(comptime format: []const u8, args: anytype) void {
-    HACK_uart(.{ "trying to bufPrint at ", @ptrToInt(&printf_buf), " ... " });
-
-    // XXX just write one byte here
-    printf_buf[0] = 0x4f;
-    HACK_uart(.{" wrote one byte, reading one then another: "});
-    HACK_uart(.{@as(u8, printf_buf[0])});
-    HACK_uart(.{@as(u8, printf_buf[1])});
-    HACK_uart(.{"\r\n okay, proceeding: "});
-
     const slice = std.fmt.bufPrint(printf_buf[0..], format, args) catch @panic("bufPrint failure");
-    HACK_uart(.{ "managed to bufPrintf at ", @ptrToInt(&printf_buf) });
-    HACK_uart(.{ "\r\nlength is ", slice.len, "\r\n" });
     print(slice);
-    HACK_uart(.{ HACK.UART_Runtime, slice });
+}
+
+pub fn putchar(c: u8) void {
+    font.putChar(console_row, console_col, c, console_colour);
+    console_buf[console_row * console_width + console_col] = (@as(u16, console_colour) << 8) | c;
+    console_col += 1;
+    if (console_col >= console_width) {
+        console_row += 1;
+        console_col = 0;
+    }
+    if (console_row >= console_height) {
+        scroll();
+        console_row -= 1;
+    }
 }
