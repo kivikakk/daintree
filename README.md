@@ -17,8 +17,10 @@ A gentle introduction to Zig's UEFI support. Boots like this:
   - Separate successive options with spaces, i.e. `kernel <addr> <len> dtb <addr> <len>`.
 - If kernel or DTB (or both) were not loaded from memory, scans filesystems the UEFI system knows about, looking in the root directories for files named `dainkrnl` and `dtb`.
 - Picks the biggest unused slab of conventional memory and places the kernel there.
+- Clears data and instruction caches for loaded memory.
 - Parses the DTB and attempts to locate the serial UART port.
 - Exits UEFI boot services.
+- If necessary, disables a whole lot of traps and goes to EL1.
 - Jumps to the kernel, passing the memory map, UART port, and framebuffer prepared by UEFI.
 
 |              qemu              |              rockpro64              |
@@ -29,11 +31,9 @@ A gentle introduction to Zig's UEFI support. Boots like this:
 
 Right now, this just sets up the MMU and implements a small console.
 
-MMU setup works on QEMU, but we don't get this far on bare metal yet. Need to actually reference the memory map.
-
-|                  qemu                  | rockpro64 |
-| :------------------------------------: | :-------: |
-| ![](doc/img/dainkrnl-charset-qemu.png) |    wip    |
+|                  qemu                  |                  rockpro64                  |
+| :------------------------------------: | :-----------------------------------------: |
+| ![](doc/img/dainkrnl-charset-qemu.png) | ![](doc/img/dainkrnl-charset-rockpro64.jpg) |
 
 ## license
 
