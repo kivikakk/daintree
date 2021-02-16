@@ -12,7 +12,7 @@ pub fn puts(msg: []const u8) void {
 
 pub fn printf(comptime format: []const u8, args: anytype) void {
     var buf: [256]u8 = undefined;
-    puts(std.fmt.bufPrint(buf[0..], format, args) catch unreachable);
+    puts(std.fmt.bufPrint(buf[0..], format, args) catch @panic("printf"));
 }
 
 pub fn haltMsg(comptime msg: []const u8) noreturn {

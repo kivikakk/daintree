@@ -1,6 +1,8 @@
 const std = @import("std");
 const font = @import("font.zig");
 
+usingnamespace @import("../hacks.zig");
+
 pub const CONSOLE_DIMENSION = u16;
 
 var fb: [*]u32 = undefined;
@@ -9,7 +11,12 @@ var fb_horiz: u32 = undefined;
 
 pub var console_height: CONSOLE_DIMENSION = undefined;
 pub var console_width: CONSOLE_DIMENSION = undefined;
-var console_buf: [3700]u16 = undefined;
+
+// These are only used in calculating the size of console_buf we should allocate.
+// Feel free to increase for a larger HDMI screen.
+const MAX_CONSOLE_WIDTH = 1024;
+const MAX_CONSOLE_HEIGHT = 600;
+var console_buf: [(MAX_CONSOLE_WIDTH / font.FONT_WIDTH) * (MAX_CONSOLE_HEIGHT / font.FONT_HEIGHT)]u16 = undefined;
 
 var console_col: CONSOLE_DIMENSION = 0;
 var console_row: CONSOLE_DIMENSION = 0;
@@ -102,5 +109,18 @@ fn refresh() void {
 
 var printf_buf: [1024]u8 = undefined;
 pub fn printf(comptime format: []const u8, args: anytype) void {
-    print(std.fmt.bufPrint(printf_buf[0..], format, args) catch unreachable);
+    HACK_uart(.{ "trying to bufPrint at ", @ptrToInt(&printf_buf), " ... " });
+
+    // XXX just write one byte here
+    printf_buf[0] = 0x4f;
+    HACK_uart(.{" wrote one byte, reading one then another: "});
+    HACK_uart(.{@as(u8, printf_buf[0])});
+    HACK_uart(.{@as(u8, printf_buf[1])});
+    HACK_uart(.{"\r\n okay, proceeding: "});
+
+    const slice = std.fmt.bufPrint(printf_buf[0..], format, args) catch @panic("bufPrint failure");
+    HACK_uart(.{ "managed to bufPrintf at ", @ptrToInt(&printf_buf) });
+    HACK_uart(.{ "\r\nlength is ", slice.len, "\r\n" });
+    print(slice);
+    HACK_uart(.{ HACK.UART_Runtime, slice });
 }

@@ -61,6 +61,12 @@ fn HACK_uartWriteCarefully(base: *volatile u8, comptime msg: []const u8) callcon
 }
 
 fn HACK_uartWriteCarefullyHex(base: *volatile u8, n: u64) callconv(.Inline) void {
+    if (n == 0) {
+        base.* = '0';
+        busyLoop();
+        return;
+    }
+
     var digits: usize = 0;
     var c = n;
     while (c > 0) : (c /= 16) {

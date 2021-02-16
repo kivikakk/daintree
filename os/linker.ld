@@ -7,7 +7,7 @@ SECTIONS {
     __daintree_base = .;
     .text : {
         *(.text.exceptions)
-        SORT_BY_NAME(*(.text*))
+        *(.text*)
     }
 
     . = ALIGN(0x1000);

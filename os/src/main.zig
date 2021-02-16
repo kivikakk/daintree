@@ -14,7 +14,12 @@ export fn daintree_main(entry_data: *entry.EntryData) void {
 
     var fb_vert: u32 = @truncate(u32, (entry_data.verthoriz >> 32) & 0xffffffff);
     var fb_horiz: u32 = @truncate(u32, entry_data.verthoriz & 0xffffffff);
+
+    HACK_uart(.{ "fb_vert ", fb_vert, " fb_horiz ", fb_horiz, "\r\n" });
+
     fb.init(entry_data.fb, fb_vert, fb_horiz);
+
+    HACK_uart(.{"init success\r\n"});
     printf("\x1b\x0adaintree \x1b\x07{s} on {s}\n", .{ build_options.version, build_options.board });
 
     var i: u9 = 0;

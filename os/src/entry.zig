@@ -232,7 +232,7 @@ const KERNEL_BASE = ~@as(u64, VADDRESS_MASK | PAGE_MASK);
 comptime {
     std.testing.expectEqual(0xffffff80_00000000, KERNEL_BASE);
 }
-const STACK_PAGES = 4;
+const STACK_PAGES = 16;
 
 const IDENTITY_FLAGS = arch.PageTableEntry{
     .uxn = 1,
