@@ -11,16 +11,13 @@ usingnamespace @import("hacks.zig");
 
 // From daintree_mmu_start.
 export fn daintree_main(entry_data: *entry.EntryData) void {
-    HACK_uartAt(@intToPtr(*volatile u8, entry_data.uart_base), .{ "daintree_main ", @ptrToInt(entry_data), "\r\n" });
+    HACK_uartAt(@intToPtr(*volatile u8, 0xffffff8000065000), .{ "daintree_main ", @ptrToInt(entry_data), "\r\n" });
     uart_global = @intToPtr(*volatile u8, entry_data.uart_base);
     HACK_uart(.{ "trying thru uart_global @ ", @ptrToInt(&uart_global), "\r\n" });
 
-    var fb_vert: u32 = @truncate(u32, (entry_data.verthoriz >> 32) & 0xffffffff);
-    var fb_horiz: u32 = @truncate(u32, entry_data.verthoriz & 0xffffffff);
+    fb.init(entry_data.fb, entry_data.fb_vert, entry_data.fb_horiz);
 
-    fb.init(entry_data.fb, fb_vert, fb_horiz);
-
-    HACK_uart(.{"init success\r\n"});
+    HACK_uart(.{"init success!\r\n"});
 
     printf("\x1b\x0adaintree \x1b\x07{s} on {s}\n\n", .{ build_options.version, build_options.board });
 

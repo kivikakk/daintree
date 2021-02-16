@@ -364,128 +364,128 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
     const adjusted_entry = dainkrnl_elf.entry - 0xffffff80_00000000 + conventional_start;
 
-    if (memory_map_size & 0xffffffff != memory_map_size) {
-        haltMsg("huge memory map?");
-    }
-    if (descriptor_size & 0xffffffff != descriptor_size) {
-        haltMsg("huge descriptor size?");
-    }
-
-    const memmapsz_descsz: u64 = memory_map_size << 32 | descriptor_size;
     const verthoriz: u64 = @as(u64, graphics.mode.info.vertical_resolution) << 32 | graphics.mode.info.horizontal_resolution;
 
     check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
 
     // Check for EL2: we get
     // and pass to DAINKRNL.
-    asm volatile ((if (comptime std.mem.eql(u8, "qemu", build_options.board))
-            // QEMU only: clear x29, x30. EDK2 trips over when generating stacks otherwise.
-            \\mov x29, xzr
-            \\mov x30, xzr
-            \\
-        else
-            "") ++
-            // Disable MMU, alignment checking, SP alignment checking;
-            // set little endian in EL0 and EL1.
-            \\mov x10, #0x0800
-            \\movk x10, #0x30d0, lsl #16
-            \\msr sctlr_el1, x10
-            \\isb
+    asm volatile (
+    // Prepare arguments
+        \\sub sp, sp, #0x50     // Remember stacks need to be aligned to 16 (!!!) bytes.
+        \\stp %[memory_map], %[memory_map_size], [sp, #0x0]
+        \\stp %[descriptor_size], %[dtb_ptr], [sp, #0x10]
+        \\stp %[conventional_start], %[conventional_bytes], [sp, #0x20]
+        \\stp %[fb], %[verthoriz], [sp, #0x30]
+        \\str %[uart_base], [sp, #0x40]
+        \\mov x0, sp
 
-            // Check if other cores are running.
-            \\mrs x10, mpidr_el1
-            \\and x10, x10, #3
-            \\cbz x10, .cpu_zero
+        // For QEMU only: clear x29, x30. EDK2 trips over when generating stacks otherwise.
+        \\mov x29, xzr
+        \\mov x30, xzr
 
-            // Non-zero core
-            \\mov x10, #0x44       // XXX Record progress "D"
-            \\strb w10, [x7]       // XXX
-            \\1: wfe
-            \\b 1b
+        // Disable MMU, alignment checking, SP alignment checking;
+        // set little endian in EL0 and EL1.
+        \\mov x10, #0x0800
+        \\movk x10, #0x30d0, lsl #16
+        \\msr sctlr_el1, x10
+        \\isb
 
-            // Check if we're in EL1 (EDK2 does this for us).
-            // If so, go straight to DAINKRNL.
-            \\.cpu_zero:
-            \\mrs x10, CurrentEL
-            \\cmp x10, #0x4
-            \\b.ne .not_el1
-            \\mov x10, #0x45       // XXX Record progress "E"
-            \\strb w10, [x7]       // XXX
-            \\br x9
+        // Check if other cores are running.
+        \\mrs x10, mpidr_el1
+        \\and x10, x10, #3
+        \\cbz x10, .cpu_zero
 
-            // Assert we are in EL2.
-            \\.not_el1:
-            \\cmp x10, #0x8
-            \\b.eq .el2
-            \\brk #1
+        // Non-zero core
+        \\mov x10, #0x44       // XXX Record progress "D"
+        \\strb w10, [x7]       // XXX
+        \\1: wfe
+        \\b 1b
 
-            // U-Boot leaves us in EL2. Prepare to eret down to EL1
-            // to DAINKRNL.
-            \\.el2:
+        // Check if we're in EL1 (EDK2 does this for us).
+        // If so, go straight to DAINKRNL.
+        \\.cpu_zero:
+        \\mrs x10, CurrentEL
+        \\cmp x10, #0x4
+        \\b.ne .not_el1
+        \\mov x10, #0x45       // XXX Record progress "E"
+        \\strb w10, [x7]       // XXX
+        \\br x9
 
-            // Copy our stack.
-            \\mov x10, sp
-            \\msr sp_el1, x10
+        // Assert we are in EL2.
+        \\.not_el1:
+        \\cmp x10, #0x8
+        \\b.eq .el2
+        \\brk #1
 
-            // Don't trap EL0/EL1 accesses to the EL1 physical counter and timer registers.
-            \\mrs x10, cnthctl_el2
-            \\orr x10, x10, #3
-            \\msr cnthctl_el2, x10
+        // U-Boot leaves us in EL2. Prepare to eret down to EL1
+        // to DAINKRNL.
+        \\.el2:
 
-            // Reset virtual offset register.
-            \\msr cntvoff_el2, xzr
+        // Copy our stack.
+        \\mov x10, sp
+        \\msr sp_el1, x10
 
-            // Set EL1 execution state to AArch64, not AArch32.
-            \\mov x10, #(1 << 31)
-            // EL1 execution of DC ISW performs the same invalidation as DC CISW.
-            \\orr x10, x10, #(1 << 1)
-            \\msr hcr_el2, x10
-            \\mrs x10, hcr_el2 // ?
+        // Don't trap EL0/EL1 accesses to the EL1 physical counter and timer registers.
+        \\mrs x10, cnthctl_el2
+        \\orr x10, x10, #3
+        \\msr cnthctl_el2, x10
 
-            // Clear hypervisor system trap register.
-            \\msr hstr_el2, xzr
+        // Reset virtual offset register.
+        \\msr cntvoff_el2, xzr
 
-            // I saw someone on StackOverflow set this this way.
-            // "The CPTR_EL2 controls trapping to EL2 for accesses to CPACR, Trace functionality
-            // and registers associated with Advanced SIMD and floating-point execution. It also
-            // controls EL2 access to this functionality."
-            // This sets TFP to 0, TCPAC to 0, and everything else to RES values.
-            \\mov x10, #0x33ff
-            \\msr cptr_el2, x10
+        // Set EL1 execution state to AArch64, not AArch32.
+        \\mov x10, #(1 << 31)
+        // EL1 execution of DC ISW performs the same invalidation as DC CISW.
+        \\orr x10, x10, #(1 << 1)
+        \\msr hcr_el2, x10
+        \\mrs x10, hcr_el2 // ?
 
-            // Allow EL0/1 to use Advanced SIMD and FP.
-            // https://developer.arm.com/documentation/100442/0100/register-descriptions/aarch64-system-registers/cpacr-el1--architectural-feature-access-control-register--el1
-            // Set FPEN, [21:20] to 0b11.
-            \\mov x10, #0x300000
-            \\msr CPACR_EL1, x10
+        // Clear hypervisor system trap register.
+        \\msr hstr_el2, xzr
 
-            // Prepare the simulated exception.
-            // Trying EL1t (0x3c4) didn't make a difference in practice.
-            \\mov x10, #0x3c5            // DAIF+EL1+h (h = 0b1 = use SP_ELx, not SP0)
-            \\msr spsr_el2, x10
+        // I saw someone on StackOverflow set this this way.
+        // "The CPTR_EL2 controls trapping to EL2 for accesses to CPACR, Trace functionality
+        // and registers associated with Advanced SIMD and floating-point execution. It also
+        // controls EL2 access to this functionality."
+        // This sets TFP to 0, TCPAC to 0, and everything else to RES values.
+        \\mov x10, #0x33ff
+        \\msr cptr_el2, x10
 
-            // Prepare the return address.
-            \\adr x10, .eret_target
-            \\msr elr_el2, x10
-            \\mov x10, #0x46       // XXX Record progress "F"
-            \\strb w10, [x7]       // XXX
+        // Allow EL0/1 to use Advanced SIMD and FP.
+        // https://developer.arm.com/documentation/100442/0100/register-descriptions/aarch64-system-registers/cpacr-el1--architectural-feature-access-control-register--el1
+        // Set FPEN, [21:20] to 0b11.
+        \\mov x10, #0x300000
+        \\msr CPACR_EL1, x10
 
-            // Fire.
-            \\eret
-            \\brk #1               // Should not execute; if it did, U-Boot would say hi.
+        // Prepare the simulated exception.
+        // Trying EL1t (0x3c4) didn't make a difference in practice.
+        \\mov x10, #0x3c5            // DAIF+EL1+h (h = 0b1 = use SP_ELx, not SP0)
+        \\msr spsr_el2, x10
 
-            // Are we in EL1 yet?
-            \\.eret_target:
-            \\br x9
+        // Prepare the return address.
+        \\adr x10, .eret_target
+        \\msr elr_el2, x10
+        \\mov x10, #0x46       // XXX Record progress "F"
+        \\strb w10, [x7]       // XXX
+
+        // Fire.
+        \\eret
+        \\brk #1               // Should not execute; if it did, U-Boot would say hi.
+
+        // Are we in EL1 yet?
+        \\.eret_target:
+        \\br x9
         :
-        : [memory_map] "{x0}" (memory_map),
-          [memmapsz_descsz] "{x1}" (memmapsz_descsz),
-          [dtb] "{x2}" (dtb.ptr),
-          [conventional_start] "{x3}" (conventional_start),
-          [conventional_bytes] "{x4}" (conventional_bytes),
-          [fb] "{x5}" (fb),
-          [verthoriz] "{x6}" (verthoriz),
-          [uart_base] "{x7}" (uart_base),
+        : [memory_map] "r" (memory_map),
+          [memory_map_size] "r" (memory_map_size),
+          [descriptor_size] "r" (descriptor_size),
+          [dtb_ptr] "r" (dtb.ptr),
+          [conventional_start] "r" (conventional_start),
+          [conventional_bytes] "r" (conventional_bytes),
+          [fb] "r" (fb),
+          [verthoriz] "r" (verthoriz),
+          [uart_base] "r" (uart_base),
 
           [entry] "{x9}" (adjusted_entry)
         : "memory"

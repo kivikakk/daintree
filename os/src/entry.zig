@@ -12,17 +12,19 @@ comptime {
 // From dainboot.
 pub const EntryData = packed struct {
     memory_map: [*]std.os.uefi.tables.MemoryDescriptor,
-    memmapsz_descsz: u64,
+    memory_map_size: usize,
+    descriptor_size: usize,
     dtb_ptr: usize,
     conventional_start: usize,
     conventional_bytes: usize,
     fb: [*]u32,
-    verthoriz: u64,
-    uart_base: u64,
+    fb_horiz: u32,
+    fb_vert: u32,
+    uart_base: u64, // PA coming in from dainboot, translated when we pass to daintree_main.
 };
 
 comptime {
-    std.testing.expectEqual(64, @sizeOf(EntryData));
+    std.testing.expectEqual(0x48, @sizeOf(EntryData));
 }
 
 var TTBR0_IDENTITY: *[INDEX_SIZE]u64 = undefined;
@@ -34,16 +36,20 @@ usingnamespace @import("hacks.zig");
 
 // UEFI passes control here. MMU is **off**.
 pub export fn daintree_mmu_start(
-    memory_map: [*]std.os.uefi.tables.MemoryDescriptor,
-    memmapsz_descsz: u64,
-    dtb_ptr: usize,
-    conventional_start: usize,
-    conventional_bytes: usize,
-    fb: [*]u32,
-    verthoriz: u64,
-    uart_base: u64,
+    entry_data: *EntryData,
 ) noreturn {
     HACK_uart(.{ "dainkrnl pre-MMU stage on ", build_options.board, "\r\n" });
+
+    HACK_uart(.{ "memory_map:         ", @ptrToInt(entry_data.memory_map), "\r\n" });
+    HACK_uart(.{ "memory_map_size:    ", entry_data.memory_map_size, "\r\n" });
+    HACK_uart(.{ "descriptor_size:    ", entry_data.descriptor_size, "\r\n" });
+    HACK_uart(.{ "dtb_ptr:            ", entry_data.dtb_ptr, "\r\n" });
+    HACK_uart(.{ "conventional_start: ", entry_data.conventional_start, "\r\n" });
+    HACK_uart(.{ "conventional_bytes: ", entry_data.conventional_bytes, "\r\n" });
+    HACK_uart(.{ "fb:                 ", @ptrToInt(entry_data.fb), "\r\n" });
+    HACK_uart(.{ "fb_vert:               ", entry_data.fb_vert, "\r\n" });
+    HACK_uart(.{ "fb_horiz:              ", entry_data.fb_horiz, "\r\n" });
+    HACK_uart(.{ "uart_base:          ", entry_data.uart_base, "\r\n" });
 
     var daintree_base: u64 = asm volatile ("adr %[ret], __daintree_base"
         : [ret] "=r" (-> u64)
@@ -113,11 +119,11 @@ pub export fn daintree_mmu_start(
     arch.writeRegister(.TTBR1_EL1, ttbr1_el1);
 
     {
-        const l1_start = index(1, conventional_start);
-        const l1_end = index(1, conventional_start + conventional_bytes);
+        const l1_start = index(1, entry_data.conventional_start);
+        const l1_end = index(1, entry_data.conventional_start + entry_data.conventional_bytes);
 
         var l1_i = l1_start;
-        var l1_address = conventional_start;
+        var l1_address = entry_data.conventional_start;
         while (l1_i <= l1_end) : (l1_i += 1) {
             tableSet(TTBR0_IDENTITY, l1_i, l1_address, IDENTITY_FLAGS.toU64());
             l1_address += BLOCK_L1_SIZE;
@@ -164,19 +170,21 @@ pub export fn daintree_mmu_start(
     }
 
     // Let's hackily put UART at wherever's next.
-    tableSet(TTBR1_L3, i, uart_base, PERIPHERAL_TABLE.toU64());
+    tableSet(TTBR1_L3, i, entry_data.uart_base, PERIPHERAL_TABLE.toU64());
 
     // address now points to the stack. make space for EntryData, align.
     address -= @sizeOf(EntryData);
     address &= ~@as(u64, 15);
     @intToPtr(*EntryData, address).* = .{
-        .memory_map = memory_map,
-        .memmapsz_descsz = memmapsz_descsz,
-        .dtb_ptr = dtb_ptr,
-        .conventional_start = conventional_start,
-        .conventional_bytes = conventional_bytes,
-        .fb = fb,
-        .verthoriz = verthoriz,
+        .memory_map = entry_data.memory_map,
+        .memory_map_size = entry_data.memory_map_size,
+        .descriptor_size = entry_data.descriptor_size,
+        .dtb_ptr = entry_data.dtb_ptr,
+        .conventional_start = entry_data.conventional_start,
+        .conventional_bytes = entry_data.conventional_bytes,
+        .fb = entry_data.fb,
+        .fb_vert = entry_data.fb_vert,
+        .fb_horiz = entry_data.fb_horiz,
         .uart_base = KERNEL_BASE | (end << PAGE_BITS),
     };
 
