@@ -256,15 +256,18 @@ fn parseElf(bytes: []const u8) elf.Header {
 fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     const dainkrnl_elf = parseElf(dainkrnl);
     var elf_source = std.io.fixedBufferStream(dainkrnl);
+    var kernel_size: u64 = 0;
     {
         var it = dainkrnl_elf.program_header_iterator(&elf_source);
         while (it.next() catch haltMsg("iterating phdrs (2)")) |phdr| {
             if (phdr.p_type == elf.PT_LOAD) {
                 const target = phdr.p_vaddr - 0xffffff80_00000000;
-                printf("will load 0x{x:0>16} bytes at 0x{x:0>16} into offset+0x{x:0>16}\r\n", .{ phdr.p_filesz, phdr.p_vaddr, target });
+                const load_bytes = std.math.min(phdr.p_filesz, phdr.p_memsz);
+                printf("will load 0x{x:0>16} bytes at 0x{x:0>16} into offset+0x{x:0>16}\r\n", .{ load_bytes, phdr.p_vaddr, target });
                 if (phdr.p_memsz > phdr.p_filesz) {
                     printf("  and zeroing {} bytes at end\r\n", .{phdr.p_memsz - phdr.p_filesz});
                 }
+                kernel_size = std.math.max(kernel_size, target + phdr.p_memsz);
             }
         }
     }
@@ -282,6 +285,8 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         break :dtb 0;
     };
     printf("0x{x:0>8}\r\n", .{uart_base});
+
+    printf("we will clean d/i$ for 0x{x} bytes\r\n", .{kernel_size});
 
     printf("going quiet before obtaining memory map\r\n", .{});
 
@@ -348,6 +353,53 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             }
         }
     }
+
+    // Clean and invalidate D- and I-caches for loaded code.
+    asm volatile (
+        \\  ADD x1, x1, x0                // Base Address + Length
+        \\  MRS X2, CTR_EL0               // Read Cache Type Register
+        \\  // Get the minimun data cache line
+        \\  //
+        \\  UBFX X4, X2, #16, #4          // Extract DminLine (log2 of the cache line)
+        \\  MOV X3, #4                    // Dminline iss the number of words (4 bytes)
+        \\  LSL X3, X3, X4                // X3 should contain the cache line
+        \\  SUB X4, X3, #1                // get the mask for the cache line
+        \\
+        \\  BIC X4, X0, X4                // Aligned the base address of the region
+        \\clean_data_cache:
+        \\  DC CVAU, X4                   // Clean data cache line by VA to PoU
+        \\  ADD X4, X4, X3                // Next cache line
+        \\  CMP X4, X1                    // Is X4 (current cache line) smaller than the end 
+        \\                                // of the region
+        \\  B.LT clean_data_cache         // while (address < end_address)
+        \\
+        \\  DSB ISH                       // Ensure visibility of the data cleaned from cache
+        \\
+        \\  //
+        \\  //Clean the instruction cache by VA
+        \\  //
+        \\
+        \\  // Get the minimum instruction cache line (X2 contains ctr_el0)
+        \\  AND X2, X2, #0xF             // Extract IminLine (log2 of the cache line)
+        \\  MOV X3, #4                   // IminLine is the number of words (4 bytes)
+        \\  LSL X3, X3, X2               // X3 should contain the cache line
+        \\  SUB x4, x3, #1               // Get the mask for the cache line
+        \\
+        \\  BIC X4, X0, X4               // Aligned the base address of the region
+        \\clean_instruction_cache:
+        \\  IC IVAU, X4                  // Clean instruction cache line by VA to PoU
+        \\  ADD X4, X4, X3               // Next cache line
+        \\  CMP X4, X1                   // Is X4 (current cache line) smaller than the end 
+        \\                               // of the region
+        \\  B.LT clean_instruction_cache // while (address < end_address)
+        \\
+        \\  DSB ISH                      // Ensure completion of the invalidations
+        \\  ISB                          // Synchronize the fetched instruction stream
+        :
+        : [conventional_start] "{x0}" (conventional_start),
+          [kernel_size] "{x1}" (kernel_size)
+        : "memory", "x2", "x3", "x4"
+    );
 
     if (graphics.mode.info.horizontal_resolution != graphics.mode.info.pixels_per_scan_line) {
         haltMsg("horizontal res != pixels per scan line");
@@ -458,7 +510,6 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             \\.eret_target:
             \\msr spsel, #1        // Enable our own stack.
             \\mov sp, x11          // Write it again, for good measure.
-            \\msr vbar_el1, x12    // Set the interrupt vector.
             \\dsb sy
             \\dsb ish
             \\dmb sy
@@ -493,10 +544,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
           [verthoriz] "{x6}" (verthoriz),
           [uart_base] "{x7}" (uart_base),
 
-          [entry] "{x9}" (adjusted_entry +
-            // HACK: jump straight to the UART write on rockpro so we don't touch the stack.
-            if (comptime std.mem.eql(u8, build_options.board, "rockpro64")) 52 else 0),
-          [vbar_el1] "{x12}" (@as(u64, 0xffffff80_00000000))
+          [entry] "{x9}" (adjusted_entry)
         : "memory"
     );
 
