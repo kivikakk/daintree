@@ -11,7 +11,6 @@ usingnamespace @import("hacks.zig");
 
 // From daintree_mmu_start.
 export fn daintree_main(entry_data: *common.EntryData) void {
-    HACK_uartAt(@intToPtr(*volatile u8, 0xffffff8000065000), .{ "daintree_main ", @ptrToInt(entry_data), "\r\n" });
     uart_global = @intToPtr(*volatile u8, entry_data.uart_base);
     HACK_uart(.{ "trying thru uart_global @ ", @ptrToInt(&uart_global), "\r\n" });
 

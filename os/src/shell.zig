@@ -47,6 +47,7 @@ pub const Shell = struct {
                 '\r' => {
                     printf("\n", .{});
                     self.process(buf[0..len]);
+                    printf("> ", .{});
                     len = 0;
                 },
                 else => {
@@ -61,10 +62,13 @@ pub const Shell = struct {
     fn process(self: *Shell, cmd: []const u8) void {
         if (std.mem.eql(u8, cmd, "reset")) {
             self.reset();
+        } else if (std.mem.startsWith(u8, cmd, "echo ")) {
+            printf("{s}\n", .{cmd[5..]});
         }
     }
 
     fn reset(self: *Shell) void {
+        // This works on rockpro64 if you wait long enough.
         asm volatile (
             \\msr daifset, #15
             \\ldr w0, =0x84000009
