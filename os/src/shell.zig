@@ -44,7 +44,7 @@ pub const Shell = struct {
             const c = self.uart.*;
 
             switch (c) {
-                '\n' => {
+                '\r' => {
                     printf("\n", .{});
                     self.process(buf[0..len]);
                     len = 0;

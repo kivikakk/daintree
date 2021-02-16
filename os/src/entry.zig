@@ -2,29 +2,12 @@
 pub const panic = @import("panic.zig").panic;
 
 const std = @import("std");
+const common = @import("common.zig");
 const arch = @import("arch.zig");
 const build_options = @import("build_options");
 comptime {
     _ = @import("exception.zig");
     _ = @import("main.zig");
-}
-
-// From dainboot.
-pub const EntryData = packed struct {
-    memory_map: [*]std.os.uefi.tables.MemoryDescriptor,
-    memory_map_size: usize,
-    descriptor_size: usize,
-    dtb_ptr: usize,
-    conventional_start: usize,
-    conventional_bytes: usize,
-    fb: [*]u32,
-    fb_horiz: u32,
-    fb_vert: u32,
-    uart_base: u64, // PA coming in from dainboot, translated when we pass to daintree_main.
-};
-
-comptime {
-    std.testing.expectEqual(0x48, @sizeOf(EntryData));
 }
 
 var TTBR0_IDENTITY: *[INDEX_SIZE]u64 = undefined;
@@ -36,14 +19,15 @@ usingnamespace @import("hacks.zig");
 
 // UEFI passes control here. MMU is **off**.
 pub export fn daintree_mmu_start(
-    entry_data: *EntryData,
+    entry_data: *common.EntryData,
 ) noreturn {
     HACK_uart(.{ "dainkrnl pre-MMU stage on ", build_options.board, "\r\n" });
 
+    HACK_uart(.{ "entry_data (", @ptrToInt(entry_data), ")\r\n" });
     HACK_uart(.{ "memory_map:         ", @ptrToInt(entry_data.memory_map), "\r\n" });
     HACK_uart(.{ "memory_map_size:    ", entry_data.memory_map_size, "\r\n" });
     HACK_uart(.{ "descriptor_size:    ", entry_data.descriptor_size, "\r\n" });
-    HACK_uart(.{ "dtb_ptr:            ", entry_data.dtb_ptr, "\r\n" });
+    HACK_uart(.{ "dtb_ptr:            ", @ptrToInt(entry_data.dtb_ptr), "\r\n" });
     HACK_uart(.{ "conventional_start: ", entry_data.conventional_start, "\r\n" });
     HACK_uart(.{ "conventional_bytes: ", entry_data.conventional_bytes, "\r\n" });
     HACK_uart(.{ "fb:                 ", @ptrToInt(entry_data.fb), "\r\n" });
@@ -172,10 +156,10 @@ pub export fn daintree_mmu_start(
     // Let's hackily put UART at wherever's next.
     tableSet(TTBR1_L3, i, entry_data.uart_base, PERIPHERAL_TABLE.toU64());
 
-    // address now points to the stack. make space for EntryData, align.
-    address -= @sizeOf(EntryData);
+    // address now points to the stack. make space for common.EntryData, align.
+    address -= @sizeOf(common.EntryData);
     address &= ~@as(u64, 15);
-    @intToPtr(*EntryData, address).* = .{
+    @intToPtr(*common.EntryData, address).* = .{
         .memory_map = entry_data.memory_map,
         .memory_map_size = entry_data.memory_map_size,
         .descriptor_size = entry_data.descriptor_size,
@@ -189,7 +173,7 @@ pub export fn daintree_mmu_start(
     };
 
     var new_sp = KERNEL_BASE | (end << PAGE_BITS);
-    new_sp -= @sizeOf(EntryData);
+    new_sp -= @sizeOf(common.EntryData);
     new_sp &= ~@as(u64, 15);
 
     HACK_uart(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });

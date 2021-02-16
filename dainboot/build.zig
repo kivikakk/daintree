@@ -2,7 +2,7 @@ const std = @import("std");
 const CrossTarget = std.zig.CrossTarget;
 const Builder = std.build.Builder;
 
-const common = @import("common.zig");
+const common = @import("src/common.zig");
 
 pub fn build(b: *Builder) !void {
     const target = CrossTarget{

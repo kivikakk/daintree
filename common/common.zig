@@ -13,6 +13,24 @@ pub fn getBoard(b: *build.Builder) !Board {
         error.UnknownBoard;
 }
 
+// From dainboot.
+pub const EntryData = packed struct {
+    memory_map: [*]std.os.uefi.tables.MemoryDescriptor,
+    memory_map_size: usize,
+    descriptor_size: usize,
+    dtb_ptr: [*]const u8,
+    conventional_start: usize,
+    conventional_bytes: usize,
+    fb: [*]u32,
+    fb_horiz: u32,
+    fb_vert: u32,
+    uart_base: u64, // PA coming in from dainboot, translated when we pass to daintree_main.
+};
+
+comptime {
+    std.testing.expectEqual(0x48, @sizeOf(EntryData));
+}
+
 pub fn addBuildOptions(b: *build.Builder, exe: *build.LibExeObjStep, board: Board) !void {
     exe.addBuildOption([:0]const u8, "version", try b.allocator.dupeZ(u8, try getVersion(b)));
     exe.addBuildOption([:0]const u8, "board", try b.allocator.dupeZ(u8, @tagName(board)));

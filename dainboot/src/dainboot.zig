@@ -1,4 +1,5 @@
 const std = @import("std");
+const common = @import("common.zig");
 const uefi = std.os.uefi;
 const build_options = @import("build_options");
 const elf = @import("elf.zig");
@@ -273,7 +274,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     }
     var graphics: *uefi.protocols.GraphicsOutputProtocol = undefined;
     check("locateProtocol", boot_services.locateProtocol(&uefi.protocols.GraphicsOutputProtocol.guid, null, @ptrCast(*?*c_void, &graphics)));
-    var fb: [*]u8 = @intToPtr([*]u8, graphics.mode.frame_buffer_base);
+    var fb: [*]u32 = @intToPtr([*]u32, graphics.mode.frame_buffer_base);
 
     var dtb_scratch_ptr: [*]u8 = undefined;
     check("allocatePool", boot_services.allocatePool(uefi.tables.MemoryType.BootServicesData, 128 * 1024, @ptrCast(*[*]align(8) u8, &dtb_scratch_ptr)));
@@ -354,17 +355,30 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         }
     }
 
-    cleanInvalidateDCacheICache(conventional_start, kernel_size);
+    entry_data = .{
+        .memory_map = memory_map,
+        .memory_map_size = memory_map_size,
+        .descriptor_size = descriptor_size,
+        .dtb_ptr = dtb.ptr,
+        .conventional_start = conventional_start,
+        .conventional_bytes = conventional_bytes,
+        .fb = fb,
+        .fb_vert = graphics.mode.info.vertical_resolution,
+        .fb_horiz = graphics.mode.info.horizontal_resolution,
+        .uart_base = uart_base,
+    };
+
+    cleanInvalidateDCacheICache(@ptrToInt(&entry_data), @sizeOf(@TypeOf(entry_data)));
+    // I'd love to change this back to "..., kernel_size);" at some point.
+    cleanInvalidateDCacheICache(conventional_start, conventional_bytes);
 
     if (graphics.mode.info.horizontal_resolution != graphics.mode.info.pixels_per_scan_line) {
         haltMsg("horizontal res != pixels per scan line");
     }
 
-    printf("{x} ", .{conventional_start});
+    printf("{x} {x} ", .{ conventional_start, @ptrToInt(&entry_data) });
 
     const adjusted_entry = dainkrnl_elf.entry - 0xffffff80_00000000 + conventional_start;
-
-    const verthoriz: u64 = @as(u64, graphics.mode.info.vertical_resolution) << 32 | graphics.mode.info.horizontal_resolution;
 
     check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
 
@@ -372,15 +386,12 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     // and pass to DAINKRNL.
     asm volatile (
     // Prepare arguments
-        \\sub sp, sp, #0x50     // Remember stacks need to be aligned to 16 (!!!) bytes.
-        \\stp %[memory_map], %[memory_map_size], [sp, #0x0]
-        \\stp %[descriptor_size], %[dtb_ptr], [sp, #0x10]
-        \\stp %[conventional_start], %[conventional_bytes], [sp, #0x20]
-        \\stp %[fb], %[verthoriz], [sp, #0x30]
-        \\str %[uart_base], [sp, #0x40]
-        \\mov x0, sp
+        \\mov x0, %[entry_data]
 
-        // For QEMU only: clear x29, x30. EDK2 trips over when generating stacks otherwise.
+        // For progress indicators.
+        \\mov x7, %[uart_base]
+
+        // For QEMU's sake: clear x29, x30. EDK2 trips over when generating stacks otherwise.
         \\mov x29, xzr
         \\mov x30, xzr
 
@@ -477,14 +488,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         \\.eret_target:
         \\br x9
         :
-        : [memory_map] "r" (memory_map),
-          [memory_map_size] "r" (memory_map_size),
-          [descriptor_size] "r" (descriptor_size),
-          [dtb_ptr] "r" (dtb.ptr),
-          [conventional_start] "r" (conventional_start),
-          [conventional_bytes] "r" (conventional_bytes),
-          [fb] "r" (fb),
-          [verthoriz] "r" (verthoriz),
+        : [entry_data] "r" (&entry_data),
           [uart_base] "r" (uart_base),
 
           [entry] "{x9}" (adjusted_entry)
@@ -493,6 +497,8 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
     unreachable;
 }
+
+var entry_data: common.EntryData align(16) = undefined;
 
 fn cleanInvalidateDCacheICache(start: u64, len: u64) callconv(.Inline) void {
     // Clean and invalidate D- and I-caches for loaded code.
