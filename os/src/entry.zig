@@ -150,6 +150,9 @@ pub export fn daintree_mmu_start(
         address += PAGE_SIZE;
     }
 
+    // Let's hackily put UART at wherever's next.
+    tableSet(TTBR1_L3, i, uart_base, PERIPHERAL_TABLE.toU64());
+
     // address now points to the stack. make space for EntryData, align.
     address -= @sizeOf(EntryData);
     address &= ~@as(u64, 15);
@@ -161,7 +164,7 @@ pub export fn daintree_mmu_start(
         .conventional_bytes = conventional_bytes,
         .fb = fb,
         .verthoriz = verthoriz,
-        .uart_base = uart_base,
+        .uart_base = KERNEL_BASE | (end << PAGE_BITS),
     };
 
     var new_sp = KERNEL_BASE | (end << PAGE_BITS);
@@ -171,6 +174,7 @@ pub export fn daintree_mmu_start(
     HACK_uart(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });
     HACK_uart(.{ "lr: ", daintree_main - daintree_base + KERNEL_BASE, "\r\n" });
     HACK_uart(.{ "vbar_el1: ", vbar_el1 - daintree_base + KERNEL_BASE, "\r\n" });
+    HACK_uart(.{ "uart mapped to: ", KERNEL_BASE | (end << PAGE_BITS), "\r\n" });
 
     // Control passes to daintree_main.
     asm volatile (
@@ -236,7 +240,7 @@ const IDENTITY_FLAGS = arch.PageTableEntry{
     .af = 1,
     .sh = .inner_shareable,
     .ap = .readwrite_no_el0,
-    .attr_indx = MEMORY_MAIR_INDEX,
+    .attr_index = MEMORY_MAIR_INDEX,
     .type = .block,
     .oa = 0,
 };
@@ -251,7 +255,7 @@ const KERNEL_DATA_TABLE = arch.PageTableEntry{
     .af = 1,
     .sh = .inner_shareable,
     .ap = .readwrite_no_el0,
-    .attr_indx = MEMORY_MAIR_INDEX,
+    .attr_index = MEMORY_MAIR_INDEX,
     .type = .table,
     .oa = 0,
 };
@@ -266,7 +270,7 @@ const KERNEL_RODATA_TABLE = arch.PageTableEntry{
     .af = 1,
     .sh = .inner_shareable,
     .ap = .readonly_no_el0,
-    .attr_indx = MEMORY_MAIR_INDEX,
+    .attr_index = MEMORY_MAIR_INDEX,
     .type = .table,
     .oa = 0,
 };
@@ -281,11 +285,26 @@ const KERNEL_CODE_TABLE = arch.PageTableEntry{
     .af = 1,
     .sh = .inner_shareable,
     .ap = .readonly_no_el0,
-    .attr_indx = MEMORY_MAIR_INDEX,
+    .attr_index = MEMORY_MAIR_INDEX,
     .type = .table,
     .oa = 0,
 };
 
 comptime {
-    std.testing.expectEqual(0x0040000000000783, KERNEL_CODE_TABLE.toU64());
+    std.testing.expectEqual(0x00400000_00000783, KERNEL_CODE_TABLE.toU64());
+}
+
+const PERIPHERAL_TABLE = arch.PageTableEntry{
+    .uxn = 1,
+    .pxn = 1,
+    .af = 1,
+    .sh = .outer_shareable,
+    .ap = .readwrite_no_el0,
+    .attr_index = DEVICE_MAIR_INDEX,
+    .type = .table,
+    .oa = 0,
+};
+
+comptime {
+    std.testing.expectEqual(0x00600000_00000607, PERIPHERAL_TABLE.toU64());
 }

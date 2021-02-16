@@ -354,52 +354,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         }
     }
 
-    // Clean and invalidate D- and I-caches for loaded code.
-    asm volatile (
-        \\  ADD x1, x1, x0                // Base Address + Length
-        \\  MRS X2, CTR_EL0               // Read Cache Type Register
-        \\  // Get the minimun data cache line
-        \\  //
-        \\  UBFX X4, X2, #16, #4          // Extract DminLine (log2 of the cache line)
-        \\  MOV X3, #4                    // Dminline iss the number of words (4 bytes)
-        \\  LSL X3, X3, X4                // X3 should contain the cache line
-        \\  SUB X4, X3, #1                // get the mask for the cache line
-        \\
-        \\  BIC X4, X0, X4                // Aligned the base address of the region
-        \\clean_data_cache:
-        \\  DC CVAU, X4                   // Clean data cache line by VA to PoU
-        \\  ADD X4, X4, X3                // Next cache line
-        \\  CMP X4, X1                    // Is X4 (current cache line) smaller than the end 
-        \\                                // of the region
-        \\  B.LT clean_data_cache         // while (address < end_address)
-        \\
-        \\  DSB ISH                       // Ensure visibility of the data cleaned from cache
-        \\
-        \\  //
-        \\  //Clean the instruction cache by VA
-        \\  //
-        \\
-        \\  // Get the minimum instruction cache line (X2 contains ctr_el0)
-        \\  AND X2, X2, #0xF             // Extract IminLine (log2 of the cache line)
-        \\  MOV X3, #4                   // IminLine is the number of words (4 bytes)
-        \\  LSL X3, X3, X2               // X3 should contain the cache line
-        \\  SUB x4, x3, #1               // Get the mask for the cache line
-        \\
-        \\  BIC X4, X0, X4               // Aligned the base address of the region
-        \\clean_instruction_cache:
-        \\  IC IVAU, X4                  // Clean instruction cache line by VA to PoU
-        \\  ADD X4, X4, X3               // Next cache line
-        \\  CMP X4, X1                   // Is X4 (current cache line) smaller than the end 
-        \\                               // of the region
-        \\  B.LT clean_instruction_cache // while (address < end_address)
-        \\
-        \\  DSB ISH                      // Ensure completion of the invalidations
-        \\  ISB                          // Synchronize the fetched instruction stream
-        :
-        : [conventional_start] "{x0}" (conventional_start),
-          [kernel_size] "{x1}" (kernel_size)
-        : "memory", "x2", "x3", "x4"
-    );
+    cleanInvalidateDCacheICache(conventional_start, conventional_bytes);
 
     if (graphics.mode.info.horizontal_resolution != graphics.mode.info.pixels_per_scan_line) {
         haltMsg("horizontal res != pixels per scan line");
@@ -524,4 +479,58 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     );
 
     unreachable;
+}
+
+fn cleanInvalidateDCacheICache(start: u64, len: u64) callconv(.Inline) void {
+    // Clean and invalidate D- and I-caches for loaded code.
+    // https://developer.arm.com/documentation/den0024/a/Caches/Cache-maintenance
+    // Also consider referecing https://gitlab.denx.de/u-boot/u-boot/blob/master/arch/arm/cpu/armv8/cache.S,
+    // but it uses set/way.
+    // See also https://android.googlesource.com/kernel/msm.git/+/android-msm-anthias-3.10-lollipop-wear-release/arch/arm64/mm/cache.S.
+    // This used DSB SY instead of ISH, and we will too, just in case.
+    asm volatile (
+        \\  ADD x1, x1, x0                // Base Address + Length
+        \\  MRS X2, CTR_EL0               // Read Cache Type Register
+        \\  // Get the minimun data cache line
+        \\  //
+        \\  UBFX X4, X2, #16, #4          // Extract DminLine (log2 of the cache line)
+        \\  MOV X3, #4                    // Dminline iss the number of words (4 bytes)
+        \\  LSL X3, X3, X4                // X3 should contain the cache line
+        \\  SUB X4, X3, #1                // get the mask for the cache line
+        \\
+        \\  BIC X4, X0, X4                // Aligned the base address of the region
+        \\1:
+        \\  DC CVAU, X4                   // Clean data cache line by VA to PoU
+        \\  ADD X4, X4, X3                // Next cache line
+        \\  CMP X4, X1                    // Is X4 (current cache line) smaller than the end
+        \\                                // of the region
+        \\  B.LT 1b                       // while (address < end_address)
+        \\
+        \\  DSB SY                        // Ensure visibility of the data cleaned from cache
+        \\
+        \\  //
+        \\  //Clean the instruction cache by VA
+        \\  //
+        \\
+        \\  // Get the minimum instruction cache line (X2 contains ctr_el0)
+        \\  AND X2, X2, #0xF             // Extract IminLine (log2 of the cache line)
+        \\  MOV X3, #4                   // IminLine is the number of words (4 bytes)
+        \\  LSL X3, X3, X2               // X3 should contain the cache line
+        \\  SUB x4, x3, #1               // Get the mask for the cache line
+        \\
+        \\  BIC X4, X0, X4               // Aligned the base address of the region
+        \\2:
+        \\  IC IVAU, X4                  // Clean instruction cache line by VA to PoU
+        \\  ADD X4, X4, X3               // Next cache line
+        \\  CMP X4, X1                   // Is X4 (current cache line) smaller than the end
+        \\                               // of the region
+        \\  B.LT 2b                      // while (address < end_address)
+        \\
+        \\  DSB SY                       // Ensure completion of the invalidations
+        \\  ISB                          // Synchronize the fetched instruction stream
+        :
+        : [start] "{x0}" (start),
+          [len] "{x1}" (len)
+        : "memory", "x2", "x3", "x4"
+    );
 }

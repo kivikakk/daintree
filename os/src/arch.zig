@@ -32,7 +32,7 @@ pub const PageTableEntry = struct {
     pub fn toU64(pte: PageTableEntry) callconv(.Inline) u64 {
         return @as(u64, pte.valid) |
             (@as(u64, @enumToInt(pte.type)) << 1) |
-            (@as(u64, pte.attr_indx) << 2) |
+            (@as(u64, pte.attr_index) << 2) |
             (@as(u64, pte.ns) << 5) |
             (@as(u64, @enumToInt(pte.ap)) << 6) |
             (@as(u64, @enumToInt(pte.sh)) << 8) |
@@ -48,7 +48,7 @@ pub const PageTableEntry = struct {
         table = 1,
     },
 
-    attr_indx: u3,
+    attr_index: u3,
     ns: u1 = 0,
     ap: enum(u2) {
         readwrite_no_el0 = 0b00,

@@ -22,6 +22,10 @@
     stp x26, x27, [sp, #16 * 13]
     stp x28, x29, [sp, #16 * 14]
 
+    mov x10, #0x4d  // report "M" to uart
+    mov x9, #0xff1a0000
+    strb w10, [x9]
+
     mrs x0, elr_el1
     mrs x1, spsr_el1
     stp x0, x1, [sp, #16 * 15]
