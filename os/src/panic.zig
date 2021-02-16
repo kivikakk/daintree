@@ -6,8 +6,7 @@ const halt = @import("halt.zig").halt;
 usingnamespace @import("hacks.zig");
 
 pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) noreturn {
-    if (comptime std.mem.eql(u8, build_options.board, "rockpro64"))
-        HACK_uart(.{"panic"});
+    HACK_uart(.{ "kernel panic: ", HACK.UART_Runtime, msg, "\r\n" });
 
     const msg_len: fb.CONSOLE_DIMENSION = @truncate(fb.CONSOLE_DIMENSION, "kernel panic: ".len + msg.len);
     const left: fb.CONSOLE_DIMENSION = fb.console_width - msg_len - 2;
