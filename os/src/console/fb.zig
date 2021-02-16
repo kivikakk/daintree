@@ -34,17 +34,35 @@ pub fn init(in_fb: [*]u32, in_vert: u32, in_horiz: u32) void {
     }
     std.mem.set(u16, console_buf[0 .. console_width * console_height], 0);
     std.mem.set(u32, fb[0 .. fb_horiz * fb_vert], 0);
+
+    drawEnergyStar();
 }
 
-pub fn plot(x: u32, y: u32, c: u32) void {
+fn drawEnergyStar() void {
+    const WIDTH = 138;
+    const HEIGHT = 103;
+    const DATA = @embedFile("../assets/energystar.vga");
+    const left = fb_horiz - WIDTH;
+    var y: u32 = 0;
+    while (y < HEIGHT) : (y += 1) {
+        var x: u32 = 0;
+        while (x < WIDTH) : (x += 1) {
+            var s = DATA[(WIDTH * y + x) * 3 .. (WIDTH * y + x + 1) * 3];
+            const c = (@as(u32, s[0]) << 16) | (@as(u32, s[1]) << 8) | @as(u32, s[2]);
+            plot(left + x, y, c);
+        }
+    }
+}
+
+pub fn plot(x: u32, y: u32, c: u32) callconv(.Inline) void {
     fb[fb_horiz * y + x] = c;
 }
 
-pub fn colour(bgfg: u8) void {
+pub fn colour(bgfg: u8) callconv(.Inline) void {
     console_colour = bgfg;
 }
 
-pub fn locate(row: CONSOLE_DIMENSION, col: CONSOLE_DIMENSION) void {
+pub fn locate(row: CONSOLE_DIMENSION, col: CONSOLE_DIMENSION) callconv(.Inline) void {
     console_row = row;
     console_col = col;
 }
