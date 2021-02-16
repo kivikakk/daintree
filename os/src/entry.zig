@@ -43,7 +43,7 @@ pub export fn daintree_mmu_start(
     verthoriz: u64,
     uart_base: u64,
 ) noreturn {
-    HACK_uartWriteCarefully("dainkrnl pre-MMU stage on " ++ build_options.board ++ "\r\n");
+    HACK_uart(.{ "dainkrnl pre-MMU stage on ", build_options.board, "\r\n" });
 
     var daintree_base: u64 = asm volatile ("adr %[ret], __daintree_base"
         : [ret] "=r" (-> u64)
@@ -66,23 +66,14 @@ pub export fn daintree_mmu_start(
     const current_el = arch.readRegister(.CurrentEL) >> 2;
     const sctlr_el1 = arch.readRegister(.SCTLR_EL1);
 
-    HACK_uartWriteCarefully("__daintree_base: 0x");
-    HACK_uartWriteCarefullyHex(daintree_base);
-    HACK_uartWriteCarefully("\r\n__daintree_rodata_base: 0x");
-    HACK_uartWriteCarefullyHex(daintree_rodata_base);
-    HACK_uartWriteCarefully("\r\n__daintree_data_base: 0x");
-    HACK_uartWriteCarefullyHex(daintree_data_base);
-    HACK_uartWriteCarefully("\r\n__daintree_end: 0x");
-    HACK_uartWriteCarefullyHex(daintree_end);
-    HACK_uartWriteCarefully("\r\ndaintree_main: 0x");
-    HACK_uartWriteCarefullyHex(daintree_main);
-    HACK_uartWriteCarefully("\r\n__vbar_el1: 0x");
-    HACK_uartWriteCarefullyHex(vbar_el1);
-    HACK_uartWriteCarefully("\r\nCurrentEL: 0x");
-    HACK_uartWriteCarefullyHex(current_el);
-    HACK_uartWriteCarefully("\r\nSCTLR_EL1: 0x");
-    HACK_uartWriteCarefullyHex(sctlr_el1);
-    HACK_uartWriteCarefully("\r\n");
+    HACK_uart(.{ "__daintree_base: ", daintree_base, "\r\n" });
+    HACK_uart(.{ "__daintree_rodata_base: ", daintree_rodata_base, "\r\n" });
+    HACK_uart(.{ "__daintree_data_base: ", daintree_data_base, "\r\n" });
+    HACK_uart(.{ "__daintree_end: ", daintree_end, "\r\n" });
+    HACK_uart(.{ "daintree_main: ", daintree_main, "\r\n" });
+    HACK_uart(.{ "__vbar_el1: ", vbar_el1, "\r\n" });
+    HACK_uart(.{ "CurrentEL: ", current_el, "\r\n" });
+    HACK_uart(.{ "SCTLR_EL1: ", sctlr_el1, "\r\n" });
 
     const tcr_el1 = comptime (arch.TCR_EL1{
         .ips = .B36,
@@ -109,6 +100,8 @@ pub export fn daintree_mmu_start(
 
     const ttbr0_el1 = @ptrToInt(TTBR0_IDENTITY) | 1;
     const ttbr1_el1 = @ptrToInt(TTBR1_L1) | 1;
+    HACK_uart(.{ "setting TTBR0_EL1: ", ttbr0_el1, "\r\n" });
+    HACK_uart(.{ "setting TTBR1_EL1: ", ttbr1_el1, "\r\n" });
     arch.writeRegister(.TTBR0_EL1, ttbr0_el1);
     arch.writeRegister(.TTBR1_EL1, ttbr1_el1);
 
@@ -174,6 +167,10 @@ pub export fn daintree_mmu_start(
     var new_sp = KERNEL_BASE | (end << PAGE_BITS);
     new_sp -= @sizeOf(EntryData);
     new_sp &= ~@as(u64, 15);
+
+    HACK_uart(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });
+    HACK_uart(.{ "lr: ", daintree_main - daintree_base + KERNEL_BASE, "\r\n" });
+    HACK_uart(.{ "vbar_el1: ", vbar_el1 - daintree_base + KERNEL_BASE, "\r\n" });
 
     // Control passes to daintree_main.
     asm volatile (

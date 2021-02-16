@@ -4,8 +4,11 @@ const fb = @import("console/fb.zig");
 const printf = fb.printf;
 const halt = @import("halt.zig").halt;
 
+usingnamespace @import("hacks.zig");
+
 // From daintree_mmu_start.
 export fn daintree_main(entry_data: *entry.EntryData) void {
+    HACK_uart(.{ "daintree_main ", @ptrToInt(entry_data), "\r\n" });
     var fb_vert: u32 = @truncate(u32, (entry_data.verthoriz >> 32) & 0xffffffff);
     var fb_horiz: u32 = @truncate(u32, entry_data.verthoriz & 0xffffffff);
     fb.init(entry_data.fb, fb_vert, fb_horiz);

@@ -15,14 +15,29 @@ fn busyLoop() callconv(.Inline) void {
     }
 }
 
-pub fn HACK_uartWriteCarefully(comptime msg: []const u8) callconv(.Inline) void {
+pub fn HACK_uart(parts: anytype) callconv(.Inline) void {
+    const parts_info = std.meta.fields(@TypeOf(parts));
+    comptime var i = 0;
+    inline while (i < parts_info.len) : (i += 1) {
+        if (comptime std.meta.trait.isPtrTo(.Array)(parts_info[i].field_type) or comptime std.meta.trait.isSliceOf(.Int)(parts_info[i].field_type)) {
+            HACK_uartWriteCarefully(parts[i]);
+        } else if (comptime std.meta.trait.isUnsignedInt(parts_info[i].field_type)) {
+            HACK_uartWriteCarefully("0x");
+            HACK_uartWriteCarefullyHex(parts[i]);
+        } else {
+            @compileError("what do I do with this? " ++ @typeName(parts_info[i].field_type));
+        }
+    }
+}
+
+fn HACK_uartWriteCarefully(comptime msg: []const u8) callconv(.Inline) void {
     inline for (msg) |c| {
         uart.* = c;
         busyLoop();
     }
 }
 
-pub fn HACK_uartWriteCarefullyHex(n: u64) callconv(.Inline) void {
+fn HACK_uartWriteCarefullyHex(n: u64) callconv(.Inline) void {
     var digits: usize = 0;
     var c = n;
     while (c > 0) : (c /= 16) {

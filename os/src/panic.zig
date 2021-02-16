@@ -7,7 +7,7 @@ usingnamespace @import("hacks.zig");
 
 pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) noreturn {
     if (comptime std.mem.eql(u8, build_options.board, "rockpro64"))
-        HACK_uartWriteCarefully("panic");
+        HACK_uart(.{"panic"});
 
     const msg_len: fb.CONSOLE_DIMENSION = @truncate(fb.CONSOLE_DIMENSION, "kernel panic: ".len + msg.len);
     const left: fb.CONSOLE_DIMENSION = fb.console_width - msg_len - 2;
