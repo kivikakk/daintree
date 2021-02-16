@@ -28,6 +28,8 @@
 
     str x30, [sp, #16 * 16]
     mov x0, sp
+    mrs x1, elr_el1
+    mrs x2, esr_el1
 
     bl \handler
 

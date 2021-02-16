@@ -20,6 +20,7 @@ export fn daintree_main(entry_data: *entry.EntryData) void {
     fb.init(entry_data.fb, fb_vert, fb_horiz);
 
     HACK_uart(.{"init success\r\n"});
+
     printf("\x1b\x0adaintree \x1b\x07{s} on {s}\n", .{ build_options.version, build_options.board });
 
     var i: u9 = 0;

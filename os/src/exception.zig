@@ -61,7 +61,9 @@ export fn el1_sp0_error(ctx: *ExceptionContext) void {
     handle(ctx, "EL1_SP0_ERROR");
 }
 
-export fn el1_sync(ctx: *ExceptionContext) void {
+export fn el1_sync(ctx: *ExceptionContext, elr_el1: u64, esr_el1: u64) void {
+    HACK_uart2(elr_el1);
+    HACK_uart2(esr_el1);
     handle(ctx, "EL1_SYNC");
 }
 

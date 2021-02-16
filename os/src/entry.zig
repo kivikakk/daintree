@@ -75,6 +75,13 @@ pub export fn daintree_mmu_start(
     HACK_uart(.{ "CurrentEL: ", current_el, "\r\n" });
     HACK_uart(.{ "SCTLR_EL1: ", sctlr_el1, "\r\n" });
 
+    const cpacr_el1 = arch.readRegister(.CPACR_EL1);
+    HACK_uart(.{ "CPACR_EL1: ", cpacr_el1, "\r\n" });
+    // const cptr_el2 = arch.readRegister(.CPTR_EL2);
+    // HACK_uart(.{ "CPTR_EL2: ", cptr_el2, "\r\n" });
+    // const cptr_el3 = arch.readRegister(.CPTR_EL3);
+    // HACK_uart(.{ "CPTR_EL3: ", cptr_el3, "\r\n" });
+
     const tcr_el1 = comptime (arch.TCR_EL1{
         .ips = .B36,
         .tg1 = .K4,
@@ -120,8 +127,10 @@ pub export fn daintree_mmu_start(
     tableSet(TTBR1_L1, 0, @ptrToInt(TTBR1_L2), KERNEL_DATA_TABLE.toU64());
     tableSet(TTBR1_L2, 0, @ptrToInt(TTBR1_L3), KERNEL_DATA_TABLE.toU64());
 
-    var end = (daintree_end - daintree_base) >> PAGE_BITS;
+    var end: u64 = (daintree_end - daintree_base) >> PAGE_BITS;
     if (end > 512) {
+        HACK_uart(.{"end got too big (1)\r\n"});
+
         while (true) {}
     }
 
@@ -142,12 +151,16 @@ pub export fn daintree_mmu_start(
     end += 4;
     while (i < end) : (i += 1) {
         tableSet(TTBR1_L3, i, 0, 0);
-        address += PAGE_SIZE;
     }
     end = i + STACK_PAGES;
     while (i < end) : (i += 1) {
         tableSet(TTBR1_L3, i, address, KERNEL_DATA_TABLE.toU64());
         address += PAGE_SIZE;
+    }
+
+    if (end > 512) {
+        HACK_uart(.{"end got too big (2)\r\n"});
+        while (true) {}
     }
 
     // Let's hackily put UART at wherever's next.

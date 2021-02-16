@@ -1,4 +1,14 @@
-pub const Register = enum { MAIR_EL1, TCR_EL1, TTBR0_EL1, TTBR1_EL1, SCTLR_EL1, CurrentEL };
+pub const Register = enum {
+    MAIR_EL1,
+    TCR_EL1,
+    TTBR0_EL1,
+    TTBR1_EL1,
+    SCTLR_EL1,
+    CurrentEL,
+    CPACR_EL1,
+    CPTR_EL2,
+    CPTR_EL3,
+};
 pub fn writeRegister(comptime register: Register, value: u64) callconv(.Inline) void {
     asm volatile ("msr " ++ @tagName(register) ++ ", %[value]"
         :

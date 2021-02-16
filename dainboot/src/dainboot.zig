@@ -445,6 +445,12 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             \\mov x10, #0x33ff
             \\msr cptr_el2, x10
 
+            // Allow EL0/1 to use Advanced SIMD and FP.
+            // https://developer.arm.com/documentation/100442/0100/register-descriptions/aarch64-system-registers/cpacr-el1--architectural-feature-access-control-register--el1
+            // Set FPEN, [21:20] to 0b11.
+            \\mov x10, #0x300000
+            \\msr CPACR_EL1, x10
+
             // Prepare the simulated exception.
             // Trying EL1t (0x3c4) didn't make a difference in practice.
             \\mov x10, #0x3c5            // DAIF+EL1+h (h = 0b1 = use SP_ELx, not SP0)
@@ -462,7 +468,6 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
             // Are we in EL1 yet?
             \\.eret_target:
-            \\msr spsel, #1        // Enable our own stack.
             \\br x9
         :
         : [memory_map] "{x0}" (memory_map),
