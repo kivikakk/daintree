@@ -1,7 +1,6 @@
 const std = @import("std");
 const build_options = @import("build_options");
 const fb = @import("console/fb.zig");
-const halt = @import("halt.zig").halt;
 const arch = @import("arch.zig");
 
 usingnamespace @import("hacks.zig");
@@ -47,5 +46,5 @@ pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) nore
     while (x < msg_len + 2) : (x += 1) {
         fb.print(" ");
     }
-    halt();
+    arch.halt();
 }

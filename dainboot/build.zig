@@ -2,7 +2,7 @@ const std = @import("std");
 const CrossTarget = std.zig.CrossTarget;
 const Builder = std.build.Builder;
 
-const common = @import("src/common/common.zig");
+const dcommon = @import("src/common/dcommon.zig");
 
 pub fn build(b: *Builder) !void {
     const target = CrossTarget{
@@ -11,11 +11,11 @@ pub fn build(b: *Builder) !void {
         .os_tag = .uefi,
     };
 
-    const board = try common.getBoard(b);
+    const board = try dcommon.getBoard(b);
     const exe = b.addExecutable(b.fmt("BOOTAA64.{s}", .{@tagName(board)}), "src/dainboot.zig");
     exe.setTarget(target);
     exe.setBuildMode(b.standardReleaseOptions());
-    try common.addBuildOptions(b, exe, board);
+    try dcommon.addBuildOptions(b, exe, board);
     exe.addPackagePath("dtb", "../dtb/src/dtb.zig");
     exe.install();
 

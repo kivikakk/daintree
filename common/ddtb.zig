@@ -1,9 +1,17 @@
 const std = @import("std");
 const dtblib = @import("dtb");
 
-const Error = dtblib.Error || error{UartNotFound};
+pub const Error = dtblib.Error || error{UartNotFound};
 
-pub fn searchDtbForUartBase(dtb: []const u8) Error!u64 {
+pub const Uart = struct {
+    base: u64,
+    kind: enum {
+        Pl011,
+        Serial8250,
+    },
+};
+
+pub fn searchForUart(dtb: []const u8) Error!Uart {
     var traverser: dtblib.Traverser = undefined;
     try traverser.init(dtb);
 
@@ -54,7 +62,10 @@ pub fn searchDtbForUartBase(dtb: []const u8) Error!u64 {
             .Pl011 => switch (ev) {
                 .Prop => |prop| {
                     if (std.mem.eql(u8, prop.name, "reg") and address_cells != null and size_cells != null) {
-                        return try firstReg(address_cells.?, prop.value);
+                        return Uart{
+                            .base = try firstReg(address_cells.?, prop.value),
+                            .kind = .Pl011,
+                        };
                     }
                 },
                 .BeginNode => state = .{ .Irrelevant = 1 },
@@ -77,7 +88,10 @@ pub fn searchDtbForUartBase(dtb: []const u8) Error!u64 {
                 },
                 .EndNode => {
                     if (serial_value) |made_it| {
-                        return made_it;
+                        return Uart{
+                            .base = made_it,
+                            .kind = .Serial8250,
+                        };
                     }
                     state = .Root;
                 },

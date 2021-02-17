@@ -1,10 +1,10 @@
 const std = @import("std");
-const common = @import("common/common.zig");
+const dcommon = @import("common/dcommon.zig");
 const uefi = std.os.uefi;
 const build_options = @import("build_options");
 const elf = @import("elf.zig");
 const dtblib = @import("dtb");
-const searchDtbForUartBase = @import("common/dtb.zig").searchDtbForUartBase;
+const ddtb = @import("common/ddtb.zig");
 
 usingnamespace @import("util.zig");
 
@@ -282,10 +282,12 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     var dtb_scratch = dtb_scratch_ptr[0 .. 128 * 1024];
 
     printf("looking up serial base in DTB ... ", .{});
-    var uart_base: u64 = searchDtbForUartBase(dtb) catch |err| dtb: {
+    var uart_base: u64 = 0;
+    if (ddtb.searchForUart(dtb)) |uart| {
+        uart_base = uart.base;
+    } else |err| {
         printf("failed to parse dtb: {}", .{err});
-        break :dtb 0;
-    };
+    }
     printf("0x{x:0>8}\r\n", .{uart_base});
 
     printf("we will clean d/i$ for 0x{x} bytes\r\n", .{kernel_size});
@@ -500,7 +502,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     unreachable;
 }
 
-var entry_data: common.EntryData align(16) = undefined;
+var entry_data: dcommon.EntryData align(16) = undefined;
 
 fn cleanInvalidateDCacheICache(start: u64, len: u64) callconv(.Inline) void {
     // Clean and invalidate D- and I-caches for loaded code.

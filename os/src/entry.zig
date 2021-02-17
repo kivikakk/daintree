@@ -2,7 +2,7 @@
 pub const panic = @import("panic.zig").panic;
 
 const std = @import("std");
-const common = @import("common/common.zig");
+const dcommon = @import("common/dcommon.zig");
 const arch = @import("arch.zig");
 const build_options = @import("build_options");
 comptime {
@@ -19,7 +19,7 @@ usingnamespace @import("hacks.zig");
 
 // UEFI passes control here. MMU is **off**.
 pub export fn daintree_mmu_start(
-    entry_data: *common.EntryData,
+    entry_data: *dcommon.EntryData,
 ) noreturn {
     HACK_uart(.{ "dainkrnl pre-MMU stage on ", build_options.board, "\r\n" });
 
@@ -158,9 +158,9 @@ pub export fn daintree_mmu_start(
     tableSet(TTBR1_L3, i, entry_data.uart_base, PERIPHERAL_TABLE.toU64());
 
     // address now points to the stack. make space for common.EntryData, align.
-    var entry_address = address - @sizeOf(common.EntryData);
+    var entry_address = address - @sizeOf(dcommon.EntryData);
     entry_address &= ~@as(u64, 15);
-    var new_entry = @intToPtr(*common.EntryData, entry_address);
+    var new_entry = @intToPtr(*dcommon.EntryData, entry_address);
     new_entry.* = .{
         .memory_map = entry_data.memory_map,
         .memory_map_size = entry_data.memory_map_size,
@@ -176,7 +176,7 @@ pub export fn daintree_mmu_start(
     };
 
     var new_sp = KERNEL_BASE | (end << PAGE_BITS);
-    new_sp -= @sizeOf(common.EntryData);
+    new_sp -= @sizeOf(dcommon.EntryData);
     new_sp &= ~@as(u64, 15);
 
     // I hate that I'm doing this. Put the DTB in here.

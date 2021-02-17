@@ -1,37 +1,14 @@
 const std = @import("std");
 const printf = @import("console/fb.zig").printf;
+const arch = @import("arch.zig");
 usingnamespace @import("hacks.zig");
+const uart = @import("uart.zig");
 
 pub const Shell = struct {
     pub fn run() void {
-        const uart = uart_global.?;
-        const uart_lsr =
-            if (uart == @intToPtr(*volatile u8, 0x0900_0000))
-            @intToPtr(*volatile u8, @ptrToInt(uart) + 0x18)
-        else
-            @intToPtr(*volatile u8, @ptrToInt(uart) + (5 << 2)); // reg-shift = <2>
-        const uart_mask: u8 = if (uart == @intToPtr(*volatile u8, 0x0900_0000))
-            0x10
-        else
-            1;
-        const uart_cmp: u8 = if (uart == @intToPtr(*volatile u8, 0x0900_0000))
-            0x0
-        else
-            1;
-
-        var sh = Shell{
-            .uart = uart,
-            .uart_lsr = uart_lsr,
-            .uart_mask = uart_mask,
-            .uart_cmp = uart_cmp,
-        };
+        var sh = Shell{};
         sh.exec();
     }
-
-    uart: *volatile u8,
-    uart_lsr: *volatile u8,
-    uart_mask: u8,
-    uart_cmp: u8,
 
     fn exec(self: *Shell) void {
         printf("> ", .{});
@@ -39,22 +16,25 @@ pub const Shell = struct {
         var buf: [256]u8 = [_]u8{undefined} ** 256;
         var len: u8 = 0;
 
-        while (true) {
-            while (self.uart_lsr.* & self.uart_mask != self.uart_cmp) {}
-            const c = self.uart.*;
+        var uart_buf: [16]u8 = [_]u8{undefined} ** 16;
 
-            switch (c) {
-                '\r' => {
-                    printf("\n", .{});
-                    self.process(buf[0..len]);
-                    printf("> ", .{});
-                    len = 0;
-                },
-                else => {
-                    buf[len] = c;
-                    len += 1;
-                    printf("{c}", .{c});
-                },
+        while (true) {
+            var recv = uart.readBlock(&uart_buf) catch return;
+
+            for (uart_buf[0..recv]) |c| {
+                switch (c) {
+                    '\r' => {
+                        printf("\n", .{});
+                        self.process(buf[0..len]);
+                        printf("> ", .{});
+                        len = 0;
+                    },
+                    else => {
+                        buf[len] = c;
+                        len += 1;
+                        printf("{c}", .{c});
+                    },
+                }
             }
         }
     }
@@ -68,15 +48,6 @@ pub const Shell = struct {
     }
 
     fn reset(self: *Shell) void {
-        // This works on rockpro64 if you wait long enough.
-        asm volatile (
-            \\msr daifset, #15
-            \\mov w0, #0x0009
-            \\movk w10, #0x8400, lsl 16
-            \\hvc 0
-            :
-            :
-            : "memory"
-        );
+        arch.psci_reset();
     }
 };

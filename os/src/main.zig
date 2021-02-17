@@ -1,17 +1,18 @@
 const std = @import("std");
-const common = @import("common/common.zig");
+const dcommon = @import("common/dcommon.zig");
 const build_options = @import("build_options");
 const fb = @import("console/fb.zig");
 const printf = fb.printf;
 const putchar = fb.putchar;
-const halt = @import("halt.zig").halt;
+const halt = @import("arch.zig").halt;
 const Shell = @import("shell.zig").Shell;
-const searchDtbForUartBase = @import("common/dtb.zig").searchDtbForUartBase;
+const ddtb = @import("common/ddtb.zig");
+const uart = @import("uart.zig");
 
 usingnamespace @import("hacks.zig");
 
 // From daintree_mmu_start.
-export fn daintree_main(entry_data: *common.EntryData) void {
+export fn daintree_main(entry_data: *dcommon.EntryData) void {
     uart_global = @intToPtr(*volatile u8, entry_data.uart_base);
     HACK_uart(.{ "trying thru uart_global @ ", @ptrToInt(&uart_global), "\r\n" });
 
@@ -23,13 +24,20 @@ export fn daintree_main(entry_data: *common.EntryData) void {
 
     printf("dtb at {*:0>16} (0x{x} bytes)\n", .{ (entry_data.dtb_ptr), entry_data.dtb_len });
 
-    if (searchDtbForUartBase(entry_data.dtb_ptr[0..entry_data.dtb_len])) |base| {
-        printf("got base: 0x{x:0>16}\n", .{base});
+    if (ddtb.searchForUart(entry_data.dtb_ptr[0..entry_data.dtb_len])) |ua| {
+        printf("got UART: {} @ 0x{x:0>16}\n", .{ ua.kind, ua.base });
+        // We patched this through in the MMU, so be extremely hacky:
+        uart.init(.{
+            .base = entry_data.uart_base,
+            .kind = ua.kind,
+        });
     } else |err| {
         printf("got err: {}\n", .{err});
     }
 
     Shell.run();
+
+    printf("\nshell returned\n", .{});
 
     halt();
 }
