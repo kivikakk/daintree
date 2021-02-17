@@ -2,7 +2,7 @@
 pub const panic = @import("panic.zig").panic;
 
 const std = @import("std");
-const common = @import("common.zig");
+const common = @import("common/common.zig");
 const arch = @import("arch.zig");
 const build_options = @import("build_options");
 comptime {
@@ -158,13 +158,14 @@ pub export fn daintree_mmu_start(
     tableSet(TTBR1_L3, i, entry_data.uart_base, PERIPHERAL_TABLE.toU64());
 
     // address now points to the stack. make space for common.EntryData, align.
-    address -= @sizeOf(common.EntryData);
-    address &= ~@as(u64, 15);
-    @intToPtr(*common.EntryData, address).* = .{
+    var entry_address = address - @sizeOf(common.EntryData);
+    entry_address &= ~@as(u64, 15);
+    var new_entry = @intToPtr(*common.EntryData, entry_address);
+    new_entry.* = .{
         .memory_map = entry_data.memory_map,
         .memory_map_size = entry_data.memory_map_size,
         .descriptor_size = entry_data.descriptor_size,
-        .dtb_ptr = entry_data.dtb_ptr,
+        .dtb_ptr = undefined,
         .dtb_len = entry_data.dtb_len,
         .conventional_start = entry_data.conventional_start,
         .conventional_bytes = entry_data.conventional_bytes,
@@ -177,6 +178,28 @@ pub export fn daintree_mmu_start(
     var new_sp = KERNEL_BASE | (end << PAGE_BITS);
     new_sp -= @sizeOf(common.EntryData);
     new_sp &= ~@as(u64, 15);
+
+    // I hate that I'm doing this. Put the DTB in here.
+    {
+        i += 1;
+        address += PAGE_SIZE;
+        new_entry.dtb_ptr = @intToPtr([*]const u8, KERNEL_BASE | (i << PAGE_BITS));
+        std.mem.copy(u8, @intToPtr([*]u8, address)[0..entry_data.dtb_len], entry_data.dtb_ptr[0..entry_data.dtb_len]);
+
+        // How many pages?
+        const dtb_pages = (entry_data.dtb_len + 4095) / 4096;
+
+        var new_end = end + dtb_pages;
+        if (new_end > 512) {
+            HACK_uart(.{"end got too big (3)\r\n"});
+            while (true) {}
+        }
+
+        while (i < new_end) : (i += 1) {
+            tableSet(TTBR1_L3, i, address, KERNEL_RODATA_TABLE.toU64());
+            address += PAGE_SIZE;
+        }
+    }
 
     HACK_uart(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });
     HACK_uart(.{ "lr: ", daintree_main - daintree_base + KERNEL_BASE, "\r\n" });

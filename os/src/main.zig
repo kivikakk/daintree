@@ -1,11 +1,12 @@
 const std = @import("std");
-const common = @import("common.zig");
+const common = @import("common/common.zig");
 const build_options = @import("build_options");
 const fb = @import("console/fb.zig");
 const printf = fb.printf;
 const putchar = fb.putchar;
 const halt = @import("halt.zig").halt;
 const Shell = @import("shell.zig").Shell;
+const searchDtbForUartBase = @import("common/dtb.zig").searchDtbForUartBase;
 
 usingnamespace @import("hacks.zig");
 
@@ -19,6 +20,14 @@ export fn daintree_main(entry_data: *common.EntryData) void {
     HACK_uart(.{"init success!\r\n"});
 
     printf("\x1b\x0adaintree \x1b\x07{s} on {s}\n\n", .{ build_options.version, build_options.board });
+
+    printf("dtb at {*:0>16} (0x{x} bytes)\n", .{ (entry_data.dtb_ptr), entry_data.dtb_len });
+
+    if (searchDtbForUartBase(entry_data.dtb_ptr[0..entry_data.dtb_len])) |base| {
+        printf("got base: 0x{x:0>16}\n", .{base});
+    } else |err| {
+        printf("got err: {}\n", .{err});
+    }
 
     Shell.run();
 

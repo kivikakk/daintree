@@ -1,10 +1,10 @@
 const std = @import("std");
-const common = @import("common.zig");
+const common = @import("common/common.zig");
 const uefi = std.os.uefi;
 const build_options = @import("build_options");
 const elf = @import("elf.zig");
 const dtblib = @import("dtb");
-const searchDtbForUartBase = @import("dtb.zig").searchDtbForUartBase;
+const searchDtbForUartBase = @import("common/dtb.zig").searchDtbForUartBase;
 
 usingnamespace @import("util.zig");
 

@@ -2,7 +2,7 @@ const std = @import("std");
 const CrossTarget = std.zig.CrossTarget;
 const Builder = std.build.Builder;
 
-const common = @import("src/common.zig");
+const common = @import("src/common/common.zig");
 
 pub fn build(b: *Builder) !void {
     // We used to force strict alignment since we run without MMU. Now we do enable it,
@@ -20,6 +20,7 @@ pub fn build(b: *Builder) !void {
     const board = try common.getBoard(b);
     const exe = b.addExecutable(b.fmt("dainkrnl.{s}", .{@tagName(board)}), "src/entry.zig");
     exe.addAssemblyFile("src/exception.s");
+    exe.addPackagePath("dtb", "../dtb/src/dtb.zig");
     exe.setTarget(target);
     exe.setBuildMode(b.standardReleaseOptions());
     exe.setLinkerScriptPath("linker.ld");
