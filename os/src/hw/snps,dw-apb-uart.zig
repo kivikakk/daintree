@@ -3,7 +3,7 @@
 // 8250 in the streets, 16750 in the sheets
 
 // hack!
-fn busyLoop() callconv(.Inline) void {
+fn busyLoop() void {
     var i: usize = 0;
     while (i < 1_000) : (i += 1) {
         asm volatile ("nop");

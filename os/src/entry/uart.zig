@@ -4,30 +4,26 @@
 // writing bytes to their MMIO base address with zero offset.
 //
 // Because the MMU may be not or partially set up when called, the
-// "carefully" variants are all fully inlined, as BLs may fail or otherwise
-// ruin dessert.  They also only work on register values or comptime-known
+// "carefully" variants only work on register values or comptime-known
 // strings by default, as loads may fail.  You can use the Escape enum
 // to say you really want to do a runtime load of a string.
 //
 // These are also called from `exception.zig' to report ESR/ELR and regs,
 // but it might fail if we've actually set things up correctly. Watch out.
-// Keep in mind that, because mostly everything here is inlined, code size
-// can blow out very quickly.  `exception.zig' introduces a non-inlined
-// dumpRegs for this reason, otherwise a full register dump won't fit in
-// the size of the exception vector we've made for ourselves.
+// If `exceptions.zig' is failing, consider inlining `hex' to start with.
 const std = @import("std");
 const build_options = @import("build_options");
 
 pub var base: ?*volatile u8 = null;
 
-fn busyLoop() callconv(.Inline) void {
+fn busyLoop() void {
     var i: usize = 0;
     while (i < 1_000) : (i += 1) {
         asm volatile ("nop");
     }
 }
 
-pub fn carefully(parts: anytype) callconv(.Inline) void {
+pub fn carefully(parts: anytype) void {
     carefullyAt(base.?, parts);
 }
 
@@ -72,7 +68,7 @@ pub const Escape = enum {
     Char,
 };
 
-pub fn carefullyAt(ptr: *volatile u8, parts: anytype) callconv(.Inline) void {
+pub fn carefullyAt(ptr: *volatile u8, parts: anytype) void {
     comptime const parts_info = std.meta.fields(@TypeOf(parts));
     comptime var i = 0;
     comptime var next_escape: ?Escape = null;
@@ -99,21 +95,21 @@ pub fn carefullyAt(ptr: *volatile u8, parts: anytype) callconv(.Inline) void {
     }
 }
 
-fn writeRuntime(ptr: *volatile u8, msg: []const u8) callconv(.Inline) void {
+fn writeRuntime(ptr: *volatile u8, msg: []const u8) void {
     for (msg) |c| {
         ptr.* = c;
         busyLoop();
     }
 }
 
-fn writeCarefully(ptr: *volatile u8, comptime msg: []const u8) callconv(.Inline) void {
+fn writeCarefully(ptr: *volatile u8, comptime msg: []const u8) void {
     inline for (msg) |c| {
         ptr.* = c;
         busyLoop();
     }
 }
 
-fn writeCarefullyHex(ptr: *volatile u8, n: u64) callconv(.Inline) void {
+fn writeCarefullyHex(ptr: *volatile u8, n: u64) void {
     if (n == 0) {
         ptr.* = '0';
         busyLoop();

@@ -1,7 +1,7 @@
 // https://developer.arm.com/documentation/ddi0183/g/programmers-model/summary-of-registers
 
 // hack!
-fn busyLoop() callconv(.Inline) void {
+fn busyLoop() void {
     var i: usize = 0;
     while (i < 1_000) : (i += 1) {
         asm volatile ("nop");
@@ -20,6 +20,8 @@ pub fn write(base: u64, data: []const u8) void {
     }
 }
 
+// Works the 'opposite' to 8250-style UART; instead of waiting for a "data
+// available" bit to set, we wait for the "receive FIFO empty" bit to clear.
 pub fn readBlock(base: u64, buf: []u8) usize {
     const uartdr = @intToPtr(*volatile u8, base + REGOFF_UARTDR);
     const uartfr = @intToPtr(*volatile u8, base + REGOFF_UARTFR);

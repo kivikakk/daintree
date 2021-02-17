@@ -2,14 +2,18 @@
 pub const panic = @import("panic.zig").panic;
 
 const std = @import("std");
+const build_options = @import("build_options");
 const dcommon = @import("common/dcommon.zig");
 const arch = @import("arch.zig");
-const build_options = @import("build_options");
+const entry_uart = @import("entry/uart.zig");
+
 comptime {
+    // Pull in exception vector exports
     _ = @import("exception.zig");
+
+    // Pull in daintree_main export, which we jump to at the end of daintree_mmu_start.
     _ = @import("main.zig");
 }
-const entry_uart = @import("entry/uart.zig");
 
 var TTBR0_IDENTITY: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L1: *[INDEX_SIZE]u64 = undefined;
@@ -17,12 +21,10 @@ var TTBR1_L2: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L3: *[INDEX_SIZE]u64 = undefined;
 
 /// dainboot passes control here.  MMU is **off**.  We are in EL1.
-pub export fn daintree_mmu_start(
-    entry_data: *dcommon.EntryData,
-) noreturn {
+pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     entry_uart.base = @intToPtr(*volatile u8, entry_data.uart_base);
 
-    entry_uart.carefully(.{ "dainkrnl pre-MMU stage on ", build_options.board, "\r\n" });
+    entry_uart.carefully(.{ "dainkrnl ", build_options.version, " pre-MMU stage on ", build_options.board, "\r\n" });
 
     entry_uart.carefully(.{ "entry_data (", @ptrToInt(entry_data), ")\r\n" });
     entry_uart.carefully(.{ "memory_map:         ", @ptrToInt(entry_data.memory_map), "\r\n" });
@@ -33,8 +35,8 @@ pub export fn daintree_mmu_start(
     entry_uart.carefully(.{ "conventional_start: ", entry_data.conventional_start, "\r\n" });
     entry_uart.carefully(.{ "conventional_bytes: ", entry_data.conventional_bytes, "\r\n" });
     entry_uart.carefully(.{ "fb:                 ", @ptrToInt(entry_data.fb), "\r\n" });
-    entry_uart.carefully(.{ "fb_vert:               ", entry_data.fb_vert, "\r\n" });
-    entry_uart.carefully(.{ "fb_horiz:              ", entry_data.fb_horiz, "\r\n" });
+    entry_uart.carefully(.{ "fb_vert:            ", entry_data.fb_vert, "\r\n" });
+    entry_uart.carefully(.{ "fb_horiz:           ", entry_data.fb_horiz, "\r\n" });
     entry_uart.carefully(.{ "uart_base:          ", entry_data.uart_base, "\r\n" });
 
     var daintree_base: u64 = asm volatile ("adr %[ret], __daintree_base"
@@ -69,10 +71,6 @@ pub export fn daintree_mmu_start(
 
     const cpacr_el1 = arch.readRegister(.CPACR_EL1);
     entry_uart.carefully(.{ "CPACR_EL1: ", cpacr_el1, "\r\n" });
-    // const cptr_el2 = arch.readRegister(.CPTR_EL2);
-    // entry_uart.carefully(.{ "CPTR_EL2: ", cptr_el2, "\r\n" });
-    // const cptr_el3 = arch.readRegister(.CPTR_EL3);
-    // entry_uart.carefully(.{ "CPTR_EL3: ", cptr_el3, "\r\n" });
 
     const tcr_el1 = comptime (arch.TCR_EL1{
         .ips = .B36,
@@ -228,7 +226,7 @@ pub export fn daintree_mmu_start(
     unreachable;
 }
 
-fn index(comptime level: u2, va: u64) callconv(.Inline) usize {
+fn index(comptime level: u2, va: u64) usize {
     if (level == 0) {
         @compileError("level must be 1, 2, 3");
     }
@@ -236,7 +234,7 @@ fn index(comptime level: u2, va: u64) callconv(.Inline) usize {
     return (va & VADDRESS_MASK) >> (@as(u8, 3 - level) * INDEX_BITS + PAGE_BITS);
 }
 
-fn tableSet(table: []u64, ix: usize, address: u64, flags: u64) callconv(.Inline) void {
+fn tableSet(table: []u64, ix: usize, address: u64, flags: u64) void {
     table[ix] = address | flags;
 }
 
