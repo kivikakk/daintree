@@ -46,14 +46,14 @@ pub fn sleep(ms: u64) void {
         \\   mul x2, x2, x0                // x2 has ticks per `ms` milliseconds
         \\   add x2, x1, x2                // x2 has start time + ticks
         \\1: cmp x1, x2
-        \\   b.ge 2f
+        \\   b.hs 2f
         \\   isb
         \\   mrs x1, cntpct_el0
         \\   b 1b
         \\2: nop
         : [ms] "={x0}" (ms)
         :
-        : "x1"
+        : "x1", "x2", "x3"
     );
 }
 
