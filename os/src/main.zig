@@ -25,7 +25,7 @@ export fn daintree_main(entry_data: *dcommon.EntryData) void {
     printf("dtb at {*:0>16} (0x{x} bytes)\n", .{ (entry_data.dtb_ptr), entry_data.dtb_len });
 
     if (ddtb.searchForUart(entry_data.dtb_ptr[0..entry_data.dtb_len])) |ua| {
-        printf("got UART: {} @ 0x{x:0>16}\n", .{ ua.kind, ua.base });
+        printf("got UART: {s} @ 0x{x:0>16}\n", .{ @tagName(ua.kind), ua.base });
         // We patched this through in the MMU, so be extremely hacky:
         uart.init(.{
             .base = entry_data.uart_base,
