@@ -272,6 +272,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             }
         }
     }
+
     var graphics: *uefi.protocols.GraphicsOutputProtocol = undefined;
     check("locateProtocol", boot_services.locateProtocol(&uefi.protocols.GraphicsOutputProtocol.guid, null, @ptrCast(*?*c_void, &graphics)));
     var fb: [*]u32 = @intToPtr([*]u32, graphics.mode.frame_buffer_base);
@@ -360,6 +361,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         .memory_map_size = memory_map_size,
         .descriptor_size = descriptor_size,
         .dtb_ptr = dtb.ptr,
+        .dtb_len = dtb.len,
         .conventional_start = conventional_start,
         .conventional_bytes = conventional_bytes,
         .fb = fb,

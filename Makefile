@@ -32,7 +32,7 @@ dtb/qemu.dtb:
 %.dts:
 	dtc -I dtb -O dts $*
 
-OS_FILES=$(shell find os -name zig-cache -prune -o -type f)
+OS_FILES=$(shell find os -name zig-cache -prune -o -type f) common/common.zig
 os/zig-cache/bin/dainkrnl.%: $(OS_FILES)
 	cd os && zig build -Dboard=$*
 
@@ -42,7 +42,7 @@ disk.dmg: os/zig-cache/bin/dainkrnl.qemu
 	cp dtb/qemu.dtb target/dtb
 	hdiutil detach target
 
-DAINBOOT_FILES=$(shell find dainboot -name zig-cache -prune -o -type f -name \*.zig)
+DAINBOOT_FILES=$(shell find dainboot -name zig-cache -prune -o -type f -name \*.zig) common/common.zig
 dainboot/zig-cache/bin/BOOTAA64.%.efi: $(DAINBOOT_FILES)
 	cd dainboot && zig build -Dboard=$*
 

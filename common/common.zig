@@ -19,6 +19,7 @@ pub const EntryData = packed struct {
     memory_map_size: usize,
     descriptor_size: usize,
     dtb_ptr: [*]const u8,
+    dtb_len: usize,
     conventional_start: usize,
     conventional_bytes: usize,
     fb: [*]u32,
@@ -28,7 +29,7 @@ pub const EntryData = packed struct {
 };
 
 comptime {
-    std.testing.expectEqual(0x48, @sizeOf(EntryData));
+    std.testing.expectEqual(0x50, @sizeOf(EntryData));
 }
 
 pub fn addBuildOptions(b: *build.Builder, exe: *build.LibExeObjStep, board: Board) !void {

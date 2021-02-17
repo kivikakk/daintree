@@ -71,7 +71,8 @@ pub const Shell = struct {
         // This works on rockpro64 if you wait long enough.
         asm volatile (
             \\msr daifset, #15
-            \\ldr w0, =0x84000009
+            \\mov w0, #0x0009
+            \\movk w10, #0x8400, lsl 16
             \\hvc 0
             :
             :

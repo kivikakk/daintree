@@ -28,6 +28,7 @@ pub export fn daintree_mmu_start(
     HACK_uart(.{ "memory_map_size:    ", entry_data.memory_map_size, "\r\n" });
     HACK_uart(.{ "descriptor_size:    ", entry_data.descriptor_size, "\r\n" });
     HACK_uart(.{ "dtb_ptr:            ", @ptrToInt(entry_data.dtb_ptr), "\r\n" });
+    HACK_uart(.{ "dtb_len:            ", entry_data.dtb_len, "\r\n" });
     HACK_uart(.{ "conventional_start: ", entry_data.conventional_start, "\r\n" });
     HACK_uart(.{ "conventional_bytes: ", entry_data.conventional_bytes, "\r\n" });
     HACK_uart(.{ "fb:                 ", @ptrToInt(entry_data.fb), "\r\n" });
@@ -164,6 +165,7 @@ pub export fn daintree_mmu_start(
         .memory_map_size = entry_data.memory_map_size,
         .descriptor_size = entry_data.descriptor_size,
         .dtb_ptr = entry_data.dtb_ptr,
+        .dtb_len = entry_data.dtb_len,
         .conventional_start = entry_data.conventional_start,
         .conventional_bytes = entry_data.conventional_bytes,
         .fb = entry_data.fb,
