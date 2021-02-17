@@ -182,14 +182,13 @@ pub export fn daintree_mmu_start(
     // I hate that I'm doing this. Put the DTB in here.
     {
         i += 1;
-        address += PAGE_SIZE;
         new_entry.dtb_ptr = @intToPtr([*]const u8, KERNEL_BASE | (i << PAGE_BITS));
         std.mem.copy(u8, @intToPtr([*]u8, address)[0..entry_data.dtb_len], entry_data.dtb_ptr[0..entry_data.dtb_len]);
 
         // How many pages?
-        const dtb_pages = (entry_data.dtb_len + 4095) / 4096;
+        const dtb_pages = (entry_data.dtb_len + PAGE_SIZE - 1) / PAGE_SIZE;
 
-        var new_end = end + dtb_pages;
+        var new_end = end + 1 + dtb_pages; // Skip 1 page since UART is there
         if (new_end > 512) {
             HACK_uart(.{"end got too big (3)\r\n"});
             while (true) {}
