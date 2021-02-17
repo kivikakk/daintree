@@ -1,6 +1,6 @@
-const ddtb = @import("common/ddtb.zig");
-const hw_pl011 = @import("hw/arm,pl011.zig");
-const hw_dw_apb_uart = @import("hw/snps,dw-apb-uart.zig");
+const ddtb = @import("../common/ddtb.zig");
+const hw_pl011 = @import("arm,pl011.zig");
+const hw_dw_apb_uart = @import("snps,dw-apb-uart.zig");
 
 pub const Error = error{NoUart};
 

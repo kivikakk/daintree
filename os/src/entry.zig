@@ -9,32 +9,33 @@ comptime {
     _ = @import("exception.zig");
     _ = @import("main.zig");
 }
+const entry_uart = @import("entry/uart.zig");
 
 var TTBR0_IDENTITY: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L1: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L2: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L3: *[INDEX_SIZE]u64 = undefined;
 
-usingnamespace @import("hacks.zig");
-
 // UEFI passes control here. MMU is **off**.
 pub export fn daintree_mmu_start(
     entry_data: *dcommon.EntryData,
 ) noreturn {
-    HACK_uart(.{ "dainkrnl pre-MMU stage on ", build_options.board, "\r\n" });
+    entry_uart.base = @intToPtr(*volatile u8, entry_data.uart_base);
 
-    HACK_uart(.{ "entry_data (", @ptrToInt(entry_data), ")\r\n" });
-    HACK_uart(.{ "memory_map:         ", @ptrToInt(entry_data.memory_map), "\r\n" });
-    HACK_uart(.{ "memory_map_size:    ", entry_data.memory_map_size, "\r\n" });
-    HACK_uart(.{ "descriptor_size:    ", entry_data.descriptor_size, "\r\n" });
-    HACK_uart(.{ "dtb_ptr:            ", @ptrToInt(entry_data.dtb_ptr), "\r\n" });
-    HACK_uart(.{ "dtb_len:            ", entry_data.dtb_len, "\r\n" });
-    HACK_uart(.{ "conventional_start: ", entry_data.conventional_start, "\r\n" });
-    HACK_uart(.{ "conventional_bytes: ", entry_data.conventional_bytes, "\r\n" });
-    HACK_uart(.{ "fb:                 ", @ptrToInt(entry_data.fb), "\r\n" });
-    HACK_uart(.{ "fb_vert:               ", entry_data.fb_vert, "\r\n" });
-    HACK_uart(.{ "fb_horiz:              ", entry_data.fb_horiz, "\r\n" });
-    HACK_uart(.{ "uart_base:          ", entry_data.uart_base, "\r\n" });
+    entry_uart.carefully(.{ "dainkrnl pre-MMU stage on ", build_options.board, "\r\n" });
+
+    entry_uart.carefully(.{ "entry_data (", @ptrToInt(entry_data), ")\r\n" });
+    entry_uart.carefully(.{ "memory_map:         ", @ptrToInt(entry_data.memory_map), "\r\n" });
+    entry_uart.carefully(.{ "memory_map_size:    ", entry_data.memory_map_size, "\r\n" });
+    entry_uart.carefully(.{ "descriptor_size:    ", entry_data.descriptor_size, "\r\n" });
+    entry_uart.carefully(.{ "dtb_ptr:            ", @ptrToInt(entry_data.dtb_ptr), "\r\n" });
+    entry_uart.carefully(.{ "dtb_len:            ", entry_data.dtb_len, "\r\n" });
+    entry_uart.carefully(.{ "conventional_start: ", entry_data.conventional_start, "\r\n" });
+    entry_uart.carefully(.{ "conventional_bytes: ", entry_data.conventional_bytes, "\r\n" });
+    entry_uart.carefully(.{ "fb:                 ", @ptrToInt(entry_data.fb), "\r\n" });
+    entry_uart.carefully(.{ "fb_vert:               ", entry_data.fb_vert, "\r\n" });
+    entry_uart.carefully(.{ "fb_horiz:              ", entry_data.fb_horiz, "\r\n" });
+    entry_uart.carefully(.{ "uart_base:          ", entry_data.uart_base, "\r\n" });
 
     var daintree_base: u64 = asm volatile ("adr %[ret], __daintree_base"
         : [ret] "=r" (-> u64)
@@ -57,21 +58,21 @@ pub export fn daintree_mmu_start(
     const current_el = arch.readRegister(.CurrentEL) >> 2;
     const sctlr_el1 = arch.readRegister(.SCTLR_EL1);
 
-    HACK_uart(.{ "__daintree_base: ", daintree_base, "\r\n" });
-    HACK_uart(.{ "__daintree_rodata_base: ", daintree_rodata_base, "\r\n" });
-    HACK_uart(.{ "__daintree_data_base: ", daintree_data_base, "\r\n" });
-    HACK_uart(.{ "__daintree_end: ", daintree_end, "\r\n" });
-    HACK_uart(.{ "daintree_main: ", daintree_main, "\r\n" });
-    HACK_uart(.{ "__vbar_el1: ", vbar_el1, "\r\n" });
-    HACK_uart(.{ "CurrentEL: ", current_el, "\r\n" });
-    HACK_uart(.{ "SCTLR_EL1: ", sctlr_el1, "\r\n" });
+    entry_uart.carefully(.{ "__daintree_base: ", daintree_base, "\r\n" });
+    entry_uart.carefully(.{ "__daintree_rodata_base: ", daintree_rodata_base, "\r\n" });
+    entry_uart.carefully(.{ "__daintree_data_base: ", daintree_data_base, "\r\n" });
+    entry_uart.carefully(.{ "__daintree_end: ", daintree_end, "\r\n" });
+    entry_uart.carefully(.{ "daintree_main: ", daintree_main, "\r\n" });
+    entry_uart.carefully(.{ "__vbar_el1: ", vbar_el1, "\r\n" });
+    entry_uart.carefully(.{ "CurrentEL: ", current_el, "\r\n" });
+    entry_uart.carefully(.{ "SCTLR_EL1: ", sctlr_el1, "\r\n" });
 
     const cpacr_el1 = arch.readRegister(.CPACR_EL1);
-    HACK_uart(.{ "CPACR_EL1: ", cpacr_el1, "\r\n" });
+    entry_uart.carefully(.{ "CPACR_EL1: ", cpacr_el1, "\r\n" });
     // const cptr_el2 = arch.readRegister(.CPTR_EL2);
-    // HACK_uart(.{ "CPTR_EL2: ", cptr_el2, "\r\n" });
+    // entry_uart.carefully(.{ "CPTR_EL2: ", cptr_el2, "\r\n" });
     // const cptr_el3 = arch.readRegister(.CPTR_EL3);
-    // HACK_uart(.{ "CPTR_EL3: ", cptr_el3, "\r\n" });
+    // entry_uart.carefully(.{ "CPTR_EL3: ", cptr_el3, "\r\n" });
 
     const tcr_el1 = comptime (arch.TCR_EL1{
         .ips = .B36,
@@ -98,8 +99,8 @@ pub export fn daintree_mmu_start(
 
     const ttbr0_el1 = @ptrToInt(TTBR0_IDENTITY) | 1;
     const ttbr1_el1 = @ptrToInt(TTBR1_L1) | 1;
-    HACK_uart(.{ "setting TTBR0_EL1: ", ttbr0_el1, "\r\n" });
-    HACK_uart(.{ "setting TTBR1_EL1: ", ttbr1_el1, "\r\n" });
+    entry_uart.carefully(.{ "setting TTBR0_EL1: ", ttbr0_el1, "\r\n" });
+    entry_uart.carefully(.{ "setting TTBR1_EL1: ", ttbr1_el1, "\r\n" });
     arch.writeRegister(.TTBR0_EL1, ttbr0_el1);
     arch.writeRegister(.TTBR1_EL1, ttbr1_el1);
 
@@ -120,7 +121,7 @@ pub export fn daintree_mmu_start(
 
     var end: u64 = (daintree_end - daintree_base) >> PAGE_BITS;
     if (end > 512) {
-        HACK_uart(.{"end got too big (1)\r\n"});
+        entry_uart.carefully(.{"end got too big (1)\r\n"});
 
         while (true) {}
     }
@@ -150,7 +151,7 @@ pub export fn daintree_mmu_start(
     }
 
     if (end > 512) {
-        HACK_uart(.{"end got too big (2)\r\n"});
+        entry_uart.carefully(.{"end got too big (2)\r\n"});
         while (true) {}
     }
 
@@ -190,7 +191,7 @@ pub export fn daintree_mmu_start(
 
         var new_end = end + 1 + dtb_pages; // Skip 1 page since UART is there
         if (new_end > 512) {
-            HACK_uart(.{"end got too big (3)\r\n"});
+            entry_uart.carefully(.{"end got too big (3)\r\n"});
             while (true) {}
         }
 
@@ -200,10 +201,10 @@ pub export fn daintree_mmu_start(
         }
     }
 
-    HACK_uart(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });
-    HACK_uart(.{ "lr: ", daintree_main - daintree_base + KERNEL_BASE, "\r\n" });
-    HACK_uart(.{ "vbar_el1: ", vbar_el1 - daintree_base + KERNEL_BASE, "\r\n" });
-    HACK_uart(.{ "uart mapped to: ", KERNEL_BASE | (end << PAGE_BITS), "\r\n" });
+    entry_uart.carefully(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });
+    entry_uart.carefully(.{ "lr: ", daintree_main - daintree_base + KERNEL_BASE, "\r\n" });
+    entry_uart.carefully(.{ "vbar_el1: ", vbar_el1 - daintree_base + KERNEL_BASE, "\r\n" });
+    entry_uart.carefully(.{ "uart mapped to: ", KERNEL_BASE | (end << PAGE_BITS), "\r\n" });
 
     // Control passes to daintree_main.
     asm volatile (
