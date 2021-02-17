@@ -1,3 +1,4 @@
+// Please see notes in entry/uart.zig on how it's used here.
 const entry_uart = @import("entry/uart.zig");
 
 const ExceptionContext = packed struct {

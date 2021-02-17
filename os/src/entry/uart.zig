@@ -1,9 +1,20 @@
-/// Minimal UART (write-only) for use during entry phase, before the MMU
-/// is setup, and main, before we've checked the DTB for details on the
-/// UART available to us.
-///
-/// These are also called from `exception.zig' to report ESR/ELR and regs,
-/// but it might fail if we've actually set things up correctly. Watch out.
+// Minimal UART (write-only) for use during entry phase, before the MMU
+// is setup, and main, before we've checked the DTB for details on the
+// UART available to us.  The two UARTS we work with both work by just
+// writing bytes to their MMIO base address with zero offset.
+//
+// Because the MMU may be not or partially set up when called, the
+// "carefully" variants are all fully inlined, as BLs may fail or otherwise
+// ruin dessert.  They also only work on register values or comptime-known
+// strings by default, as loads may fail.  You can use the Escape enum
+// to say you really want to do a runtime load of a string.
+//
+// These are also called from `exception.zig' to report ESR/ELR and regs,
+// but it might fail if we've actually set things up correctly. Watch out.
+// Keep in mind that, because mostly everything here is inlined, code size
+// can blow out very quickly.  `exception.zig' introduces a non-inlined
+// dumpRegs for this reason, otherwise a full register dump won't fit in
+// the size of the exception vector we've made for ourselves.
 const std = @import("std");
 const build_options = @import("build_options");
 

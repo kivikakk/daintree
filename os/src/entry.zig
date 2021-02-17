@@ -16,7 +16,7 @@ var TTBR1_L1: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L2: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L3: *[INDEX_SIZE]u64 = undefined;
 
-// UEFI passes control here. MMU is **off**.
+/// dainboot passes control here.  MMU is **off**.  We are in EL1.
 pub export fn daintree_mmu_start(
     entry_data: *dcommon.EntryData,
 ) noreturn {
