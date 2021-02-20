@@ -43,6 +43,10 @@ pub fn init(in_fb: [*]u32, in_vert: u32, in_horiz: u32) void {
     drawEnergyStar(false);
 }
 
+pub fn present() callconv(.Inline) bool {
+    return fb != null;
+}
+
 fn drawEnergyStar(comptime allWhite: bool) void {
     const WIDTH = 138;
     const HEIGHT = 103;

@@ -96,6 +96,7 @@ const LoadContext = struct {
         for (uefi.system_table.configuration_table[0..uefi.system_table.number_of_table_entries]) |table| {
             if (table.vendor_guid.eql(fdt_table_guid)) {
                 if (dtblib.totalSize(table.vendor_table)) |size| {
+                    printf("found FDT in UEFI\n", .{});
                     self.dtb = @ptrCast([*]const u8, table.vendor_table)[0..size];
                     return;
                 } else |err| {}
