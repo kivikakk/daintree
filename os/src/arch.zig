@@ -64,21 +64,6 @@ pub fn halt() noreturn {
     }
 }
 
-pub fn psci_reset() noreturn {
-    // This works on rockpro64 if you wait long enough.
-    asm volatile (
-        \\msr daifset, #15
-        \\mov w0, #0x0009
-        \\movk w10, #0x8400, lsl 16
-        \\hvc 0
-        :
-        :
-        : "memory"
-    );
-
-    @panic("psci_reset");
-}
-
 // Avoiding packed structs since they're simply broken right now.
 // (was getting @bitSizeOf(x) == 64 but @sizeOf(x) == 9 (!!) --
 // wisdom is to avoid for now.)

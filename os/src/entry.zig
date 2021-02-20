@@ -83,7 +83,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     arch.writeRegister(.TCR_EL1, tcr_el1);
 
     const mair_el1 = comptime (arch.MAIR_EL1{ .index = DEVICE_MAIR_INDEX, .attrs = 0b00 }).toU64() |
-        (arch.MAIR_EL1{ .index = MEMORY_MAIR_INDEX, .attrs = 0b11111111 }).toU64();
+        (arch.MAIR_EL1{ .index = MEMORY_MAIR_INDEX, .attrs = 0b1111_1111 }).toU64();
     comptime std.testing.expectEqual(0x00000000_000000ff, mair_el1);
     arch.writeRegister(.MAIR_EL1, mair_el1);
 
@@ -140,10 +140,13 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     // i = end
     end += 4;
     while (i < end) : (i += 1) {
+        entry_uart.carefully(.{ "MAP: null at  ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
+
         tableSet(TTBR1_L3, i, 0, 0);
     }
     end = i + STACK_PAGES;
     while (i < end) : (i += 1) {
+        entry_uart.carefully(.{ "MAP: stack at ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
         tableSet(TTBR1_L3, i, address, KERNEL_DATA_TABLE.toU64());
         address += PAGE_SIZE;
     }
@@ -154,6 +157,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     }
 
     // Let's hackily put UART at wherever's next.
+    entry_uart.carefully(.{ "MAP: UART at  ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
     tableSet(TTBR1_L3, i, entry_data.uart_base, PERIPHERAL_TABLE.toU64());
 
     // address now points to the stack. make space for common.EntryData, align.
@@ -194,6 +198,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         }
 
         while (i < new_end) : (i += 1) {
+            entry_uart.carefully(.{ "MAP: DTB at   ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
             tableSet(TTBR1_L3, i, address, KERNEL_RODATA_TABLE.toU64());
             address += PAGE_SIZE;
         }

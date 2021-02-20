@@ -1,6 +1,7 @@
 const std = @import("std");
 const printf = @import("console/fb.zig").printf;
 const arch = @import("arch.zig");
+const hw = @import("hw.zig");
 const hw_uart = @import("hw/uart.zig");
 
 pub const Shell = struct {
@@ -47,6 +48,34 @@ pub const Shell = struct {
     }
 
     fn reset(self: *Shell) void {
-        arch.psci_reset();
+        switch (hw.psci_method) {
+            .Hvc => {
+                while (true) {
+                    asm volatile (
+                        \\msr daifset, #15
+                        \\mov w0, #0x0009
+                        \\movk w0, #0x8400, lsl 16
+                        \\hvc 0
+                        :
+                        :
+                        : "memory"
+                    );
+                }
+            },
+            .Smc => {
+                while (true) {
+                    asm volatile (
+                        \\msr daifset, #15
+                        \\mov w0, #0x0009
+                        \\movk w0, #0x8400, lsl 16
+                        \\smc 0
+                        :
+                        :
+                        : "memory"
+                    );
+                }
+            },
+            else => printf("unknown psci method, can't reset\n", .{}),
+        }
     }
 };

@@ -3,10 +3,10 @@ const dcommon = @import("common/dcommon.zig");
 const build_options = @import("build_options");
 const fb = @import("console/fb.zig");
 const printf = fb.printf;
-const putchar = fb.putchar;
 const halt = @import("arch.zig").halt;
 const Shell = @import("shell.zig").Shell;
 const ddtb = @import("common/ddtb.zig");
+const hw = @import("hw.zig");
 const hw_uart = @import("hw/uart.zig");
 
 const entry_uart = @import("entry/uart.zig");
@@ -20,6 +20,7 @@ export fn daintree_main(entry_data: *dcommon.EntryData) void {
         fb.init(fb_addr, entry_data.fb_vert, entry_data.fb_horiz);
     }
 
+    entry_uart.carefully(.{ "searching dtb at ", @ptrToInt(entry_data.dtb_ptr), "\r\n" });
     if (ddtb.searchForUart(entry_data.dtb_ptr[0..entry_data.dtb_len])) |uart| {
         entry_uart.carefully(.{ "got UART: ", entry_uart.Escape.Runtime, @tagName(uart.kind), " @ ", uart.base, "\r\n" });
         // We patched this through in the MMU, so be extremely hacky:
@@ -32,7 +33,10 @@ export fn daintree_main(entry_data: *dcommon.EntryData) void {
     }
 
     printf("\x1b\x0adaintree \x1b\x07{s} on {s}\n\n", .{ build_options.version, build_options.board });
-    printf("dtb at {*:0>16} (0x{x} bytes)\n", .{ (entry_data.dtb_ptr), entry_data.dtb_len });
+
+    hw.init(entry_data.dtb_ptr[0..entry_data.dtb_len]) catch |err| {
+        printf("hw.init error: {}\n", .{err});
+    };
 
     Shell.run();
 

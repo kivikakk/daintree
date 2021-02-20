@@ -494,7 +494,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         // EL1 execution of DC ISW performs the same invalidation as DC CISW.
         \\orr x10, x10, #(1 << 1)
         \\msr hcr_el2, x10
-        \\mrs x10, hcr_el2 // ?
+        \\mrs x10, hcr_el2
 
         // Clear hypervisor system trap register.
         \\msr hstr_el2, xzr
