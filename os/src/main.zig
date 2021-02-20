@@ -16,10 +16,12 @@ export fn daintree_main(entry_data: *dcommon.EntryData) void {
     entry_uart.base = @intToPtr(*volatile u8, entry_data.uart_base);
     entry_uart.carefully(.{ "daintree_main using uart_base ", entry_data.uart_base, "\r\n" });
 
-    fb.init(entry_data.fb, entry_data.fb_vert, entry_data.fb_horiz);
+    if (entry_data.fb) |fb_addr| {
+        fb.init(fb_addr, entry_data.fb_vert, entry_data.fb_horiz);
+    }
 
     if (ddtb.searchForUart(entry_data.dtb_ptr[0..entry_data.dtb_len])) |uart| {
-        entry_uart.carefully(.{ "got UART: ", entry_uart.Escape.Runtime, @tagName(uart.kind), " @ 0", uart.base, "\r\n" });
+        entry_uart.carefully(.{ "got UART: ", entry_uart.Escape.Runtime, @tagName(uart.kind), " @ ", uart.base, "\r\n" });
         // We patched this through in the MMU, so be extremely hacky:
         hw_uart.init(.{
             .base = entry_data.uart_base,

@@ -22,7 +22,7 @@ pub const EntryData = packed struct {
     conventional_bytes: usize,
 
     /// dainboot->daintree_mmu_start: PA.  XXX handwaved after. Still works because identity mapped.
-    fb: [*]u32,
+    fb: ?[*]u32,
     fb_horiz: u32,
     fb_vert: u32,
 

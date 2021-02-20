@@ -30,6 +30,8 @@ pub fn main() void {
         load_context.handleOptions(options);
     }
 
+    load_context.searchEfiFdt();
+
     if (load_context.dtb == null or load_context.dainkrnl == null) {
         load_context.searchFileSystems();
     }
@@ -68,6 +70,35 @@ const LoadContext = struct {
                 self.dainkrnl = @intToPtr([*]u8, loc.offset)[0..loc.len];
             } else {
                 printf("unknown option '{s}'\r\n", .{opt_name});
+            }
+        }
+    }
+
+    var fdt_table_guid align(8) = std.os.uefi.Guid{
+        .time_low = 0xb1b621d5,
+        .time_mid = 0xf19c,
+        .time_high_and_version = 0x41a5,
+        .clock_seq_high_and_reserved = 0x83,
+        .clock_seq_low = 0x0b,
+        .node = [_]u8{ 0xd9, 0x15, 0x2c, 0x69, 0xaa, 0xe0 },
+    };
+
+    fn guidEqual(lhs: std.os.uefi.Guid, rhs: std.os.uefi.Guid) bool {
+        return lhs.time_low == rhs.time_low and
+            lhs.time_mid == rhs.time_mid and
+            lhs.time_high_and_version == rhs.time_high_and_version and
+            lhs.clock_seq_high_and_reserved == rhs.clock_seq_high_and_reserved and
+            lhs.clock_seq_low == rhs.clock_seq_low and
+            std.mem.eql(u8, &lhs.node, &rhs.node);
+    }
+
+    fn searchEfiFdt(self: *Self) void {
+        for (uefi.system_table.configuration_table[0..uefi.system_table.number_of_table_entries]) |table| {
+            if (table.vendor_guid.eql(fdt_table_guid)) {
+                if (dtblib.totalSize(table.vendor_table)) |size| {
+                    self.dtb = @ptrCast([*]const u8, table.vendor_table)[0..size];
+                    return;
+                } else |err| {}
             }
         }
     }
@@ -273,9 +304,21 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         }
     }
 
-    var graphics: *uefi.protocols.GraphicsOutputProtocol = undefined;
-    check("locateProtocol", boot_services.locateProtocol(&uefi.protocols.GraphicsOutputProtocol.guid, null, @ptrCast(*?*c_void, &graphics)));
-    var fb: [*]u32 = @intToPtr([*]u32, graphics.mode.frame_buffer_base);
+    var fb: ?[*]u32 = null;
+    var fb_vert: u32 = 0;
+    var fb_horiz: u32 = 0;
+    {
+        var graphics: *uefi.protocols.GraphicsOutputProtocol = undefined;
+        const result = boot_services.locateProtocol(&uefi.protocols.GraphicsOutputProtocol.guid, null, @ptrCast(*?*c_void, &graphics));
+        if (result == .Success) {
+            fb = @intToPtr([*]u32, graphics.mode.frame_buffer_base);
+            fb_vert = graphics.mode.info.vertical_resolution;
+            fb_horiz = graphics.mode.info.horizontal_resolution;
+            printf("{}x{} framebuffer located at {*}\n", .{ fb_horiz, fb_vert, fb });
+        } else {
+            printf("no framebuffer found: {}\n", .{result});
+        }
+    }
 
     var dtb_scratch_ptr: [*]u8 = undefined;
     check("allocatePool", boot_services.allocatePool(uefi.tables.MemoryType.BootServicesData, 128 * 1024, @ptrCast(*[*]align(8) u8, &dtb_scratch_ptr)));
@@ -311,7 +354,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         &memory_map_key,
         &descriptor_size,
         &descriptor_version,
-    ) == uefi.Status.BufferTooSmall) {
+    ) == .BufferTooSmall) {
         check("allocatePool", boot_services.allocatePool(
             uefi.tables.MemoryType.BootServicesData,
             memory_map_size,
@@ -367,18 +410,14 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         .conventional_start = conventional_start,
         .conventional_bytes = conventional_bytes,
         .fb = fb,
-        .fb_vert = graphics.mode.info.vertical_resolution,
-        .fb_horiz = graphics.mode.info.horizontal_resolution,
+        .fb_vert = fb_vert,
+        .fb_horiz = fb_horiz,
         .uart_base = uart_base,
     };
 
     cleanInvalidateDCacheICache(@ptrToInt(&entry_data), @sizeOf(@TypeOf(entry_data)));
     // I'd love to change this back to "..., kernel_size);" at some point.
     cleanInvalidateDCacheICache(conventional_start, conventional_bytes);
-
-    if (graphics.mode.info.horizontal_resolution != graphics.mode.info.pixels_per_scan_line) {
-        haltMsg("horizontal res != pixels per scan line");
-    }
 
     printf("{x} {x} ", .{ conventional_start, @ptrToInt(&entry_data) });
 

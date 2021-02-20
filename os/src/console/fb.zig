@@ -5,7 +5,7 @@ const hw_uart = @import("../hw/uart.zig");
 
 pub const CONSOLE_DIMENSION = u16;
 
-var fb: [*]u32 = undefined;
+var fb: ?[*]u32 = null;
 var fb_vert: u32 = undefined;
 var fb_horiz: u32 = undefined;
 
@@ -33,7 +33,7 @@ pub fn init(in_fb: [*]u32, in_vert: u32, in_horiz: u32) void {
         @panic("can't fit console");
     }
     std.mem.set(u16, console_buf[0 .. console_width * console_height], 0);
-    std.mem.set(u32, fb[0 .. fb_horiz * fb_vert], 0);
+    std.mem.set(u32, fb.?[0 .. fb_horiz * fb_vert], 0);
 
     arch.sleep(500);
     drawEnergyStar(false);
@@ -64,7 +64,7 @@ fn drawEnergyStar(comptime allWhite: bool) void {
 }
 
 pub fn plot(x: u32, y: u32, c: u32) callconv(.Inline) void {
-    fb[fb_horiz * y + x] = c;
+    fb.?[fb_horiz * y + x] = c;
 }
 
 pub fn colour(bgfg: u8) callconv(.Inline) void {
@@ -88,24 +88,30 @@ pub fn print(msg: []const u8) void {
                         continue :loop;
                     },
                     '\n' => {
-                        console_col = 0;
-                        console_row += 1;
+                        if (fb != null) {
+                            console_col = 0;
+                            console_row += 1;
+                        }
                         hw_uart.write("\r\n") catch {};
                     },
                     else => {
                         hw_uart.write(&[_]u8{c}) catch {};
-                        font.putChar(console_row, console_col, c, console_colour);
-                        console_buf[console_row * console_width + console_col] = (@as(u16, console_colour) << 8) | c;
-                        console_col += 1;
+                        if (fb != null) {
+                            font.putChar(console_row, console_col, c, console_colour);
+                            console_buf[console_row * console_width + console_col] = (@as(u16, console_colour) << 8) | c;
+                            console_col += 1;
+                        }
                     },
                 }
-                if (console_col >= console_width) {
-                    console_row += 1;
-                    console_col = 0;
-                }
-                if (console_row >= console_height) {
-                    scroll();
-                    console_row -= 1;
+                if (fb != null) {
+                    if (console_col >= console_width) {
+                        console_row += 1;
+                        console_col = 0;
+                    }
+                    if (console_row >= console_height) {
+                        scroll();
+                        console_row -= 1;
+                    }
                 }
             },
             .ESCAPE => {
