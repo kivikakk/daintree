@@ -1,11 +1,11 @@
 // Must be pub at build root -- Zig will use this, see lib/std/builtin.zig's 'panic'.
 pub const panic = @import("panic.zig").panic;
+pub const uart = @import("entry/uart.zig");
 
 const std = @import("std");
 const build_options = @import("build_options");
 const dcommon = @import("common/dcommon.zig");
 const arch = @import("arch.zig");
-const entry_uart = @import("entry/uart.zig");
 
 comptime {
     // Pull in exception vector exports
@@ -22,22 +22,22 @@ var TTBR1_L3: *[INDEX_SIZE]u64 = undefined;
 
 /// dainboot passes control here.  MMU is **off**.  We are in EL1.
 pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
-    entry_uart.base = @intToPtr(*volatile u8, entry_data.uart_base);
+    uart.base = @intToPtr(*volatile u8, entry_data.uart_base);
 
-    entry_uart.carefully(.{ "dainkrnl ", build_options.version, " pre-MMU stage on ", build_options.board, "\r\n" });
+    uart.carefully(.{ "dainkrnl ", build_options.version, " pre-MMU stage on ", build_options.board, "\r\n" });
 
-    entry_uart.carefully(.{ "entry_data (", @ptrToInt(entry_data), ")\r\n" });
-    entry_uart.carefully(.{ "memory_map:         ", @ptrToInt(entry_data.memory_map), "\r\n" });
-    entry_uart.carefully(.{ "memory_map_size:    ", entry_data.memory_map_size, "\r\n" });
-    entry_uart.carefully(.{ "descriptor_size:    ", entry_data.descriptor_size, "\r\n" });
-    entry_uart.carefully(.{ "dtb_ptr:            ", @ptrToInt(entry_data.dtb_ptr), "\r\n" });
-    entry_uart.carefully(.{ "dtb_len:            ", entry_data.dtb_len, "\r\n" });
-    entry_uart.carefully(.{ "conventional_start: ", entry_data.conventional_start, "\r\n" });
-    entry_uart.carefully(.{ "conventional_bytes: ", entry_data.conventional_bytes, "\r\n" });
-    entry_uart.carefully(.{ "fb:                 ", @ptrToInt(entry_data.fb), "\r\n" });
-    entry_uart.carefully(.{ "fb_vert:            ", entry_data.fb_vert, "\r\n" });
-    entry_uart.carefully(.{ "fb_horiz:           ", entry_data.fb_horiz, "\r\n" });
-    entry_uart.carefully(.{ "uart_base:          ", entry_data.uart_base, "\r\n" });
+    uart.carefully(.{ "entry_data (", @ptrToInt(entry_data), ")\r\n" });
+    uart.carefully(.{ "memory_map:         ", @ptrToInt(entry_data.memory_map), "\r\n" });
+    uart.carefully(.{ "memory_map_size:    ", entry_data.memory_map_size, "\r\n" });
+    uart.carefully(.{ "descriptor_size:    ", entry_data.descriptor_size, "\r\n" });
+    uart.carefully(.{ "dtb_ptr:            ", @ptrToInt(entry_data.dtb_ptr), "\r\n" });
+    uart.carefully(.{ "dtb_len:            ", entry_data.dtb_len, "\r\n" });
+    uart.carefully(.{ "conventional_start: ", entry_data.conventional_start, "\r\n" });
+    uart.carefully(.{ "conventional_bytes: ", entry_data.conventional_bytes, "\r\n" });
+    uart.carefully(.{ "fb:                 ", @ptrToInt(entry_data.fb), "\r\n" });
+    uart.carefully(.{ "fb_vert:            ", entry_data.fb_vert, "\r\n" });
+    uart.carefully(.{ "fb_horiz:           ", entry_data.fb_horiz, "\r\n" });
+    uart.carefully(.{ "uart_base:          ", entry_data.uart_base, "\r\n" });
 
     var daintree_base: u64 = asm volatile ("adr %[ret], __daintree_base"
         : [ret] "=r" (-> u64)
@@ -60,17 +60,17 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     const current_el = arch.readRegister(.CurrentEL) >> 2;
     const sctlr_el1 = arch.readRegister(.SCTLR_EL1);
 
-    entry_uart.carefully(.{ "__daintree_base: ", daintree_base, "\r\n" });
-    entry_uart.carefully(.{ "__daintree_rodata_base: ", daintree_rodata_base, "\r\n" });
-    entry_uart.carefully(.{ "__daintree_data_base: ", daintree_data_base, "\r\n" });
-    entry_uart.carefully(.{ "__daintree_end: ", daintree_end, "\r\n" });
-    entry_uart.carefully(.{ "daintree_main: ", daintree_main, "\r\n" });
-    entry_uart.carefully(.{ "__vbar_el1: ", vbar_el1, "\r\n" });
-    entry_uart.carefully(.{ "CurrentEL: ", current_el, "\r\n" });
-    entry_uart.carefully(.{ "SCTLR_EL1: ", sctlr_el1, "\r\n" });
+    uart.carefully(.{ "__daintree_base: ", daintree_base, "\r\n" });
+    uart.carefully(.{ "__daintree_rodata_base: ", daintree_rodata_base, "\r\n" });
+    uart.carefully(.{ "__daintree_data_base: ", daintree_data_base, "\r\n" });
+    uart.carefully(.{ "__daintree_end: ", daintree_end, "\r\n" });
+    uart.carefully(.{ "daintree_main: ", daintree_main, "\r\n" });
+    uart.carefully(.{ "__vbar_el1: ", vbar_el1, "\r\n" });
+    uart.carefully(.{ "CurrentEL: ", current_el, "\r\n" });
+    uart.carefully(.{ "SCTLR_EL1: ", sctlr_el1, "\r\n" });
 
     const cpacr_el1 = arch.readRegister(.CPACR_EL1);
-    entry_uart.carefully(.{ "CPACR_EL1: ", cpacr_el1, "\r\n" });
+    uart.carefully(.{ "CPACR_EL1: ", cpacr_el1, "\r\n" });
 
     const tcr_el1 = comptime (arch.TCR_EL1{
         .ips = .B36,
@@ -97,8 +97,8 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
     const ttbr0_el1 = @ptrToInt(TTBR0_IDENTITY) | 1;
     const ttbr1_el1 = @ptrToInt(TTBR1_L1) | 1;
-    entry_uart.carefully(.{ "setting TTBR0_EL1: ", ttbr0_el1, "\r\n" });
-    entry_uart.carefully(.{ "setting TTBR1_EL1: ", ttbr1_el1, "\r\n" });
+    uart.carefully(.{ "setting TTBR0_EL1: ", ttbr0_el1, "\r\n" });
+    uart.carefully(.{ "setting TTBR1_EL1: ", ttbr1_el1, "\r\n" });
     arch.writeRegister(.TTBR0_EL1, ttbr0_el1);
     arch.writeRegister(.TTBR1_EL1, ttbr1_el1);
 
@@ -119,7 +119,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
     var end: u64 = (daintree_end - daintree_base) >> PAGE_BITS;
     if (end > 512) {
-        entry_uart.carefully(.{"end got too big (1)\r\n"});
+        uart.carefully(.{"end got too big (1)\r\n"});
 
         while (true) {}
     }
@@ -140,24 +140,24 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     // i = end
     end += 4;
     while (i < end) : (i += 1) {
-        entry_uart.carefully(.{ "MAP: null at  ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
+        uart.carefully(.{ "MAP: null at  ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
 
         tableSet(TTBR1_L3, i, 0, 0);
     }
     end = i + STACK_PAGES;
     while (i < end) : (i += 1) {
-        entry_uart.carefully(.{ "MAP: stack at ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
+        uart.carefully(.{ "MAP: stack at ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
         tableSet(TTBR1_L3, i, address, KERNEL_DATA_TABLE.toU64());
         address += PAGE_SIZE;
     }
 
     if (end > 512) {
-        entry_uart.carefully(.{"end got too big (2)\r\n"});
+        uart.carefully(.{"end got too big (2)\r\n"});
         while (true) {}
     }
 
     // Let's hackily put UART at wherever's next.
-    entry_uart.carefully(.{ "MAP: UART at  ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
+    uart.carefully(.{ "MAP: UART at  ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
     tableSet(TTBR1_L3, i, entry_data.uart_base, PERIPHERAL_TABLE.toU64());
 
     // address now points to the stack. make space for common.EntryData, align.
@@ -193,21 +193,21 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
         var new_end = end + 1 + dtb_pages; // Skip 1 page since UART is there
         if (new_end > 512) {
-            entry_uart.carefully(.{"end got too big (3)\r\n"});
+            uart.carefully(.{"end got too big (3)\r\n"});
             while (true) {}
         }
 
         while (i < new_end) : (i += 1) {
-            entry_uart.carefully(.{ "MAP: DTB at   ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
+            uart.carefully(.{ "MAP: DTB at   ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
             tableSet(TTBR1_L3, i, address, KERNEL_RODATA_TABLE.toU64());
             address += PAGE_SIZE;
         }
     }
 
-    entry_uart.carefully(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });
-    entry_uart.carefully(.{ "lr: ", daintree_main - daintree_base + KERNEL_BASE, "\r\n" });
-    entry_uart.carefully(.{ "vbar_el1: ", vbar_el1 - daintree_base + KERNEL_BASE, "\r\n" });
-    entry_uart.carefully(.{ "uart mapped to: ", KERNEL_BASE | (end << PAGE_BITS), "\r\n" });
+    uart.carefully(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });
+    uart.carefully(.{ "lr: ", daintree_main - daintree_base + KERNEL_BASE, "\r\n" });
+    uart.carefully(.{ "vbar_el1: ", vbar_el1 - daintree_base + KERNEL_BASE, "\r\n" });
+    uart.carefully(.{ "uart mapped to: ", KERNEL_BASE | (end << PAGE_BITS), "\r\n" });
 
     // Control passes to daintree_main.
     asm volatile (
