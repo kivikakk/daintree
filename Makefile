@@ -1,11 +1,11 @@
 .PHONY: qemu mk-ovmf-vars mk-disk
 
-QEMU_CMD = qemu-system-aarch64 \
+QEMU_CMD = $$HOME/Code/qemu/build/qemu-system-aarch64 \
+		-dtb dtb/qemu.dtb \
 		-accel hvf \
 		-m 512 \
 		-cpu cortex-a53 -M virt,highmem=off \
-		-drive file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd,if=pflash,format=raw,readonly=on \
-		-drive file=ovmf_vars.fd,if=pflash,format=raw \
+		-bios u-boot.bin \
 		-serial stdio \
 		-drive file=fat:rw:target/disk,format=raw \
 		-device virtio-net-device,netdev=net0 \
@@ -16,6 +16,7 @@ QEMU_CMD = qemu-system-aarch64 \
 		-device usb-kbd \
 		-device usb-mouse \
 		-usb \
+		-fw_cfg opt/test,string=hello \
 
 tftp: dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi os/zig-cache/bin/dainkrnl.rockpro64
 	tools/update-tftp
