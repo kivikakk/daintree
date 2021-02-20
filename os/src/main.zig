@@ -7,7 +7,6 @@ const halt = @import("arch.zig").halt;
 const Shell = @import("shell.zig").Shell;
 const ddtb = @import("common/ddtb.zig");
 const hw = @import("hw.zig");
-const hw_uart = @import("hw/uart.zig");
 
 const entry_uart = @import("entry/uart.zig");
 
@@ -24,7 +23,7 @@ export fn daintree_main(entry_data: *dcommon.EntryData) void {
     if (ddtb.searchForUart(entry_data.dtb_ptr[0..entry_data.dtb_len])) |uart| {
         entry_uart.carefully(.{ "got UART: ", entry_uart.Escape.Runtime, @tagName(uart.kind), " @ ", uart.base, "\r\n" });
         // We patched this through in the MMU, so be extremely hacky:
-        hw_uart.init(.{
+        hw.uart.init(.{
             .base = entry_data.uart_base,
             .kind = uart.kind,
         });

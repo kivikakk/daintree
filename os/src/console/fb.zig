@@ -1,7 +1,7 @@
 const std = @import("std");
 const font = @import("font.zig");
 const arch = @import("../arch.zig");
-const hw_uart = @import("../hw/uart.zig");
+const hw = @import("../hw.zig");
 
 pub const CONSOLE_DIMENSION = u16;
 
@@ -96,10 +96,10 @@ pub fn print(msg: []const u8) void {
                             console_col = 0;
                             console_row += 1;
                         }
-                        hw_uart.write("\r\n") catch {};
+                        hw.uart.write("\r\n") catch {};
                     },
                     else => {
-                        hw_uart.write(&[_]u8{c}) catch {};
+                        hw.uart.write(&[_]u8{c}) catch {};
                         if (fb != null) {
                             font.putChar(console_row, console_col, c, console_colour);
                             console_buf[console_row * console_width + console_col] = (@as(u16, console_colour) << 8) | c;

@@ -2,7 +2,6 @@ const std = @import("std");
 const printf = @import("console/fb.zig").printf;
 const arch = @import("arch.zig");
 const hw = @import("hw.zig");
-const hw_uart = @import("hw/uart.zig");
 
 pub const Shell = struct {
     pub fn run() void {
@@ -19,7 +18,7 @@ pub const Shell = struct {
         var uart_buf: [16]u8 = [_]u8{undefined} ** 16;
 
         while (true) {
-            var recv = hw_uart.readBlock(&uart_buf) catch return;
+            var recv = hw.uart.readBlock(&uart_buf) catch return;
 
             for (uart_buf[0..recv]) |c| {
                 switch (c) {
@@ -48,7 +47,7 @@ pub const Shell = struct {
     }
 
     fn reset(self: *Shell) void {
-        switch (hw.psci_method) {
+        switch (hw.psci.method) {
             .Hvc => {
                 while (true) {
                     asm volatile (
