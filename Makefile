@@ -32,9 +32,11 @@ os/zig-cache/bin/dainkrnl.%: $(OS_FILES)
 	cd os && zig build -Dboard=$*
 
 target/disk/dainkrnl: os/zig-cache/bin/dainkrnl.qemu
+	mkdir -p $(@D)
 	cp $< $@
 
 target/disk/dtb: dtb/qemu.dtb
+	mkdir -p $(@D)
 	cp $< $@
 
 DAINBOOT_FILES=$(shell find dainboot -name zig-cache -prune -o -type f -name \*.zig) $(shell find common -type f)
