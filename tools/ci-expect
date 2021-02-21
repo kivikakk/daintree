@@ -1,0 +1,6 @@
+#!/usr/local/bin/expect
+
+spawn qemu-system-aarch64 -m 512 -cpu cortex-a53 -M virt,highmem=off -drive file=/usr/local/share/qemu/edk2-aarch64-code.fd,if=pflash,format=raw,readonly=on -drive file=ovmf_vars.fd,if=pflash,format=raw -serial stdio -drive file=fat:rw:target/disk,format=raw -device virtio-net-device,netdev=net0 -netdev user,id=net0 -vga none -display none -device usb-ehci -device usb-kbd -device usb-mouse -usb
+
+expect "dtb at " {send poweroff\r}
+expect eof

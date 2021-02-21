@@ -52,6 +52,9 @@ ci: dainboot/zig-cache/bin/BOOTAA64.qemu.efi \
 	dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi \
 	os/zig-cache/bin/dainkrnl.qemu \
 	os/zig-cache/bin/dainkrnl.rockpro64 \
+	ovmf_vars.fd \
+	target/disk/dainkrnl target/disk/dtb
+	tools/ci-expect
 
 clean:
 	-rm -rf dtb/zig-cache os/zig-cache dainboot/zig-cache
