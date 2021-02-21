@@ -60,7 +60,7 @@ ci: dainboot/zig-cache/bin/BOOTAA64.qemu.efi \
 	env CI_EDK2=$(CI_EDK2) CI_QEMU_ACCEL="$(CI_QEMU_ACCEL)" tools/ci-expect
 
 clean:
-	-rm -rf dtb/zig-cache os/zig-cache dainboot/zig-cache
+	-rm -rf dtb/zig-cache os/zig-cache dainboot/zig-cache target
 
 %.dts:
 	dtc -I dtb -O dts $*
