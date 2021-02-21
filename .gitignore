@@ -1,9 +1,5 @@
 ovmf_vars.fd
-disk.dmg
-dainboot/disk
-dainboot/dainboot.cdr
 *.obj
 *.pdb
 *.efi
 zig-cache
-dtb/qemu.dtb
