@@ -63,6 +63,7 @@ pub const Shell = struct {
     fn psci(self: *Shell, val: u32) void {
         switch (hw.psci.method) {
             .Hvc => {
+                printf("goodbye\n", .{});
                 asm volatile (
                     \\msr daifset, #15
                     \\hvc 0
@@ -72,6 +73,7 @@ pub const Shell = struct {
                 );
             },
             .Smc => {
+                printf("goodbye\n", .{});
                 asm volatile (
                     \\msr daifset, #15
                     \\smc 0

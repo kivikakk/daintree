@@ -83,18 +83,9 @@ const LoadContext = struct {
         .node = [_]u8{ 0xd9, 0x15, 0x2c, 0x69, 0xaa, 0xe0 },
     };
 
-    fn guidEqual(lhs: std.os.uefi.Guid, rhs: std.os.uefi.Guid) bool {
-        return lhs.time_low == rhs.time_low and
-            lhs.time_mid == rhs.time_mid and
-            lhs.time_high_and_version == rhs.time_high_and_version and
-            lhs.clock_seq_high_and_reserved == rhs.clock_seq_high_and_reserved and
-            lhs.clock_seq_low == rhs.clock_seq_low and
-            std.mem.eql(u8, &lhs.node, &rhs.node);
-    }
-
     fn searchEfiFdt(self: *Self) void {
         for (uefi.system_table.configuration_table[0..uefi.system_table.number_of_table_entries]) |table| {
-            if (guidEqual(table.vendor_guid, fdt_table_guid)) {
+            if (table.vendor_guid.eql(fdt_table_guid)) {
                 if (dtblib.totalSize(table.vendor_table)) |size| {
                     printf("found FDT in UEFI\n", .{});
                     self.dtb = @ptrCast([*]const u8, table.vendor_table)[0..size];

@@ -48,13 +48,16 @@ target/disk/EFI/BOOT/BOOTAA64.efi: dainboot/zig-cache/bin/BOOTAA64.qemu.efi
 ovmf_vars.fd:
 	dd if=/dev/zero conv=sync bs=1048576 count=64 of=ovmf_vars.fd
 
+CI_EDK2=/usr/local/share/qemu/edk2-aarch64-code.fd
+CI_QEMU_ACCEL=tcg
+
 ci: dainboot/zig-cache/bin/BOOTAA64.qemu.efi \
 	dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi \
 	os/zig-cache/bin/dainkrnl.qemu \
 	os/zig-cache/bin/dainkrnl.rockpro64 \
 	ovmf_vars.fd \
 	target/disk/dainkrnl target/disk/dtb
-	tools/ci-expect
+	env CI_EDK2=$(CI_EDK2) CI_QEMU_ACCEL="$(CI_QEMU_ACCEL)" tools/ci-expect
 
 clean:
 	-rm -rf dtb/zig-cache os/zig-cache dainboot/zig-cache
