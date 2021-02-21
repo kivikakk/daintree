@@ -2,16 +2,16 @@ const std = @import("std");
 const build_options = @import("build_options");
 const fb = @import("console/fb.zig");
 const arch = @import("arch.zig");
-const entry_uart = @import("entry/uart.zig");
+const entry = @import("entry.zig");
 
 pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) noreturn {
-    entry_uart.carefully(.{"\r\n!!!!!!!!!!!!\r\nkernel panic\r\n!!!!!!!!!!!!\r\n"});
+    entry.uart.carefully(.{"\r\n!!!!!!!!!!!!\r\nkernel panic\r\n!!!!!!!!!!!!\r\n"});
     const current_el = arch.readRegister(.CurrentEL) >> 2;
     const sctlr_el1 = arch.readRegister(.SCTLR_EL1);
-    entry_uart.carefully(.{ "CurrentEL: ", current_el, "\r\n" });
-    entry_uart.carefully(.{ "SCTLR_EL1: ", sctlr_el1, "\r\n" });
+    entry.uart.carefully(.{ "CurrentEL: ", current_el, "\r\n" });
+    entry.uart.carefully(.{ "SCTLR_EL1: ", sctlr_el1, "\r\n" });
     if (error_return_trace) |ert| {
-        entry_uart.carefully(.{"trying to print stack ... \r\n"});
+        entry.uart.carefully(.{"trying to print stack ... \r\n"});
         var frame_index: usize = 0;
         var frames_left: usize = std.math.min(ert.index, ert.instruction_addresses.len);
         while (frames_left != 0) : ({
@@ -19,15 +19,15 @@ pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) nore
             frame_index = (frame_index + 1) % ert.instruction_addresses.len;
         }) {
             const return_address = ert.instruction_addresses[frame_index];
-            entry_uart.carefully(.{ return_address, "\r\n" });
+            entry.uart.carefully(.{ return_address, "\r\n" });
         }
     } else {
-        entry_uart.carefully(.{"no ert\r\n"});
+        entry.uart.carefully(.{"no ert\r\n"});
     }
-    entry_uart.carefully(.{ "@returnAddress: ", @returnAddress(), "\r\n" });
+    entry.uart.carefully(.{ "@returnAddress: ", @returnAddress(), "\r\n" });
 
-    entry_uart.carefully(.{ "panic message ptr: ", @ptrToInt(msg.ptr), "\r\n<" });
-    entry_uart.carefully(.{ entry_uart.Escape.Runtime, msg, ">\r\n" });
+    entry.uart.carefully(.{ "panic message ptr: ", @ptrToInt(msg.ptr), "\r\n<" });
+    entry.uart.carefully(.{ entry.uart.Escape.Runtime, msg, ">\r\n" });
 
     if (fb.present()) {
         const msg_len: fb.CONSOLE_DIMENSION = @truncate(fb.CONSOLE_DIMENSION, "kernel panic: ".len + msg.len);
