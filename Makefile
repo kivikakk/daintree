@@ -56,7 +56,7 @@ ci: dainboot/zig-cache/bin/BOOTAA64.qemu.efi \
 	os/zig-cache/bin/dainkrnl.qemu \
 	os/zig-cache/bin/dainkrnl.rockpro64 \
 	ovmf_vars.fd \
-	target/disk/dainkrnl target/disk/dtb
+	target/disk/dainkrnl target/disk/dtb target/disk/EFI/BOOT/BOOTAA64.efi
 	env CI_EDK2=$(CI_EDK2) CI_QEMU_ACCEL="$(CI_QEMU_ACCEL)" tools/ci-expect
 
 clean:
