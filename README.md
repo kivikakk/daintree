@@ -2,7 +2,7 @@
 
 An ARMv8-A operating system, plus a UEFI bootloader, all written in Zig. Currently targetting and testing on:
 
-- QEMU (using HVF acceleration on macOS), with U-Boot
+- QEMU (using HVF acceleration on macOS and TCG on FreeBSD), with U-Boot
   - The U-Boot build is included in the repository, and is based on
     [patch series adding QFW and QEMU ramfb support on Arm](https://git.src.kameliya.ee/~kameliya/u-boot/log/qfw-ramfb).
     I'm hoping to land this in the coming weeks.
@@ -40,7 +40,7 @@ A gentle introduction to Zig's UEFI support. Boots like this:
 - Parses the DTB and attempts to locate the serial UART port.
 - Exits UEFI boot services.
 - If necessary, disables a whole lot of traps and goes to EL1.
-- Jumps to the kernel, passing the memory map, UART port, and framebuffer
+- Jumps to the kernel, passing the memory map, UART write port, and framebuffer
   prepared by UEFI.
 
 |              qemu              |              rockpro64              |
@@ -49,11 +49,20 @@ A gentle introduction to Zig's UEFI support. Boots like this:
 
 ## dainkrnl
 
-Right now, this just sets up the MMU and implements a small console.
+- Uses the UART write port to debug before the MMU is enabled.
+- Sets up the MMU, mapping the kernel, stack, framebuffer, DTB, UART device,
+  etc. into high addresses.
+- Parses the DTB to understand what kind of serial device is connected and how
+  to access
+  [PSCI](https://developer.arm.com/architectures/system-architectures/software-standards/psci).
+- Implements a console using a classic VGA font.
+- A shell lets you reset or poweroff the system.  You can only use serial for
+  input, but the output is muxed to the framebuffer if one is available.
 
 |                  qemu                  |                  rockpro64                  |
 | :------------------------------------: | :-----------------------------------------: |
 | ![](doc/img/dainkrnl-charset-qemu.png) | ![](doc/img/dainkrnl-charset-rockpro64.jpg) |
+| ![](doc/img/dainkrnl-shell-qemu.png)   | |
 
 ## license
 
