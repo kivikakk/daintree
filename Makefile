@@ -1,8 +1,17 @@
 .PHONY: qemu
 
+QEMU_ACCEL := tcg
+ifeq ($OS),Windows NT)
+else
+	UNAME_S := $(shell uname -s)
+	ifeq ($(UNAME_S),Darwin)
+		QEMU_ACCEL := hvf
+	endif
+endif
+
 QEMU_CMD = qemu-system-aarch64 \
 		-dtb dtb/qemu.dtb \
-		-accel hvf \
+		-accel $(QEMU_ACCEL) \
 		-m 512 \
 		-cpu cortex-a53 -M virt,highmem=off \
 		-bios roms/u-boot-arm64-ramfb.bin \
