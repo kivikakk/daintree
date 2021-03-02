@@ -26,7 +26,7 @@ QEMU_CMD = qemu-system-aarch64 \
 		-device usb-mouse \
 		-usb \
 
-tftp: dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi os/zig-cache/bin/dainkrnl.rockpro64
+tftp: dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi dainkrnl/zig-cache/bin/dainkrnl.rockpro64
 	tools/update-tftp
 
 qemu: target/disk/EFI/BOOT/BOOTAA64.efi target/disk/dainkrnl target/disk/dtb
@@ -36,11 +36,11 @@ dtb/qemu.dtb:
 	$(QEMU_CMD) -machine dumpdtb=$@
 	dtc $@ -o $@
 
-OS_FILES=$(shell find os -name zig-cache -prune -o -type f) $(shell find common -type f)
-os/zig-cache/bin/dainkrnl.%: $(OS_FILES)
-	cd os && zig build -Dboard=$*
+OS_FILES=$(shell find dainkrnl -name zig-cache -prune -o -type f) $(shell find common -type f)
+dainkrnl/zig-cache/bin/dainkrnl.%: $(OS_FILES)
+	cd dainkrnl && zig build -Dboard=$*
 
-target/disk/dainkrnl: os/zig-cache/bin/dainkrnl.qemu
+target/disk/dainkrnl: dainkrnl/zig-cache/bin/dainkrnl.qemu
 	mkdir -p $(@D)
 	cp $< $@
 
@@ -60,13 +60,13 @@ CI_QEMU_ACCEL=tcg
 
 ci: dainboot/zig-cache/bin/BOOTAA64.qemu.efi \
 	dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi \
-	os/zig-cache/bin/dainkrnl.qemu \
-	os/zig-cache/bin/dainkrnl.rockpro64 \
+	dainkrnl/zig-cache/bin/dainkrnl.qemu \
+	dainkrnl/zig-cache/bin/dainkrnl.rockpro64 \
 	target/disk/dainkrnl target/disk/dtb target/disk/EFI/BOOT/BOOTAA64.efi
 	env CI_QEMU_ACCEL="$(CI_QEMU_ACCEL)" tools/ci-expect
 
 clean:
-	-rm -rf dtb/zig-cache os/zig-cache dainboot/zig-cache target
+	-rm -rf dtb/zig-cache dainkrnl/zig-cache dainboot/zig-cache target
 
 %.dts:
 	dtc -I dtb -O dts $*
