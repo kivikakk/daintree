@@ -3,7 +3,8 @@ const std = @import("std");
 pub const daintree_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 1 };
 
 pub const Board = enum {
-    qemu,
+    qemu_arm64,
+    qemu_riscv64,
     rockpro64,
 };
 

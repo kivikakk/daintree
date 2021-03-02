@@ -3,3 +3,4 @@ ovmf_vars.fd
 *.pdb
 *.efi
 zig-cache
+target/disk
