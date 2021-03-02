@@ -1,20 +1,19 @@
 // Please see notes in entry/uart.zig on how it's used here.
 const entry = @import("entry.zig");
+const arch = @import("arch.zig");
 
 const ExceptionContext = packed struct {
     regs: [30]u64,
     elr_el1: u64,
     spsr_el1: u64,
     lr: u64,
+    far_el1: u64,
 };
 
 export fn test_naked() callconv(.Naked) void {
     asm volatile (
         \\br x10
-        :
-        :
-        : "memory"
-    );
+        ::: "memory");
 }
 
 fn handle(ctx: *ExceptionContext, comptime name: []const u8) callconv(.Inline) noreturn {
@@ -43,7 +42,7 @@ fn dumpRegs(ctx: *ExceptionContext) void {
     entry.uart.carefully(.{ "x26 ", ctx.regs[26], "  x27 ", ctx.regs[27], "\r\n" });
     entry.uart.carefully(.{ "x28 ", ctx.regs[28], "  x29 ", ctx.regs[29], "\r\n" });
     entry.uart.carefully(.{ "elr ", ctx.elr_el1, "  sps ", ctx.spsr_el1, "\r\n" });
-    entry.uart.carefully(.{ "lr  ", ctx.lr, "\r\n\r\n" });
+    entry.uart.carefully(.{ "lr  ", ctx.lr, "  far ", ctx.far_el1, "\r\n\r\n" });
 }
 
 export fn el1_sp0_sync(ctx: *ExceptionContext) void {

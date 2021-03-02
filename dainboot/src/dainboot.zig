@@ -419,6 +419,16 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
     check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
 
+    if (fb) |base| {
+        var x: usize = 0;
+        while (x < 16) : (x += 1) {
+            var y: usize = 0;
+            while (y < 16) : (y += 1) {
+                base[y * fb_horiz + x] = 0x0000ff00;
+            }
+        }
+    }
+
     // Check for EL2: we get
     // and pass to DAINKRNL.
     asm volatile (
