@@ -18,7 +18,8 @@ comptime {
 var TTBR0_IDENTITY: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L1: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L2: *[INDEX_SIZE]u64 = undefined;
-var TTBR1_L3: *[INDEX_SIZE]u64 = undefined;
+var TTBR1_L3_1: *[INDEX_SIZE]u64 = undefined;
+var TTBR1_L3_2: *[INDEX_SIZE]u64 = undefined;
 
 /// dainboot passes control here.  MMU is **off**.  We are in EL1.
 pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
@@ -93,7 +94,8 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     TTBR0_IDENTITY = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 0);
     TTBR1_L1 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 1);
     TTBR1_L2 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 2);
-    TTBR1_L3 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 3);
+    TTBR1_L3_1 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 3);
+    TTBR1_L3_2 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 4);
 
     const ttbr0_el1 = @ptrToInt(TTBR0_IDENTITY) | 1;
     const ttbr1_el1 = @ptrToInt(TTBR1_L1) | 1;
@@ -115,12 +117,12 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     }
 
     tableSet(TTBR1_L1, 0, @ptrToInt(TTBR1_L2), KERNEL_DATA_TABLE.toU64());
-    tableSet(TTBR1_L2, 0, @ptrToInt(TTBR1_L3), KERNEL_DATA_TABLE.toU64());
+    tableSet(TTBR1_L2, 0, @ptrToInt(TTBR1_L3_1), KERNEL_DATA_TABLE.toU64());
+    tableSet(TTBR1_L2, 1, @ptrToInt(TTBR1_L3_2), KERNEL_DATA_TABLE.toU64());
 
     var end: u64 = (daintree_end - daintree_base) >> PAGE_BITS;
     if (end > 512) {
         uart.carefully(.{"end got too big (1)\r\n"});
-
         while (true) {}
     }
 
@@ -133,21 +135,21 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         } else if (address >= daintree_rodata_base) {
             flags = KERNEL_RODATA_TABLE.toU64();
         }
-        tableSet(TTBR1_L3, i, address, flags);
+        tableSet(TTBR1_L3_1, i, address, flags);
         address += PAGE_SIZE;
     }
 
     // i = end
-    end += 4;
+    end += 5;
     while (i < end) : (i += 1) {
         uart.carefully(.{ "MAP: null at  ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
 
-        tableSet(TTBR1_L3, i, 0, 0);
+        tableSet(TTBR1_L3_1, i, 0, 0);
     }
     end = i + STACK_PAGES;
     while (i < end) : (i += 1) {
         uart.carefully(.{ "MAP: stack at ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
-        tableSet(TTBR1_L3, i, address, KERNEL_DATA_TABLE.toU64());
+        tableSet(TTBR1_L3_1, i, address, KERNEL_DATA_TABLE.toU64());
         address += PAGE_SIZE;
     }
 
@@ -158,7 +160,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
     // Let's hackily put UART at wherever's next.
     uart.carefully(.{ "MAP: UART at  ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
-    tableSet(TTBR1_L3, i, entry_data.uart_base, PERIPHERAL_TABLE.toU64());
+    tableSet(TTBR1_L3_1, i, entry_data.uart_base, PERIPHERAL_TABLE.toU64());
 
     // address now points to the stack. make space for common.EntryData, align.
     var entry_address = address - @sizeOf(dcommon.EntryData);
@@ -199,7 +201,26 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
         while (i < new_end) : (i += 1) {
             uart.carefully(.{ "MAP: DTB at   ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
-            tableSet(TTBR1_L3, i, address, KERNEL_RODATA_TABLE.toU64());
+            tableSet(TTBR1_L3_1, i, address, KERNEL_RODATA_TABLE.toU64());
+            address += PAGE_SIZE;
+        }
+    }
+
+    // Map framebuffer as device.  Put in second TTBR1_L3 as it tends to be
+    // huge.
+    {
+        i = 512;
+        address = @ptrToInt(new_entry.fb);
+        new_entry.fb = @intToPtr([*]u32, KERNEL_BASE | (i << PAGE_BITS));
+        var new_end = i + (new_entry.fb_vert * new_entry.fb_horiz * 4 + PAGE_SIZE - 1) / PAGE_SIZE;
+        if (new_end > 512 + 512) {
+            uart.carefully(.{ "end got too big (4): ", new_end, "\r\n" });
+            while (true) {}
+        }
+
+        while (i < new_end) : (i += 1) {
+            uart.carefully(.{ "MAP: FB at    ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
+            tableSet(TTBR1_L3_2, i - 512, address, PERIPHERAL_TABLE.toU64());
             address += PAGE_SIZE;
         }
     }
