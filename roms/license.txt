@@ -3,3 +3,9 @@ u-boot-arm64-ramfb.bin is a build of U-Boot
 under the GPL 2.  See http://www.denx.de/wiki/U-Boot/Licensing for more details
 on its license, and find its original source at
 https://git.src.kameliya.ee/~kameliya/u-boot/log/qfw-ramfb.
+
+u-boot-riscv64-ramfb.bin is the same.  Its source is at
+https://git.src.kameliya.ee/~kameliya/u-boot/log/qfw-ramfb-riscv.  A build of
+QEMU with fw_cfg and ramfb support for the riscv `virt' machine is required.
+They are en-route to the tree, but until then can be found at
+https://git.src.kameliya.ee/~kameliya/qemu/log/riscv-fw_cfg.
