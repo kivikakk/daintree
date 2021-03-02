@@ -6,6 +6,7 @@ https://git.src.kameliya.ee/~kameliya/u-boot/log/qfw-ramfb.
 
 u-boot-riscv64-ramfb.bin is the same.  Its source is at
 https://git.src.kameliya.ee/~kameliya/u-boot/log/qfw-ramfb-riscv.  A build of
-QEMU with fw_cfg and ramfb support for the riscv `virt' machine is required.
-They are en-route to the tree, but until then can be found at
+QEMU with fw_cfg and ramfb support for the riscv `virt' machine is required if
+you want to use the RAM framebuffer.
+Patches are en-route to the tree, but until then can be found at
 https://git.src.kameliya.ee/~kameliya/qemu/log/riscv-fw_cfg.

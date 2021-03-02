@@ -1,5 +1,6 @@
 const std = @import("std");
 const uefi = std.os.uefi;
+const arch = @import("arch.zig");
 
 pub var con_out: *uefi.protocols.SimpleTextOutputProtocol = undefined;
 
@@ -17,14 +18,7 @@ pub fn printf(comptime format: []const u8, args: anytype) void {
 
 pub fn haltMsg(comptime msg: []const u8) noreturn {
     puts("halted: " ++ msg ++ "\r\n");
-    halt();
-}
-
-pub fn halt() noreturn {
-    asm volatile ("msr daifset, #15");
-    while (true) {
-        asm volatile ("wfi");
-    }
+    arch.halt();
 }
 
 pub fn check(comptime method: []const u8, result: uefi.Status) void {
@@ -32,6 +26,6 @@ pub fn check(comptime method: []const u8, result: uefi.Status) void {
         puts(method ++ " failed: ");
         puts(@tagName(result));
         puts("\r\nhalted");
-        halt();
+        arch.halt();
     }
 }
