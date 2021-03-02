@@ -43,9 +43,9 @@ A gentle introduction to Zig's UEFI support. Boots like this:
 - Jumps to the kernel, passing the memory map, UART write port, and framebuffer
   prepared by UEFI.
 
-|              qemu              |              rockpro64              |
-| :----------------------------: | :---------------------------------: |
-| ![](doc/img/dainboot-qemu.png) | ![](doc/img/dainboot-rockpro64.jpg) |
+![](doc/img/dainboot-qemu.png)
+
+![](doc/img/dainboot-rockpro64.jpg)
 
 ## dainkrnl
 
@@ -59,10 +59,11 @@ A gentle introduction to Zig's UEFI support. Boots like this:
 - A shell lets you reset or poweroff the system.  You can only use serial for
   input, but the output is muxed to the framebuffer if one is available.
 
-|                  qemu                  |                  rockpro64                  |
-| :------------------------------------: | :-----------------------------------------: |
-| ![](doc/img/dainkrnl-charset-qemu.png) | ![](doc/img/dainkrnl-charset-rockpro64.jpg) |
-| ![](doc/img/dainkrnl-shell-qemu.png)   | |
+![](doc/img/dainkrnl-charset-qemu.png)
+
+![](doc/img/dainkrnl-charset-rockpro64.jpg)
+
+![](doc/img/dainkrnl-shell-qemu.png)
 
 ## license
 
