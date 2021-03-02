@@ -52,14 +52,12 @@ target/disk/EFI/BOOT/BOOTAA64.efi: dainboot/zig-cache/bin/BOOTAA64.qemu.efi
 	mkdir -p $(@D)
 	cp $< $@
 
-CI_QEMU_ACCEL=tcg
-
 ci: dainboot/zig-cache/bin/BOOTAA64.qemu.efi \
 	dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi \
 	dainkrnl/zig-cache/bin/dainkrnl.qemu \
 	dainkrnl/zig-cache/bin/dainkrnl.rockpro64 \
 	target/disk/dainkrnl target/disk/EFI/BOOT/BOOTAA64.efi
-	env CI_QEMU_ACCEL="$(CI_QEMU_ACCEL)" tools/ci-expect
+	tools/ci-expect
 
 clean:
 	-rm -rf dtb/zig-cache dainkrnl/zig-cache dainboot/zig-cache target
