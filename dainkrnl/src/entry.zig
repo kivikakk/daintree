@@ -208,9 +208,9 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
     // Map framebuffer as device.  Put in second TTBR1_L3 as it tends to be
     // huge.
-    {
+    if (new_entry.fb) |base| {
         i = 512;
-        address = @ptrToInt(new_entry.fb);
+        address = @ptrToInt(base);
         new_entry.fb = @intToPtr([*]u32, KERNEL_BASE | (i << PAGE_BITS));
         var new_end = i + (new_entry.fb_vert * new_entry.fb_horiz * 4 + PAGE_SIZE - 1) / PAGE_SIZE;
         if (new_end > 512 + 512) {
