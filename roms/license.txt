@@ -1,0 +1,5 @@
+u-boot-arm64-ramfb.bin is a build of U-Boot
+(http://www.denx.de/wiki/U-Boot/WebHome), (C) Wolfgang Denk and contributors
+under the GPL 2.  See http://www.denx.de/wiki/U-Boot/Licensing for more details
+on its license, and find its original source at
+https://git.src.kameliya.ee/~kameliya/u-boot/log/qfw-ramfb.

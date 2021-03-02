@@ -15,6 +15,7 @@ export fn daintree_main(entry_data: *dcommon.EntryData) void {
     entry.uart.carefully(.{ "daintree_main using uart_base ", entry_data.uart_base, "\r\n" });
 
     if (entry_data.fb) |fb_addr| {
+        entry.uart.carefully(.{ "initting fb at ", @ptrToInt(fb_addr), "\r\n" });
         fb.init(fb_addr, entry_data.fb_vert, entry_data.fb_horiz);
     }
 
