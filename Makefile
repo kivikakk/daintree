@@ -29,7 +29,7 @@ QEMU_CMD = qemu-system-aarch64 \
 tftp: dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi dainkrnl/zig-cache/bin/dainkrnl.rockpro64
 	tools/update-tftp
 
-qemu: target/disk/EFI/BOOT/BOOTAA64.efi target/disk/dainkrnl target/disk/dtb
+qemu: target/disk/EFI/BOOT/BOOTAA64.efi target/disk/dainkrnl
 	$(QEMU_CMD) -s $$EXTRA_ARGS
 	
 dtb/qemu.dtb:
@@ -41,10 +41,6 @@ dainkrnl/zig-cache/bin/dainkrnl.%: $(OS_FILES)
 	cd dainkrnl && zig build -Dboard=$*
 
 target/disk/dainkrnl: dainkrnl/zig-cache/bin/dainkrnl.qemu
-	mkdir -p $(@D)
-	cp $< $@
-
-target/disk/dtb: dtb/qemu.dtb
 	mkdir -p $(@D)
 	cp $< $@
 
@@ -62,7 +58,7 @@ ci: dainboot/zig-cache/bin/BOOTAA64.qemu.efi \
 	dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi \
 	dainkrnl/zig-cache/bin/dainkrnl.qemu \
 	dainkrnl/zig-cache/bin/dainkrnl.rockpro64 \
-	target/disk/dainkrnl target/disk/dtb target/disk/EFI/BOOT/BOOTAA64.efi
+	target/disk/dainkrnl target/disk/EFI/BOOT/BOOTAA64.efi
 	env CI_QEMU_ACCEL="$(CI_QEMU_ACCEL)" tools/ci-expect
 
 clean:

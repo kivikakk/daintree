@@ -30,7 +30,9 @@ pub fn main() void {
         load_context.handleOptions(options);
     }
 
-    load_context.searchEfiFdt();
+    if (load_context.dtb == null) {
+        load_context.searchEfiFdt();
+    }
 
     if (load_context.dtb == null or load_context.dainkrnl == null) {
         load_context.searchFileSystems();

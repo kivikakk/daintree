@@ -29,10 +29,13 @@ A gentle introduction to Zig's UEFI support. Boots like this:
     DTB/FDT (device tree blob/flattened device tree) already in memory.
   - Separate successive options with spaces, i.e. `kernel <addr> <len> dtb
     <addr> <len>`.
+- If DTB wasn't loaded from memory, checks to see if one was passed in via
+  UEFI.
 - If kernel or DTB (or both) were not loaded from memory, scans filesystems the
   UEFI system knows about, looking in the root directories for files named
   `dainkrnl` and `dtb`.
-- Picks the biggest unused slab of conventional memory and places the kernel there.
+- Picks the biggest unused slab of conventional memory and places the kernel
+  there.
 - Clears data and instruction caches for loaded memory.
 - Parses the DTB and attempts to locate the serial UART port.
 - Exits UEFI boot services.
