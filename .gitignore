@@ -1,4 +1,4 @@
-ovmf_vars.fd
+*.o
 *.obj
 *.pdb
 *.efi
