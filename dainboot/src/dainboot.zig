@@ -2,7 +2,6 @@ const std = @import("std");
 const dcommon = @import("common/dcommon.zig");
 const uefi = std.os.uefi;
 const build_options = @import("build_options");
-const elf = @import("elf.zig");
 const dtblib = @import("dtb");
 const ddtb = @import("common/ddtb.zig");
 const arch = @import("arch.zig");
@@ -253,14 +252,14 @@ fn tryLoadFromFileProtocol(f_proto: *uefi.protocols.FileProtocol, comptime file_
     return mem[0..size];
 }
 
-fn parseElf(bytes: []const u8) elf.Header {
-    if (bytes.len < @sizeOf(elf.Elf64_Ehdr)) {
-        printf("found {} byte(s), too small for ELF header ({} bytes)\r\n", .{ bytes.len, @sizeOf(elf.Elf64_Ehdr) });
+fn parseElf(bytes: []const u8) std.elf.Header {
+    if (bytes.len < @sizeOf(std.elf.Elf64_Ehdr)) {
+        printf("found {} byte(s), too small for ELF header ({} bytes)\r\n", .{ bytes.len, @sizeOf(std.elf.Elf64_Ehdr) });
         arch.halt();
     }
 
     var buffer = std.io.fixedBufferStream(bytes);
-    var elf_header = elf.Header.read(&buffer) catch |err| {
+    var elf_header = std.elf.Header.read(&buffer) catch |err| {
         printf("failed to parse ELF: {}\r\n", .{err});
         arch.halt();
     };
@@ -286,7 +285,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     {
         var it = dainkrnl_elf.program_header_iterator(&elf_source);
         while (it.next() catch haltMsg("iterating phdrs (2)")) |phdr| {
-            if (phdr.p_type == elf.PT_LOAD) {
+            if (phdr.p_type == std.elf.PT_LOAD) {
                 const target = phdr.p_vaddr - 0xffffff80_00000000;
                 const load_bytes = std.math.min(phdr.p_filesz, phdr.p_memsz);
                 printf("will load 0x{x:0>16} bytes at 0x{x:0>16} into offset+0x{x:0>16}\r\n", .{ load_bytes, phdr.p_vaddr, target });
@@ -386,7 +385,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
     var it = dainkrnl_elf.program_header_iterator(&elf_source);
     while (it.next() catch haltMsg("iterating phdrs (2)")) |phdr| {
-        if (phdr.p_type == elf.PT_LOAD) {
+        if (phdr.p_type == std.elf.PT_LOAD) {
             const target = phdr.p_vaddr - 0xffffff80_00000000 + conventional_start;
             std.mem.copy(u8, @intToPtr([*]u8, target)[0..phdr.p_filesz], dainkrnl[phdr.p_offset .. phdr.p_offset + phdr.p_filesz]);
             if (phdr.p_memsz > phdr.p_filesz) {

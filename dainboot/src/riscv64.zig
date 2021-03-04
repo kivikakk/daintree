@@ -1,6 +1,6 @@
 const std = @import("std");
 const uefi = std.os.uefi;
-const elf = @import("elf.zig");
+const elf = std.elf;
 const dcommon = @import("common/dcommon.zig");
 
 pub fn halt() noreturn {
