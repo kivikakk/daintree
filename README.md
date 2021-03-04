@@ -67,10 +67,14 @@ A gentle introduction to Zig's UEFI support. Boots like this:
 
 ## license
 
-MIT, per [Zig](https://github.com/ziglang/zig).
+MIT.
+
+Some included code is GPL-2+ or GPL-2.0+ -- copyright notices retained and
+sources noted where so.
 
 The [`roms/`](roms/) directory contains a build of
 [U-Boot](http://www.denx.de/wiki/U-Boot/WebHome), (C) Wolfgang Denk and
-licensed under GPL 2.  See [U-Boot's Licensing page](https://www.denx.de/wiki/U-Boot/Licensing)
+licensed under GPL 2.  See [U-Boot's Licensing
+page](https://www.denx.de/wiki/U-Boot/Licensing)
 for details.  The source can be found at
 <https://git.src.kameliya.ee/~kameliya/u-boot/log/qfw-ramfb>.
