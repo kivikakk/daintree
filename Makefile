@@ -1,10 +1,20 @@
-.PHONY: qemu
+.PHONY: qemu clean
+
+all: qemu
+
+dtb/%.dtb:
+	$(QEMU_CMD) -machine dumpdtb=$@
+	dtc $@ -o $@
+
+clean:
+	-rm -rf dtb/zig-cache dainkrnl/zig-cache dainboot/zig-cache target
+
+%.dts:
+	dtc -I dtb -O dts $*
+
+# Everything below needs ARCH.
 
 ARCH =
-
-ifndef ARCH
-$(error ARCH should be arm64 or riscv64)
-endif
 
 ifeq ($(ARCH),arm64)
 QEMU_BIN := qemu-system-aarch64
@@ -26,8 +36,6 @@ QEMU_ARGS := \
 # qemu-system-riscv64: FDT: Failed to create subnode /fw-cfg@10100000: FDT_ERR_EXISTS
 QEMU_DTB_ARGS :=
 EFI_BOOTLOADER_NAME := BOOTRISCV64
-else
-$(error ARCH should be arm64 or riscv64)
 endif
 
 QEMU_ACCEL := tcg
@@ -64,10 +72,6 @@ tftp: dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi dainkrnl/zig-cache/bin/daink
 	tools/update-tftp
 endif
 
-dtb/%.dtb:
-	$(QEMU_CMD) -machine dumpdtb=$@
-	dtc $@ -o $@
-
 OS_FILES=$(shell find dainkrnl -name zig-cache -prune -o -type f) $(shell find common -type f)
 dainkrnl/zig-cache/bin/dainkrnl.%: $(OS_FILES)
 	cd dainkrnl && zig build -Dboard=$*
@@ -76,7 +80,7 @@ target/disk/dainkrnl: dainkrnl/zig-cache/bin/dainkrnl.qemu_$(ARCH)
 	mkdir -p $(@D)
 	cp $< $@
 
-DAINBOOT_FILES=$(shell find dainboot -name zig-cache -prune -o -type f -name \*.zig) $(shell find common -type f) dainboot/elf_riscv64_efi.lds
+DAINBOOT_FILES=$(shell find dainboot -name zig-cache -prune -o -type f -name \*.zig) $(shell find common -type f) dainboot/elf_riscv64_efi.lds dainboot/src/crt0-efi-riscv64.S
 dainboot/zig-cache/bin/$(EFI_BOOTLOADER_NAME).%.efi: $(DAINBOOT_FILES)
 	cd dainboot && zig build -Dboard=$*
 
@@ -84,15 +88,5 @@ target/disk/EFI/BOOT/$(EFI_BOOTLOADER_NAME).efi: dainboot/zig-cache/bin/$(EFI_BO
 	mkdir -p $(@D)
 	cp $< $@
 
-ci: dainboot/zig-cache/bin/BOOTAA64.qemu.efi \
-	dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi \
-	dainkrnl/zig-cache/bin/dainkrnl.qemu \
-	dainkrnl/zig-cache/bin/dainkrnl.rockpro64 \
-	target/disk/dainkrnl target/disk/EFI/BOOT/BOOTAA64.efi
+ci: target/disk/dainkrnl target/disk/EFI/BOOT/$(EFI_BOOTLOADER_NAME).efi
 	tools/ci-expect
-
-clean:
-	-rm -rf dtb/zig-cache dainkrnl/zig-cache dainboot/zig-cache target
-
-%.dts:
-	dtc -I dtb -O dts $*
