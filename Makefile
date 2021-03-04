@@ -76,7 +76,7 @@ target/disk/dainkrnl: dainkrnl/zig-cache/bin/dainkrnl.qemu_$(ARCH)
 	mkdir -p $(@D)
 	cp $< $@
 
-DAINBOOT_FILES=$(shell find dainboot -name zig-cache -prune -o -type f -name \*.zig) $(shell find common -type f)
+DAINBOOT_FILES=$(shell find dainboot -name zig-cache -prune -o -type f -name \*.zig) $(shell find common -type f) dainboot/elf_riscv64_efi.lds
 dainboot/zig-cache/bin/$(EFI_BOOTLOADER_NAME).%.efi: $(DAINBOOT_FILES)
 	cd dainboot && zig build -Dboard=$*
 
