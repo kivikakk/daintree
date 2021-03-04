@@ -86,15 +86,30 @@ export fn relocate(ldbase: u64, dyn: [*]elf.Elf64_Dyn) uefi.Status {
     var relp = rel.?;
 
     const ptr: *volatile u8 = @intToPtr(*volatile u8, 0x10000000);
+    hex(ldbase);
+    ptr.* = '\n';
+    busyLoop();
+    hex(@ptrToInt(relp));
     hex(relsz);
+    hex(relent);
+    ptr.* = '\n';
+    busyLoop();
+
+    ptr.* = '(';
+    busyLoop();
+    hex(@intToPtr(*u64, ldbase).*);
+    ptr.* = ')';
+    busyLoop();
     ptr.* = '\n';
     busyLoop();
 
     while (relsz > 0) {
+        hex(relp.r_offset);
         hex(relp.r_info);
+        hex(@bitCast(u64, relp.r_addend));
         ptr.* = '\n';
         busyLoop();
-        if ((relp.r_info & 0xffffffff) == 3) {
+        if (relp.r_type() == 3) {
             // R_RISCV_RELATIVE
             var addr: *u64 = @intToPtr(*u64, ldbase + relp.r_offset);
             if (relp.r_addend > 0) {

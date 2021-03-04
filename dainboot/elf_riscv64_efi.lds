@@ -54,12 +54,22 @@ SECTIONS
                 *(COMMON)
                 . = ALIGN(16);
                 _bss_end = .;
-                _edata = .;
         }
         .rela.dyn : { *(.rela.dyn) }
         .rela.plt : { *(.rela.plt) }
         .rela.got : { *(.rela.got) }
         .rela.data : { *(.rela.data) *(.rela.data*) }
+
+        /*
+         * Put _edata here so it all gets loaded by U-Boot.
+         * The script originally had this equal to _bss_end, but
+         * our .rela.dyn wasn't getting loaded into memory so we
+         * couldn't do any relocations.
+         *
+         * Here be dragons.  Do we need .dynsym/.dynstr too?
+         */
+        _edata = .;
+
         _data_size = . - _etext;
 
         . = ALIGN(4096);
