@@ -8,11 +8,23 @@ endif
 
 ifeq ($(ARCH),arm64)
 QEMU_BIN := qemu-system-aarch64
-QEMU_BIOS := roms/u-boot-arm64-ramfb.bin
+QEMU_ARGS := \
+       -bios roms/u-boot-arm64-ramfb.bin \
+       -cpu cortex-a53 -M virt,highmem=off \
+
+QEMU_DTB_ARGS := -dtb dtb/qemu_$(ARCH).dtb
 EFI_BOOTLOADER_NAME := BOOTAA64
 else ifeq ($(ARCH),riscv64)
 QEMU_BIN := qemu-system-riscv64
-QEMU_BIOS := roms/u-boot-riscv64-ramfb.bin
+QEMU_ARGS := \
+	-bios roms/u-boot-riscv64-ramfb.bin \
+	-M virt \
+	-device ich9-ahci,id=ahci -device ide-hd,drive=hd0 \
+
+# riscv64 doesn't like loading a dtb at the moment.
+# Fails -- possibly our fault!
+# qemu-system-riscv64: FDT: Failed to create subnode /fw-cfg@10100000: FDT_ERR_EXISTS
+QEMU_DTB_ARGS :=
 EFI_BOOTLOADER_NAME := BOOTRISCV64
 else
 $(error ARCH should be arm64 or riscv64)
@@ -30,13 +42,11 @@ else
 endif
 
 QEMU_CMD := $(QEMU_BIN) \
-		-dtb dtb/qemu.dtb \
 		-accel $(QEMU_ACCEL) \
 		-m 512 \
-		-cpu cortex-a53 -M virt,highmem=off \
-		-bios $(QEMU_BIOS) \
+		$(QEMU_ARGS) \
 		-serial stdio \
-		-drive file=fat:rw:target/disk,format=raw \
+		-drive file=fat:rw:target/disk,format=raw,id=hd0 \
 		-device virtio-net-device,netdev=net0 \
 		-netdev user,id=net0 \
 		-vga none \
@@ -47,14 +57,14 @@ QEMU_CMD := $(QEMU_BIN) \
 		-usb \
 
 qemu: target/disk/EFI/BOOT/$(EFI_BOOTLOADER_NAME).efi target/disk/dainkrnl
-	$(QEMU_CMD) -s $$EXTRA_ARGS
+	$(QEMU_CMD) $(QEMU_DTB_ARGS) -s $$EXTRA_ARGS
 
 ifeq ($(ARCH),arm64)
 tftp: dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi dainkrnl/zig-cache/bin/dainkrnl.rockpro64
 	tools/update-tftp
 endif
 
-dtb/qemu.dtb:
+dtb/%.dtb:
 	$(QEMU_CMD) -machine dumpdtb=$@
 	dtc $@ -o $@
 
