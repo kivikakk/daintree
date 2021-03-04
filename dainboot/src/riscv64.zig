@@ -55,7 +55,10 @@ export fn relocate(ldbase: u64, dyn: [*]elf.Elf64_Dyn) uefi.Status {
             asm volatile (
                 \\j 0
                 :
-                : [r_info] "{t0}" (relp.r_info)
+                : [r_info] "{t0}" (relp.r_info),
+                  [dyn] "{t1}" (@ptrToInt(dyn)),
+                  [i] "{t2}" (i),
+                  [rel] "{t3}" (@ptrToInt(rel))
                 : "memory"
             );
         }
