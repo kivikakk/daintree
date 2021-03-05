@@ -12,6 +12,10 @@ An operating system plus a UEFI bootloader, all written in Zig. Currently target
     [EFI loader fix](https://source.denx.de/u-boot/u-boot/-/commit/9d30a941cce5ed055da18398f4deba18830d00d6).
     At time of writing it has not been included in any release.
 
+Planned support for:
+
+- HiFive Unmatched with U-Boot
+
 There's a little [dev blog](https://github.com/kivikakk/daintree/discussions/1)
 I hope to maintain as I go.  See also [my personal blog](https://kivikakk.ee):
 
