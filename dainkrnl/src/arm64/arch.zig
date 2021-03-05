@@ -1,5 +1,39 @@
+const std = @import("std");
+const fb = @import("../console/fb.zig");
 const hw = @import("../hw.zig");
 const printf = @import("../console/fb.zig").printf;
+
+pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) noreturn {
+    hw.entry_uart.carefully(.{"\r\n!!!!!!!!!!!!\r\nkernel panic\r\n!!!!!!!!!!!!\r\n"});
+    const current_el = readRegister(.CurrentEL) >> 2;
+    const sctlr_el1 = readRegister(.SCTLR_EL1);
+    hw.entry_uart.carefully(.{ "CurrentEL: ", current_el, "\r\n" });
+    hw.entry_uart.carefully(.{ "SCTLR_EL1: ", sctlr_el1, "\r\n" });
+    if (error_return_trace) |ert| {
+        hw.entry_uart.carefully(.{"trying to print stack ... \r\n"});
+        var frame_index: usize = 0;
+        var frames_left: usize = std.math.min(ert.index, ert.instruction_addresses.len);
+        while (frames_left != 0) : ({
+            frames_left -= 1;
+            frame_index = (frame_index + 1) % ert.instruction_addresses.len;
+        }) {
+            const return_address = ert.instruction_addresses[frame_index];
+            hw.entry_uart.carefully(.{ return_address, "\r\n" });
+        }
+    } else {
+        hw.entry_uart.carefully(.{"no ert\r\n"});
+    }
+    hw.entry_uart.carefully(.{ "@returnAddress: ", @returnAddress(), "\r\n" });
+
+    hw.entry_uart.carefully(.{ "panic message ptr: ", @ptrToInt(msg.ptr), "\r\n<" });
+    hw.entry_uart.carefully(.{ hw.entry_uart.Escape.Runtime, msg, ">\r\n" });
+
+    if (fb.present()) {
+        fb.panicMessage(msg);
+    }
+
+    halt();
+}
 
 pub const Register = enum {
     MAIR_EL1,

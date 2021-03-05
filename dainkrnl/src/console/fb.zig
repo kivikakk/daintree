@@ -47,6 +47,25 @@ pub fn present() callconv(.Inline) bool {
     return fb != null;
 }
 
+pub fn panicMessage(msg: []const u8) void {
+    const msg_len: CONSOLE_DIMENSION = @truncate(CONSOLE_DIMENSION, "kernel panic: ".len + msg.len);
+    const left: CONSOLE_DIMENSION = console_width - msg_len - 2;
+
+    colour(0x4f);
+    locate(0, left);
+    var x: CONSOLE_DIMENSION = 0;
+    while (x < msg_len + 2) : (x += 1) {
+        print(" ");
+    }
+    locate(1, left);
+    printf(" kernel panic: {s} ", .{msg});
+    locate(2, left);
+    x = 0;
+    while (x < msg_len + 2) : (x += 1) {
+        print(" ");
+    }
+}
+
 fn drawEnergyStar(comptime allWhite: bool) void {
     const WIDTH = 138;
     const HEIGHT = 103;

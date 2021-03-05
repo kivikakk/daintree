@@ -12,7 +12,7 @@ pub fn build(b: *Builder) !void {
 
     const arch_tag = dbuild.archTagFor(board);
 
-    const exe = b.addExecutable(b.fmt("dainkrnl.{s}", .{@tagName(board)}), "src/entry.zig");
+    const exe = b.addExecutable(b.fmt("dainkrnl.{s}", .{@tagName(board)}), "src/root.zig");
     exe.addAssemblyFile(b.fmt("src/{s}/exception.s", .{arch_tag}));
     exe.addPackagePath("dtb", "../dtb/src/dtb.zig");
     exe.setTarget(target);

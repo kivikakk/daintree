@@ -1,5 +1,6 @@
 pub const uart = @import("hw/uart.zig");
 pub const psci = @import("hw/psci.zig");
+pub const entry_uart = @import("hw/entry_uart.zig");
 
 const std = @import("std");
 const fb = @import("console/fb.zig");
