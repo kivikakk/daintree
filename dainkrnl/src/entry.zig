@@ -9,7 +9,11 @@ const arch = @import("arch.zig");
 
 comptime {
     // Pull in exception vector exports
-    _ = @import("exception.zig");
+    _ = switch (std.builtin.arch) {
+        .aarch64 => @import("arm64/exception.zig"),
+        .riscv64 => @import("riscv64/exception.zig"),
+        else => @panic("unknown arch"),
+    };
 
     // Pull in daintree_main export, which we jump to at the end of daintree_mmu_start.
     _ = @import("main.zig");

@@ -40,49 +40,15 @@ pub const Shell = struct {
 
     fn process(self: *Shell, cmd: []const u8) void {
         if (std.mem.eql(u8, cmd, "reset")) {
-            self.reset();
+            arch.reset();
         } else if (std.mem.eql(u8, cmd, "poweroff")) {
-            self.poweroff();
+            arch.poweroff();
         } else if (std.mem.startsWith(u8, cmd, "echo ")) {
             printf("{s}\n", .{cmd[5..]});
         } else if (std.mem.trim(u8, cmd, " \t").len == 0) {
             // nop
         } else {
             printf("unknown command: {s}\n", .{cmd});
-        }
-    }
-
-    fn reset(self: *Shell) void {
-        self.psci(0x8400_0009);
-    }
-
-    fn poweroff(self: *Shell) void {
-        self.psci(0x8400_0008);
-    }
-
-    fn psci(self: *Shell, val: u32) void {
-        switch (hw.psci.method) {
-            .Hvc => {
-                printf("goodbye\n", .{});
-                asm volatile (
-                    \\msr daifset, #15
-                    \\hvc 0
-                    :
-                    : [val] "{x0}" (val)
-                    : "memory"
-                );
-            },
-            .Smc => {
-                printf("goodbye\n", .{});
-                asm volatile (
-                    \\msr daifset, #15
-                    \\smc 0
-                    :
-                    : [val] "{x0}" (val)
-                    : "memory"
-                );
-            },
-            else => printf("unknown psci method\n", .{}),
         }
     }
 };

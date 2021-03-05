@@ -1,5 +1,5 @@
 // Please see notes in entry/uart.zig on how it's used here.
-const entry = @import("entry.zig");
+const entry = @import("../entry.zig");
 const arch = @import("arch.zig");
 
 const ExceptionContext = packed struct {
