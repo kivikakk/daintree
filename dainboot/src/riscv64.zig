@@ -4,7 +4,13 @@ const elf = std.elf;
 const dcommon = @import("common/dcommon.zig");
 
 pub fn halt() noreturn {
-    @panic("unimpl");
+    asm volatile (
+        \\   li t0, 1
+        \\   csrrc t0, mstatus, zero
+        \\0: wfi
+        \\   j 0b
+    );
+    unreachable;
 }
 
 pub fn transfer(entry_data: *dcommon.EntryData, uart_base: u64, adjusted_entry: u64) callconv(.Inline) noreturn {
@@ -13,49 +19,6 @@ pub fn transfer(entry_data: *dcommon.EntryData, uart_base: u64, adjusted_entry: 
 
 pub fn cleanInvalidateDCacheICache(start: u64, len: u64) callconv(.Inline) void {
     @panic("unimpl");
-}
-
-fn busyLoop() void {
-    var i: usize = 0;
-    while (i < 1_000) : (i += 1) {
-        asm volatile ("nop");
-    }
-}
-
-pub fn hex(n: u64) void {
-    const ptr: *volatile u8 = @intToPtr(*volatile u8, 0x10000000);
-    ptr.* = '<';
-    busyLoop();
-
-    if (n == 0) {
-        ptr.* = '0';
-        busyLoop();
-        ptr.* = '>';
-        busyLoop();
-        return;
-    }
-
-    var digits: usize = 0;
-    var c = n;
-    while (c > 0) : (c /= 16) {
-        digits += 1;
-    }
-    c = n;
-    var pow: usize = std.math.powi(u64, 16, digits - 1) catch 0;
-    while (pow > 0) : (pow /= 16) {
-        var digit = c / pow;
-        if (digit >= 0 and digit <= 9) {
-            ptr.* = '0' + @truncate(u8, digit);
-        } else if (digit >= 10 and digit <= 16) {
-            ptr.* = 'a' + @truncate(u8, digit) - 10;
-        } else {
-            ptr.* = '?';
-        }
-        busyLoop();
-        c -= (digit * pow);
-    }
-    ptr.* = '>';
-    busyLoop();
 }
 
 export fn relocate(ldbase: u64, dyn: [*]elf.Elf64_Dyn) uefi.Status {
@@ -85,30 +48,7 @@ export fn relocate(ldbase: u64, dyn: [*]elf.Elf64_Dyn) uefi.Status {
 
     var relp = rel.?;
 
-    const ptr: *volatile u8 = @intToPtr(*volatile u8, 0x10000000);
-    hex(ldbase);
-    ptr.* = '\n';
-    busyLoop();
-    hex(@ptrToInt(relp));
-    hex(relsz);
-    hex(relent);
-    ptr.* = '\n';
-    busyLoop();
-
-    ptr.* = '(';
-    busyLoop();
-    hex(@intToPtr(*u64, ldbase).*);
-    ptr.* = ')';
-    busyLoop();
-    ptr.* = '\n';
-    busyLoop();
-
     while (relsz > 0) {
-        hex(relp.r_offset);
-        hex(relp.r_info);
-        hex(@bitCast(u64, relp.r_addend));
-        ptr.* = '\n';
-        busyLoop();
         if (relp.r_type() == 3) {
             // R_RISCV_RELATIVE
             var addr: *u64 = @intToPtr(*u64, ldbase + relp.r_offset);
@@ -133,4 +73,17 @@ export fn relocate(ldbase: u64, dyn: [*]elf.Elf64_Dyn) uefi.Status {
     }
 
     return .Success;
+}
+
+// For whatever reason, memset and memcpy implementations aren't being
+// included, and it's adding a PLT and GOT to have them looked up later.  They
+// aren't being provided by anyone else, so we must.
+export fn memset(b: *c_void, c: c_int, len: usize) *c_void {
+    std.mem.set(u8, @ptrCast([*]u8, b)[0..len], @truncate(u8, std.math.absCast(c)));
+    return b;
+}
+
+export fn memcpy(dst: *c_void, src: *const c_void, n: usize) *c_void {
+    std.mem.copy(u8, @ptrCast([*]u8, dst)[0..n], @ptrCast([*]const u8, src)[0..n]);
+    return dst;
 }

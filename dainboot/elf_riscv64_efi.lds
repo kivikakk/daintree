@@ -69,7 +69,6 @@ SECTIONS
          * Here be dragons.  Do we need .dynsym/.dynstr too?
          */
         _edata = .;
-
         _data_size = . - _etext;
 
         . = ALIGN(4096);
