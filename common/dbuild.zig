@@ -8,6 +8,13 @@ pub fn getBoard(b: *build.Builder) !Board {
         error.UnknownBoard;
 }
 
+pub fn archTagFor(board: Board) []const u8 {
+    return switch (board) {
+        .qemu_arm64, .rockpro64 => "arm64",
+        .qemu_riscv64 => "riscv64",
+    };
+}
+
 pub fn crossTargetFor(board: Board) std.zig.CrossTarget {
     switch (board) {
         .qemu_arm64, .rockpro64 => return .{
