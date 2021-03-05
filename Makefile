@@ -89,4 +89,4 @@ target/disk/EFI/BOOT/$(EFI_BOOTLOADER_NAME).efi: dainboot/zig-cache/bin/$(EFI_BO
 	cp $< $@
 
 ci: target/disk/dainkrnl target/disk/EFI/BOOT/$(EFI_BOOTLOADER_NAME).efi
-	tools/ci-expect
+	tools/ci-expect-$(ARCH)
