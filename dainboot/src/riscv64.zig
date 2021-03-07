@@ -13,9 +13,12 @@ pub fn halt() noreturn {
 }
 
 pub fn transfer(entry_data: *dcommon.EntryData, uart_base: u64, adjusted_entry: u64) callconv(.Inline) noreturn {
+    // Supervisor mode, MMU disabled. (SATP = 0)
+
     asm volatile (
         \\li t0, 0x44
         \\sb t0, 0(a1)
+        \\jr a2
         :
         : [entry_data] "{a0}" (entry_data),
           [uart_base] "{a1}" (uart_base),
