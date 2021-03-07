@@ -11,13 +11,8 @@ pub fn transfer(entry_data: *dcommon.EntryData, uart_base: u64, adjusted_entry: 
     // Check for EL2: we get
     // and pass to DAINKRNL.
     asm volatile (
-    // Prepare arguments
-        \\mov x0, %[entry_data]
-
-        // For progress indicators.
-        \\mov x7, %[uart_base]
-
-        // For QEMU's sake: clear x29, x30. EDK2 trips over when generating stacks otherwise.
+    // For QEMU's sake: clear x29, x30. (? Still need this on U-Boot ?)
+    // EDK2 trips over when generating stacks otherwise.
         \\mov x29, xzr
         \\mov x30, xzr
 
@@ -114,8 +109,8 @@ pub fn transfer(entry_data: *dcommon.EntryData, uart_base: u64, adjusted_entry: 
         \\.eret_target:
         \\br x9
         :
-        : [entry_data] "r" (entry_data),
-          [uart_base] "r" (uart_base),
+        : [entry_data] "{x0}" (entry_data),
+          [uart_base] "{x7}" (uart_base),
 
           [entry] "{x9}" (adjusted_entry)
         : "memory"
