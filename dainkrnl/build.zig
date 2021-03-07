@@ -13,6 +13,9 @@ pub fn build(b: *Builder) !void {
     const arch_tag = dbuild.getArch(board);
 
     const exe = b.addExecutable(b.fmt("dainkrnl.{s}", .{@tagName(board)}), "src/root.zig");
+    if (dbuild.getArch(board) == .riscv64) {
+        exe.code_model = .medium;
+    }
     exe.addAssemblyFile(b.fmt("src/{s}/exception.s", .{@tagName(arch_tag)}));
     exe.addPackagePath("dtb", "../dtb/src/dtb.zig");
     exe.setTarget(target);

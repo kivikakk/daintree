@@ -6,16 +6,6 @@ const hw = @import("../hw.zig");
 
 /// dainboot passes control here.  MMU is **off**.
 pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
-    // XXX: this store fails because it tries an absolute access, not
-    // a PC-relative one:
-    // 40000d48: 37 75 02 40   lui     a0, 262183
-    // 40000d4c: 83 35 04 f2   ld      a1, -224(s0)
-    // 40000d50: 23 30 b5 00   sd      a1, 0(a0)   <---- faults
-    //
-    // Unhandled exception: Store/AMO access fault
-    // EPC: 0000000087f05d50 RA: 000000009e7063d8 TVAL: 0000000040027000
-    // EPC: 00000000681a4d50 RA: 000000007e9a53d8 reloc adjusted
-    // UEFI image [0x000000009e704000:0x000000009e7240df] '/efi\boot\bootriscv64.efi'
     hw.entry_uart.base = @intToPtr(*volatile u8, entry_data.uart_base);
 
     hw.entry_uart.carefully(.{ "dainkrnl ", build_options.version, " pre-MMU stage on ", build_options.board, "\r\n" });
