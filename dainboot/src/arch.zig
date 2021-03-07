@@ -1,7 +1,3 @@
-const std = @import("std");
+const dcommon = @import("common/dcommon.zig");
 
-pub usingnamespace switch (std.builtin.arch) {
-    .aarch64 => @import("arm64.zig"),
-    .riscv64 => @import("riscv64.zig"),
-    else => @panic("unknown arch"),
-};
+pub usingnamespace @import(@tagName(dcommon.daintree_arch) ++ ".zig");

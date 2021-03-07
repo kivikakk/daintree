@@ -2,6 +2,22 @@ const std = @import("std");
 
 pub const daintree_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 1 };
 
+pub const Arch = enum {
+    arm64,
+    riscv64,
+};
+
+pub const daintree_arch: Arch = switch (std.builtin.arch) {
+    .aarch64 => .arm64,
+    .riscv64 => .riscv64,
+    else => @panic("unsupported arch"),
+};
+
+pub const daintree_kernel_start: u64 = switch (daintree_arch) {
+    .arm64 => 0xffffff80_00000000,
+    .riscv64 => 0x4000_0000,
+};
+
 pub const Board = enum {
     qemu_arm64,
     qemu_riscv64,

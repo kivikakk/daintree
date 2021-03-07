@@ -2,7 +2,7 @@ ENTRY(daintree_mmu_start)
 OUTPUT_FORMAT(elf64-littleriscv)
 
 SECTIONS {
-    . = 0xffffff8000000000;
+    . = 0x40000000;
 
     __daintree_base = .;
     .text : {

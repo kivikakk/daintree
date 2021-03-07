@@ -5,8 +5,7 @@ const dcommon = @import("common/dcommon.zig");
 
 pub fn halt() noreturn {
     asm volatile (
-        \\   li t0, 1
-        \\   csrrc t0, mstatus, zero
+        \\   csrci mstatus, 1
         \\0: wfi
         \\   j 0b
     );

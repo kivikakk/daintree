@@ -286,7 +286,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         var it = dainkrnl_elf.program_header_iterator(&elf_source);
         while (it.next() catch haltMsg("iterating phdrs (2)")) |phdr| {
             if (phdr.p_type == std.elf.PT_LOAD) {
-                const target = phdr.p_vaddr - 0xffffff80_00000000;
+                const target = phdr.p_vaddr - dcommon.daintree_kernel_start;
                 const load_bytes = std.math.min(phdr.p_filesz, phdr.p_memsz);
                 printf("will load 0x{x:0>16} bytes at 0x{x:0>16} into offset+0x{x:0>16}\r\n", .{ load_bytes, phdr.p_vaddr, target });
                 if (phdr.p_memsz > phdr.p_filesz) {
@@ -380,13 +380,13 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     const conventional_start = largest_conventional.?.physical_start;
     const conventional_bytes = largest_conventional.?.number_of_pages << 12;
 
-    // The kernel's text section begins at 0xffffff80_00000000. Adjust those down
+    // The kernel's text section begins at dcommon.daintree_kernel_start. Adjust those down
     // to conventional_start now.
 
     var it = dainkrnl_elf.program_header_iterator(&elf_source);
     while (it.next() catch haltMsg("iterating phdrs (2)")) |phdr| {
         if (phdr.p_type == std.elf.PT_LOAD) {
-            const target = phdr.p_vaddr - 0xffffff80_00000000 + conventional_start;
+            const target = phdr.p_vaddr - dcommon.daintree_kernel_start + conventional_start;
             std.mem.copy(u8, @intToPtr([*]u8, target)[0..phdr.p_filesz], dainkrnl[phdr.p_offset .. phdr.p_offset + phdr.p_filesz]);
             if (phdr.p_memsz > phdr.p_filesz) {
                 std.mem.set(u8, @intToPtr([*]u8, target)[phdr.p_filesz..phdr.p_memsz], 0);
@@ -414,7 +414,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
     printf("{x} {x} ", .{ conventional_start, @ptrToInt(&entry_data) });
 
-    const adjusted_entry = dainkrnl_elf.entry - 0xffffff80_00000000 + conventional_start;
+    const adjusted_entry = dainkrnl_elf.entry - dcommon.daintree_kernel_start + conventional_start;
 
     check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
 
