@@ -264,10 +264,12 @@ fn parseElf(bytes: []const u8) std.elf.Header {
         arch.halt();
     };
 
+    const bits: u8 = if (elf_header.is_64) 64 else 32;
+    const endian_ch = if (elf_header.endian == .Big) @as(u8, 'B') else @as(u8, 'L');
     printf("ELF entrypoint: {x:0>16} ({}-bit {c}E)\r\n", .{
         elf_header.entry,
-        @as(u8, if (elf_header.is_64) 64 else 32),
-        @as(u8, if (elf_header.endian == .Big) 'B' else 'L'),
+        bits,
+        endian_ch,
     });
 
     var it = elf_header.program_header_iterator(&buffer);
