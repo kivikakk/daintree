@@ -17,7 +17,10 @@ pub fn transfer(entry_data: *dcommon.EntryData, uart_base: u64, adjusted_entry: 
 }
 
 pub fn cleanInvalidateDCacheICache(start: u64, len: u64) callconv(.Inline) void {
-    @panic("unimpl");
+    // I think this does enough.
+    asm volatile (
+        \\fence.i
+        ::: "memory");
 }
 
 export fn relocate(ldbase: u64, dyn: [*]elf.Elf64_Dyn) uefi.Status {

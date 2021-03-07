@@ -27,7 +27,7 @@ EFI_BOOTLOADER_NAME := BOOTAA64
 else ifeq ($(ARCH),riscv64)
 QEMU_BIN := qemu-system-riscv64
 QEMU_ARGS := \
-	-bios roms/u-boot-riscv64-ramfb.bin \
+	-bios roms/opensbi-u-boot-riscv64-ramfb.elf \
 	-M virt \
 	-device ich9-ahci,id=ahci -device ide-hd,drive=hd0 \
 
