@@ -11,6 +11,10 @@ var TTBR1_L3_1: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L3_2: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L3_3: *[INDEX_SIZE]u64 = undefined;
 
+const REPORT_MAPS = .{
+    .fb = false,
+};
+
 /// dainboot passes control here.  MMU is **off**.  We are in EL1.
 pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     hw.entry_uart.base = @intToPtr(*volatile u8, entry_data.uart_base);
@@ -211,7 +215,9 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         }
 
         while (i < new_end) : (i += 1) {
-            hw.entry_uart.carefully(.{ "MAP: FB at    ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
+            if (comptime REPORT_MAPS.fb) {
+                hw.entry_uart.carefully(.{ "MAP: FB at    ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
+            }
             if (i - 512 < 512) {
                 tableSet(TTBR1_L3_2, i - 512, address, PERIPHERAL_TABLE.toU64());
             } else {
