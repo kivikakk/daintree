@@ -125,7 +125,7 @@ const LoadContext = struct {
             printf("DTB", .{});
             if (self.dainkrnl == null) printf(" ", .{});
         }
-        if (self.dainkrnl == null) printf("DAINKRNL", .{});
+        if (self.dainkrnl == null) printf("DAINKRNL.{s}", .{@tagName(dcommon.daintree_arch)});
         printf("> on {} volume(s) ", .{handle_count});
 
         for (handle_list[0..handle_count]) |handle| {
@@ -146,7 +146,7 @@ const LoadContext = struct {
             check("openVolume", sfs_proto.?.openVolume(&f_proto));
 
             if (self.dainkrnl == null) {
-                self.dainkrnl = tryLoadFromFileProtocol(f_proto, "dainkrnl");
+                self.dainkrnl = tryLoadFromFileProtocol(f_proto, "dainkrnl." ++ @tagName(dcommon.daintree_arch));
             }
             if (self.dtb == null) {
                 self.dtb = tryLoadFromFileProtocol(f_proto, "dtb");
@@ -266,10 +266,15 @@ fn parseElf(bytes: []const u8) std.elf.Header {
 
     const bits: u8 = if (elf_header.is_64) 64 else 32;
     const endian_ch = if (elf_header.endian == .Big) @as(u8, 'B') else @as(u8, 'L');
-    printf("ELF entrypoint: {x:0>16} ({}-bit {c}E)\r\n", .{
+    printf("ELF entrypoint: {x:0>16} ({}-bit {c}E {s})\r\n", .{
         elf_header.entry,
         bits,
         endian_ch,
+        // depends on XXX
+        if (comptime @hasField(@TypeOf(elf_header), "machine"))
+            @tagName(elf_header.machine)
+        else
+            "",
     });
 
     var it = elf_header.program_header_iterator(&buffer);

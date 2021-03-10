@@ -64,7 +64,7 @@ QEMU_CMD := $(QEMU_BIN) \
 		-device usb-mouse \
 		-usb \
 
-qemu: target/disk/EFI/BOOT/$(EFI_BOOTLOADER_NAME).efi target/disk/dainkrnl
+qemu: target/disk/EFI/BOOT/$(EFI_BOOTLOADER_NAME).efi target/disk/dainkrnl.$(ARCH)
 	$(QEMU_CMD) $(QEMU_DTB_ARGS) -s $$EXTRA_ARGS
 
 ifeq ($(ARCH),arm64)
@@ -76,7 +76,7 @@ OS_FILES=$(shell find dainkrnl -name zig-cache -prune -o -type f) $(shell find c
 dainkrnl/zig-cache/bin/dainkrnl.%: $(OS_FILES)
 	cd dainkrnl && zig build -Dboard=$*
 
-target/disk/dainkrnl: dainkrnl/zig-cache/bin/dainkrnl.qemu_$(ARCH)
+target/disk/dainkrnl.$(ARCH): dainkrnl/zig-cache/bin/dainkrnl.qemu_$(ARCH)
 	mkdir -p $(@D)
 	cp $< $@
 
@@ -88,5 +88,5 @@ target/disk/EFI/BOOT/$(EFI_BOOTLOADER_NAME).efi: dainboot/zig-cache/bin/$(EFI_BO
 	mkdir -p $(@D)
 	cp $< $@
 
-ci: target/disk/dainkrnl target/disk/EFI/BOOT/$(EFI_BOOTLOADER_NAME).efi
+ci: target/disk/dainkrnl.$(ARCH) target/disk/EFI/BOOT/$(EFI_BOOTLOADER_NAME).efi
 	tools/ci-expect-$(ARCH)
