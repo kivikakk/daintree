@@ -270,7 +270,7 @@ fn parseElf(bytes: []const u8) std.elf.Header {
         elf_header.entry,
         bits,
         endian_ch,
-        // depends on XXX
+        // depends on https://github.com/ziglang/zig/pull/8193
         if (comptime @hasField(@TypeOf(elf_header), "machine"))
             @tagName(elf_header.machine)
         else
