@@ -42,7 +42,7 @@ pub fn orRegister(comptime register: Register, value: u64) callconv(.Inline) voi
 
 pub fn halt() noreturn {
     asm volatile (
-        \\   csrci mstatus, 1
+        \\   csrci sstatus, 1
         \\0: wfi
         \\   j 0b
     );
