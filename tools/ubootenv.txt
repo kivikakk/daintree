@@ -1,2 +1,2 @@
-daintree_acquire=dhcp ${fdt_addr_r} 192.168.1.13:/dtb/${fdtfile}; setenv fdt_size ${filesize}; tftp ${ramdisk_addr_r} 192.168.1.13:dainkrnl; setenv dainkrnl_size ${filesize}; tftp ${kernel_addr_r} 192.168.1.13:efi/boot/BOOTAA64.efi
-daintree_run=run daintree_acquire ; setenv bootargs "dtb ${fdt_addr_r} 0x${fdt_size} kernel ${ramdisk_addr_r} 0x${dainkrnl_size}"; bootefi ${kernel_addr_r} ${fdt_addr_r} ; setenv bootargs
+daintree_acquire=dhcp ${fdt_addr_r} 192.168.1.13:/dtb/${fdtfile}; setenv fdt_size ${filesize}; tftp ${ramdisk_addr_r} 192.168.1.13:dainkrnl.arm64; setenv dainkrnl_size ${filesize}; tftp ${kernel_addr_r} 192.168.1.13:efi/boot/BOOTAA64.efi
+daintree_run=run daintree_acquire ; setenv bootargs "kernel ${ramdisk_addr_r} 0x${dainkrnl_size}"; bootefi ${kernel_addr_r} ${fdt_addr_r} ; setenv bootargs
