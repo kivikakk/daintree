@@ -8,6 +8,34 @@ pub fn getBoard(b: *build.Builder) !Board {
         error.UnknownBoard;
 }
 
+pub fn getArch(board: Board) Arch {
+    return switch (board) {
+        .qemu_arm64, .rockpro64 => .arm64,
+        .qemu_riscv64 => .riscv64,
+    };
+}
+
+pub fn crossTargetFor(board: Board) std.zig.CrossTarget {
+    switch (board) {
+        .qemu_arm64, .rockpro64 => return .{
+            .cpu_arch = .aarch64,
+            .cpu_model = .{ .explicit = &std.Target.arm.cpu.cortex_a53 },
+        },
+        .qemu_riscv64 => return .{
+            .cpu_arch = .riscv64,
+            .cpu_model = .baseline,
+        },
+    }
+}
+
+pub fn efiTagFor(cpu_arch: std.Target.Cpu.Arch) []const u8 {
+    return switch (cpu_arch) {
+        .aarch64 => "AA64",
+        .riscv64 => "RISCV64",
+        else => @panic("can't handle other arch in efiTagFor"),
+    };
+}
+
 pub fn addBuildOptions(b: *build.Builder, exe: *build.LibExeObjStep, board: Board) !void {
     exe.addBuildOption([:0]const u8, "version", try b.allocator.dupeZ(u8, try getVersion(b)));
     exe.addBuildOption([:0]const u8, "board", try b.allocator.dupeZ(u8, @tagName(board)));

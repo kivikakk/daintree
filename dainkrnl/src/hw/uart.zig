@@ -12,6 +12,12 @@ pub fn init(uart: ddtb.Uart) void {
             .write = hw_pl011.write,
             .readBlock = hw_pl011.readBlock,
         },
+        .Uart => UART = UartImpl{
+            // XXX this is probably wrong, compatible is "ns16550a"
+            .base = uart.base,
+            .write = hw_pl011.write,
+            .readBlock = hw_pl011.readBlock,
+        },
         .Serial8250 => UART = UartImpl{
             .base = uart.base,
             .write = hw_dw_apb_uart.write,

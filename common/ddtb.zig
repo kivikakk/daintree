@@ -7,6 +7,7 @@ pub const Uart = struct {
     base: u64,
     kind: enum {
         Pl011,
+        Uart,
         Serial8250,
     },
 };
@@ -15,12 +16,12 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
     var traverser: dtblib.Traverser = undefined;
     try traverser.init(dtb);
 
-    var state: union(enum) { Root, Irrelevant: u8, Pl011, Serial } = .Root;
+    var state: union(enum) { Root, Sub: u8, Pl011, Uart, Serial } = .Root;
     var address_cells: ?u32 = null;
     var size_cells: ?u32 = null;
     var serial_value: ?u64 = null;
 
-    // try pl011, or a serial that doesn't have a 'bluetooth' node.
+    // try pl011, uart, or a serial that doesn't have a 'bluetooth' node.
 
     // skip root node
     var ev = try traverser.next();
@@ -34,7 +35,7 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
                         serial_value = null;
                         state = .Serial;
                     } else {
-                        state = .{ .Irrelevant = 0 };
+                        state = .{ .Sub = 0 };
                     }
                 },
                 .Prop => |prop| {
@@ -46,9 +47,13 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
                 },
                 else => {},
             },
-            .Irrelevant => |*depth| switch (ev) {
-                .BeginNode => {
-                    depth.* += 1;
+            .Sub => |*depth| switch (ev) {
+                .BeginNode => |name| {
+                    if (depth.* == 0 and std.mem.startsWith(u8, name, "uart@")) {
+                        state = .Uart;
+                    } else {
+                        depth.* += 1;
+                    }
                 },
                 .EndNode => {
                     if (depth.* == 0) {
@@ -68,8 +73,21 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
                         };
                     }
                 },
-                .BeginNode => state = .{ .Irrelevant = 1 },
+                .BeginNode => state = .{ .Sub = 1 },
                 .EndNode => state = .Root,
+                else => {},
+            },
+            .Uart => switch (ev) {
+                .Prop => |prop| {
+                    if (std.mem.eql(u8, prop.name, "reg") and address_cells != null and size_cells != null) {
+                        return Uart{
+                            .base = try firstReg(address_cells.?, prop.value),
+                            .kind = .Uart,
+                        };
+                    }
+                },
+                .BeginNode => state = .{ .Sub = 2 },
+                .EndNode => state = .{ .Sub = 0 },
                 else => {},
             },
             .Serial => switch (ev) {
@@ -78,13 +96,13 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
                         serial_value = try firstReg(address_cells.?, prop.value);
                     } else if (std.mem.eql(u8, prop.name, "status")) {
                         if (!std.mem.eql(u8, "okay\x00", prop.value)) {
-                            state = .{ .Irrelevant = 0 };
+                            state = .{ .Sub = 0 };
                         }
                     }
                 },
                 .BeginNode => {
                     // Don't want any serial with a subnode.
-                    state = .{ .Irrelevant = 1 };
+                    state = .{ .Sub = 1 };
                 },
                 .EndNode => {
                     if (serial_value) |made_it| {

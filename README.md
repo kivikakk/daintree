@@ -1,15 +1,20 @@
 # daintree <img src="https://s1.at.atcdn.net/wp-content/uploads/2018/12/AT_LandingPage_HeaderImage_Daintree_2018NOV22-768x369.jpg" height="32">
 
-An ARMv8-A operating system, plus a UEFI bootloader, all written in Zig. Currently targetting and testing on:
+An operating system plus a UEFI bootloader, all written in Zig. Currently targetting and testing on:
 
-- QEMU (using HVF acceleration on macOS and TCG on FreeBSD), with U-Boot
+- QEMU (arm64 + riscv64) with U-Boot
   - The U-Boot build is included in the repository, and is based on
     [patch series adding QFW and QEMU ramfb support on Arm](https://git.src.kameliya.ee/~kameliya/u-boot/log/qfw-ramfb).
     I'm hoping to land this in the coming weeks.
-- ROCKPro64, with U-Boot
+  - There's the [same for riscv](https://git.src.kameliya.ee/~kameliya/u-boot/log/qfw-ramfb-riscv).
+- ROCKPro64 (arm64) with U-Boot
   - A mainline build is okay, but it must contain this
     [EFI loader fix](https://source.denx.de/u-boot/u-boot/-/commit/9d30a941cce5ed055da18398f4deba18830d00d6).
     At time of writing it has not been included in any release.
+
+Planned support for:
+
+- HiFive Unmatched with U-Boot
 
 There's a little [dev blog](https://github.com/kivikakk/daintree/discussions/1)
 I hope to maintain as I go.  See also [my personal blog](https://kivikakk.ee):
@@ -67,10 +72,19 @@ A gentle introduction to Zig's UEFI support. Boots like this:
 
 ## license
 
-MIT, per [Zig](https://github.com/ziglang/zig).
+MIT.
 
-The [`roms/`](roms/) directory contains a build of
+Some included code is GPL-2+ or GPL-2.0+ -- copyright notices retained and
+sources noted where so.
+
+The [`roms/`](roms/) directory contains an arm64 build of
 [U-Boot](http://www.denx.de/wiki/U-Boot/WebHome), (C) Wolfgang Denk and
-licensed under GPL 2.  See [U-Boot's Licensing page](https://www.denx.de/wiki/U-Boot/Licensing)
+licensed under GPL 2.  See [U-Boot's Licensing
+page](https://www.denx.de/wiki/U-Boot/Licensing)
 for details.  The source can be found at
 <https://git.src.kameliya.ee/~kameliya/u-boot/log/qfw-ramfb>.
+
+It also contains a riscv64 build of same at
+<https://git.src.kameliya.ee/~kameliya/u-boot/log/qfw-ramfb-riscv>.  It is
+embedded in a build of [OpenSBI](https://github.com/riscv/opensbi), (C) 2019
+Western Digital Corporation, licensed under BSD-2-Clause.
