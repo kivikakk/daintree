@@ -9,6 +9,7 @@ var TTBR1_L1: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L2: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L3_1: *[INDEX_SIZE]u64 = undefined;
 var TTBR1_L3_2: *[INDEX_SIZE]u64 = undefined;
+var TTBR1_L3_3: *[INDEX_SIZE]u64 = undefined;
 
 /// dainboot passes control here.  MMU is **off**.  We are in EL1.
 pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
@@ -85,6 +86,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     TTBR1_L2 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 2);
     TTBR1_L3_1 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 3);
     TTBR1_L3_2 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 4);
+    TTBR1_L3_3 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 5);
 
     const ttbr0_el1 = @ptrToInt(TTBR0_IDENTITY) | 1;
     const ttbr1_el1 = @ptrToInt(TTBR1_L1) | 1;
@@ -108,6 +110,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     tableSet(TTBR1_L1, 0, @ptrToInt(TTBR1_L2), KERNEL_DATA_TABLE.toU64());
     tableSet(TTBR1_L2, 0, @ptrToInt(TTBR1_L3_1), KERNEL_DATA_TABLE.toU64());
     tableSet(TTBR1_L2, 1, @ptrToInt(TTBR1_L3_2), KERNEL_DATA_TABLE.toU64());
+    tableSet(TTBR1_L2, 2, @ptrToInt(TTBR1_L3_3), KERNEL_DATA_TABLE.toU64());
 
     var end: u64 = (daintree_end - daintree_base) >> PAGE_BITS;
     if (end > 512) {
@@ -129,7 +132,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     }
 
     // i = end
-    end += 5;
+    end += 6;
     while (i < end) : (i += 1) {
         hw.entry_uart.carefully(.{ "MAP: null at  ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
 
@@ -195,21 +198,25 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         }
     }
 
-    // Map framebuffer as device.  Put in second TTBR1_L3 as it tends to be
+    // Map framebuffer as device.  Put in second/third TTBR1_L3 as it tends to be
     // huge.
     if (new_entry.fb) |base| {
         i = 512;
         address = @ptrToInt(base);
         new_entry.fb = @intToPtr([*]u32, KERNEL_BASE | (i << PAGE_BITS));
         var new_end = i + (new_entry.fb_vert * new_entry.fb_horiz * 4 + PAGE_SIZE - 1) / PAGE_SIZE;
-        if (new_end > 512 + 512) {
+        if (new_end > 512 + 512 * 2) {
             hw.entry_uart.carefully(.{ "end got too big (4): ", new_end, "\r\n" });
             while (true) {}
         }
 
         while (i < new_end) : (i += 1) {
             hw.entry_uart.carefully(.{ "MAP: FB at    ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
-            tableSet(TTBR1_L3_2, i - 512, address, PERIPHERAL_TABLE.toU64());
+            if (i - 512 < 512) {
+                tableSet(TTBR1_L3_2, i - 512, address, PERIPHERAL_TABLE.toU64());
+            } else {
+                tableSet(TTBR1_L3_3, i - 1024, address, PERIPHERAL_TABLE.toU64());
+            }
             address += PAGE_SIZE;
         }
     }
