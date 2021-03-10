@@ -11,6 +11,7 @@ An operating system plus a UEFI bootloader, all written in Zig. Currently target
   - A mainline build is okay, but it must contain this
     [EFI loader fix](https://source.denx.de/u-boot/u-boot/-/commit/9d30a941cce5ed055da18398f4deba18830d00d6).
     At time of writing it has not been included in any release.
+- [Sipeed Maixduino](https://www.seeedstudio.com/Sipeed-Maixduino-Kit-for-RISC-V-AI-IoT-p-4047.html) with U-Boot
 
 Planned support for:
 
@@ -88,3 +89,6 @@ It also contains a riscv64 build of same at
 <https://git.src.kameliya.ee/~kameliya/u-boot/log/qfw-ramfb-riscv>.  It is
 embedded in a build of [OpenSBI](https://github.com/riscv/opensbi), (C) 2019
 Western Digital Corporation, licensed under BSD-2-Clause.
+
+It also contains a riscv64 build of same specialised for the Sipeed Maixduino,
+embedded in OpenSBI.

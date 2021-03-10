@@ -22,6 +22,7 @@ pub const Board = enum {
     qemu_arm64,
     qemu_riscv64,
     rockpro64,
+    maixduino,
 };
 
 /// Used both in dainboot passing to dainkrnl's daintree_mmu_start, and in

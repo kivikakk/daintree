@@ -1,0 +1,6 @@
+#!/bin/sh
+
+DEV=/dev/tty.usbserial-00320000000
+
+stty -f $DEV 115200
+sz $1 > $DEV < $DEV

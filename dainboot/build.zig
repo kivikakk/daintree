@@ -80,7 +80,7 @@ fn buildRiscv64(b: *Builder, board: dcommon.Board, target: std.zig.CrossTarget) 
         ".reloc",
         "--output-target=binary",
         "combined.o",
-        "zig-cache/bin/BOOTRISCV64.qemu_riscv64.efi",
+        b.fmt("zig-cache/bin/{s}.efi", .{bootName(b, board, target)}),
     });
     efi.step.dependOn(&combined.step);
 

@@ -16,7 +16,7 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
     var traverser: dtblib.Traverser = undefined;
     try traverser.init(dtb);
 
-    var state: union(enum) { Root, Sub: u8, Pl011, Uart, Serial } = .Root;
+    var state: union(enum) { Node, Pl011, Uart, Serial } = .Node;
     var address_cells: ?u32 = null;
     var size_cells: ?u32 = null;
     var serial_value: ?u64 = null;
@@ -27,39 +27,22 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
     var ev = try traverser.next();
     while (ev != .End) : (ev = try traverser.next()) {
         switch (state) {
-            .Root => switch (ev) {
+            .Node => switch (ev) {
                 .BeginNode => |name| {
                     if (std.mem.startsWith(u8, name, "pl011@")) {
                         state = .Pl011;
                     } else if (std.mem.startsWith(u8, name, "serial@")) {
                         serial_value = null;
                         state = .Serial;
-                    } else {
-                        state = .{ .Sub = 0 };
+                    } else if (std.mem.startsWith(u8, name, "uart@")) {
+                        state = .Uart;
                     }
                 },
                 .Prop => |prop| {
-                    if (std.mem.eql(u8, prop.name, "#address-cells")) {
+                    if (std.mem.eql(u8, prop.name, "#address-cells") and address_cells == null) {
                         address_cells = std.mem.bigToNative(u32, @ptrCast(*const u32, @alignCast(@alignOf(u32), prop.value.ptr)).*);
-                    } else if (std.mem.eql(u8, prop.name, "#size-cells")) {
+                    } else if (std.mem.eql(u8, prop.name, "#size-cells") and size_cells == null) {
                         size_cells = std.mem.bigToNative(u32, @ptrCast(*const u32, @alignCast(@alignOf(u32), prop.value.ptr)).*);
-                    }
-                },
-                else => {},
-            },
-            .Sub => |*depth| switch (ev) {
-                .BeginNode => |name| {
-                    if (depth.* == 0 and std.mem.startsWith(u8, name, "uart@")) {
-                        state = .Uart;
-                    } else {
-                        depth.* += 1;
-                    }
-                },
-                .EndNode => {
-                    if (depth.* == 0) {
-                        state = .Root;
-                    } else {
-                        depth.* -= 1;
                     }
                 },
                 else => {},
@@ -73,8 +56,8 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
                         };
                     }
                 },
-                .BeginNode => state = .{ .Sub = 1 },
-                .EndNode => state = .Root,
+                .BeginNode => state = .Node,
+                .EndNode => state = .Node,
                 else => {},
             },
             .Uart => switch (ev) {
@@ -86,8 +69,8 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
                         };
                     }
                 },
-                .BeginNode => state = .{ .Sub = 2 },
-                .EndNode => state = .{ .Sub = 0 },
+                .BeginNode => state = .Node,
+                .EndNode => state = .Node,
                 else => {},
             },
             .Serial => switch (ev) {
@@ -96,22 +79,22 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
                         serial_value = try firstReg(address_cells.?, prop.value);
                     } else if (std.mem.eql(u8, prop.name, "status")) {
                         if (!std.mem.eql(u8, "okay\x00", prop.value)) {
-                            state = .{ .Sub = 0 };
+                            state = .Node;
                         }
                     }
                 },
                 .BeginNode => {
                     // Don't want any serial with a subnode.
-                    state = .{ .Sub = 1 };
+                    state = .Node;
                 },
                 .EndNode => {
                     if (serial_value) |made_it| {
                         return Uart{
                             .base = made_it,
-                            .kind = .Serial8250,
+                            .kind = .Serial8250, // This may not hold on the K210.
                         };
                     }
-                    state = .Root;
+                    state = .Node;
                 },
                 else => {},
             },
