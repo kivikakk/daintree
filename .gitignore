@@ -2,5 +2,7 @@
 *.obj
 *.pdb
 *.efi
+dainkrnl.riscv64
+dainkrnl.arm64
 zig-cache
 target/disk
