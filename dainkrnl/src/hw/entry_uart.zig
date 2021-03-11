@@ -71,10 +71,9 @@ pub const Escape = enum {
 
 pub fn carefullyAt(ptr: *volatile u8, parts: anytype) void {
     comptime const parts_info = std.meta.fields(@TypeOf(parts));
-    comptime var i = 0;
     comptime var next_escape: ?Escape = null;
-    inline while (i < parts_info.len) : (i += 1) {
-        if (parts_info[i].field_type == Escape) {
+    inline for (parts_info) |info, i| {
+        if (info.field_type == Escape) {
             next_escape = parts[i];
         } else if (next_escape) |escape| {
             next_escape = null;
@@ -85,13 +84,13 @@ pub fn carefullyAt(ptr: *volatile u8, parts: anytype) void {
                     busyLoop();
                 },
             }
-        } else if (comptime std.meta.trait.isPtrTo(.Array)(parts_info[i].field_type) or comptime std.meta.trait.isSliceOf(.Int)(parts_info[i].field_type)) {
+        } else if (comptime std.meta.trait.isPtrTo(.Array)(info.field_type) or comptime std.meta.trait.isSliceOf(.Int)(info.field_type)) {
             writeCarefully(ptr, parts[i]);
-        } else if (comptime std.meta.trait.isUnsignedInt(parts_info[i].field_type)) {
+        } else if (comptime std.meta.trait.isUnsignedInt(info.field_type)) {
             writeCarefully(ptr, "0x");
             writeCarefullyHex(ptr, parts[i]);
         } else {
-            @compileError("what do I do with this? " ++ @typeName(parts_info[i].field_type));
+            @compileError("what do I do with this? " ++ @typeName(info.field_type));
         }
     }
 }

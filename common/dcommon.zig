@@ -49,5 +49,5 @@ pub const EntryData = packed struct {
 };
 
 comptime {
-    std.testing.expectEqual(0x50, @sizeOf(EntryData));
+    std.debug.assert(@sizeOf(EntryData) == 0x50);
 }
