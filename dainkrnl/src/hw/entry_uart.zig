@@ -70,9 +70,8 @@ pub const Escape = enum {
 };
 
 pub fn carefullyAt(ptr: *volatile u8, parts: anytype) void {
-    comptime const parts_info = std.meta.fields(@TypeOf(parts));
     comptime var next_escape: ?Escape = null;
-    inline for (parts_info) |info, i| {
+    inline for (std.meta.fields(@TypeOf(parts))) |info, i| {
         if (info.field_type == Escape) {
             next_escape = parts[i];
         } else if (next_escape) |escape| {
