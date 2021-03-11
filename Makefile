@@ -29,7 +29,7 @@ QEMU_BIN := qemu-system-riscv64
 QEMU_ARGS := \
 	-bios roms/opensbi-u-boot-riscv64-ramfb.elf \
 	-M virt \
-	-device ich9-ahci,id=ahci -device ide-hd,drive=hd0 \
+	-device virtio-blk-device,drive=hd0 \
 
 # riscv64 doesn't like loading a dtb at the moment.
 # Fails -- possibly our fault!

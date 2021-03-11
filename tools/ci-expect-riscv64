@@ -1,6 +1,6 @@
 #!/usr/local/bin/expect
 
-spawn qemu-system-riscv64 -m 512 -accel tcg -M virt -bios roms/opensbi-u-boot-riscv64-ramfb.elf -serial stdio -drive file=fat:rw:target/disk,format=raw,id=hd0 -device ich9-ahci,id=ahci -device ide-hd,drive=hd0 -device virtio-net-device,netdev=net0 -netdev user,id=net0 -vga none -display none -device usb-ehci -device usb-kbd -device usb-mouse -usb
+spawn qemu-system-riscv64 -m 512 -accel tcg -M virt -bios roms/opensbi-u-boot-riscv64-ramfb.elf -serial stdio -drive file=fat:rw:target/disk,format=raw,id=hd0 -device virtio-blk-device,drive=hd0 -device virtio-net-device,netdev=net0 -netdev user,id=net0 -vga none -display none -device usb-ehci -device usb-kbd -device usb-mouse -usb
 
 expect {
 	timeout { exit 1 }
