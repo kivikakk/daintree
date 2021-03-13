@@ -74,16 +74,16 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         .tg0 = .K4,
         .t0sz = 64 - ADDRESS_BITS,
     }).toU64();
-    comptime std.testing.expectEqual(0x00000001_b5193519, tcr_el1);
+    comptime std.debug.assert(0x00000001_b5193519 == tcr_el1);
     arch.writeRegister(.TCR_EL1, tcr_el1);
 
     const mair_el1 = comptime (arch.MAIR_EL1{ .index = DEVICE_MAIR_INDEX, .attrs = 0b00 }).toU64() |
         (arch.MAIR_EL1{ .index = MEMORY_MAIR_INDEX, .attrs = 0b1111_1111 }).toU64();
-    comptime std.testing.expectEqual(0x00000000_000000ff, mair_el1);
+    comptime std.debug.assert(0x00000000_000000ff == mair_el1);
     arch.writeRegister(.MAIR_EL1, mair_el1);
 
     comptime {
-        std.testing.expectEqual(@sizeOf([INDEX_SIZE]u64), PAGE_SIZE);
+        std.debug.assert(@sizeOf([INDEX_SIZE]u64) == PAGE_SIZE);
     }
     TTBR0_IDENTITY = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 0);
     TTBR1_L1 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 1);
@@ -286,7 +286,7 @@ const VADDRESS_MASK = 0x0000007f_fffff000;
 
 const KERNEL_BASE = ~@as(u64, VADDRESS_MASK | PAGE_MASK);
 comptime {
-    std.testing.expectEqual(0xffffff80_00000000, KERNEL_BASE);
+    std.debug.assert(0xffffff80_00000000 == KERNEL_BASE);
 }
 const STACK_PAGES = 16;
 
@@ -302,7 +302,7 @@ const IDENTITY_FLAGS = arch.PageTableEntry{
 };
 
 comptime {
-    std.testing.expectEqual(0x0040000000000701, IDENTITY_FLAGS.toU64());
+    std.debug.assert(0x0040000000000701 == IDENTITY_FLAGS.toU64());
 }
 
 const KERNEL_DATA_TABLE = arch.PageTableEntry{
@@ -317,7 +317,7 @@ const KERNEL_DATA_TABLE = arch.PageTableEntry{
 };
 
 comptime {
-    std.testing.expectEqual(0x00600000_00000703, KERNEL_DATA_TABLE.toU64());
+    std.debug.assert(0x00600000_00000703 == KERNEL_DATA_TABLE.toU64());
 }
 
 const KERNEL_RODATA_TABLE = arch.PageTableEntry{
@@ -332,7 +332,7 @@ const KERNEL_RODATA_TABLE = arch.PageTableEntry{
 };
 
 comptime {
-    std.testing.expectEqual(0x00600000_00000783, KERNEL_RODATA_TABLE.toU64());
+    std.debug.assert(0x00600000_00000783 == KERNEL_RODATA_TABLE.toU64());
 }
 
 const KERNEL_CODE_TABLE = arch.PageTableEntry{
@@ -347,7 +347,7 @@ const KERNEL_CODE_TABLE = arch.PageTableEntry{
 };
 
 comptime {
-    std.testing.expectEqual(0x00400000_00000783, KERNEL_CODE_TABLE.toU64());
+    std.debug.assert(0x00400000_00000783 == KERNEL_CODE_TABLE.toU64());
 }
 
 const PERIPHERAL_TABLE = arch.PageTableEntry{
@@ -362,5 +362,5 @@ const PERIPHERAL_TABLE = arch.PageTableEntry{
 };
 
 comptime {
-    std.testing.expectEqual(0x00600000_00000607, PERIPHERAL_TABLE.toU64());
+    std.debug.assert(0x00600000_00000607 == PERIPHERAL_TABLE.toU64());
 }
