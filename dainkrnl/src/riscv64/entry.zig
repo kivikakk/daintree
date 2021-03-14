@@ -63,6 +63,20 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
     std.debug.assert((@ptrToInt(PT_L1) & 0xfff) == 0);
 
+    {
+        const l1_start = index(1, entry_data.conventional_start);
+        const l1_end = index(1, entry_data.conventional_start + entry_data.conventional_bytes);
+
+        var l1_i = l1_start;
+        var l1_address = entry_data.conventional_start & ~(@as(usize, BLOCK_L1_SIZE) - 1);
+
+        while (l1_i <= l1_end) : (l1_i += 1) {
+            hw.entry_uart.carefully(.{ "mapping identity: page ", l1_i, " address ", l1_address, "\r\n" });
+            // WIP XXX TODO
+            l1_address += BLOCK_L1_SIZE;
+        }
+    }
+
     const satp = (arch.SATP{
         .ppn = @truncate(u44, @ptrToInt(PT_L1) >> 12),
         .asid = 0,
@@ -81,11 +95,24 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     unreachable;
 }
 
+// dupe with arm64 (except our consts are different); refactor.
+fn index(comptime level: u2, va: u64) usize {
+    if (level == 0) {
+        @compileError("level must be 1, 2, 3");
+    }
+
+    return (va & VADDRESS_MASK) >> (@as(u8, 3 - level) * INDEX_BITS + PAGE_BITS);
+}
+
+fn tableSet(table: []u64, ix: usize, pte: arch.PageTableEntry) void {
+    table[ix] = pte.toU64();
+}
+
 const PAGE_BITS = 12;
 const PAGE_SIZE = 1 << PAGE_BITS; // 4096 (= 512 * 8)
 const PAGE_MASK = PAGE_SIZE - 1;
 
-const BLOCK_L1_BITS = 30; // gigapage
+const BLOCK_L1_BITS = 30;
 const BLOCK_L1_SIZE = 1 << BLOCK_L1_BITS;
 
 const INDEX_BITS = 9;
