@@ -286,7 +286,7 @@ const VADDRESS_MASK = 0x0000007f_fffff000;
 
 const KERNEL_BASE = ~@as(u64, VADDRESS_MASK | PAGE_MASK);
 comptime {
-    std.debug.assert(0xffffff80_00000000 == KERNEL_BASE);
+    std.debug.assert(dcommon.daintree_kernel_start == KERNEL_BASE);
 }
 const STACK_PAGES = 16;
 

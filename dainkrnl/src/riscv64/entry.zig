@@ -51,3 +51,24 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
     arch.halt();
 }
+
+const PAGE_BITS = 12;
+const PAGE_SIZE = 1 << PAGE_BITS; // 4096 (= 512 * 8)
+const PAGE_MASK = PAGE_SIZE - 1;
+
+const BLOCK_L1_BITS = 30;
+const BLOCK_L1_SIZE = 1 << BLOCK_L1_BITS;
+
+const INDEX_BITS = 9;
+const INDEX_SIZE = 1 << INDEX_BITS; // 512
+
+const TRANSLATION_LEVELS = 3;
+const ADDRESS_BITS = PAGE_BITS + TRANSLATION_LEVELS * INDEX_BITS;
+
+const VADDRESS_MASK = 0x0000007f_fffff000;
+
+const KERNEL_BASE = ~@as(u64, VADDRESS_MASK | PAGE_MASK);
+comptime {
+    std.debug.assert(dcommon.daintree_kernel_start == KERNEL_BASE);
+}
+const STACK_PAGES = 16;
