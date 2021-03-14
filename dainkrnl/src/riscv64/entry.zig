@@ -4,6 +4,12 @@ const dcommon = @import("../common/dcommon.zig");
 const arch = @import("arch.zig");
 const hw = @import("../hw.zig");
 
+var PT_L1: *[INDEX_SIZE]u64 = undefined;
+var PTS_L2: *[INDEX_SIZE]u64 = undefined;
+var PTS_L3_1: *[INDEX_SIZE]u64 = undefined;
+var PTS_L3_2: *[INDEX_SIZE]u64 = undefined;
+var PTS_L3_3: *[INDEX_SIZE]u64 = undefined;
+
 /// dainboot passes control here.  MMU is **off**.
 pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     hw.entry_uart.base = @intToPtr(*volatile u8, entry_data.uart_base);
@@ -49,14 +55,37 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     hw.entry_uart.carefully(.{ "daintree_main: ", daintree_main, "\r\n" });
     hw.entry_uart.carefully(.{ "__trap_entry: ", trap_entry, "\r\n" });
 
-    arch.halt();
+    PT_L1 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 0);
+    PTS_L2 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 1);
+    PTS_L3_1 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 2);
+    PTS_L3_2 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 3);
+    PTS_L3_3 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 4);
+
+    std.debug.assert((@ptrToInt(PT_L1) & 0xfff) == 0);
+
+    const satp = (arch.SATP{
+        .ppn = @truncate(u44, @ptrToInt(PT_L1) >> 12),
+        .asid = 0,
+        .mode = .sv39,
+    }).toU64();
+
+    asm volatile (
+        \\csrw satp, %[satp]
+        \\sfence.vma
+        \\ret
+        :
+        : [satp] "r" (satp),
+          [ra] "{ra}" (daintree_main - daintree_base + KERNEL_BASE)
+    );
+
+    unreachable;
 }
 
 const PAGE_BITS = 12;
 const PAGE_SIZE = 1 << PAGE_BITS; // 4096 (= 512 * 8)
 const PAGE_MASK = PAGE_SIZE - 1;
 
-const BLOCK_L1_BITS = 30;
+const BLOCK_L1_BITS = 30; // gigapage
 const BLOCK_L1_SIZE = 1 << BLOCK_L1_BITS;
 
 const INDEX_BITS = 9;
@@ -65,7 +94,7 @@ const INDEX_SIZE = 1 << INDEX_BITS; // 512
 const TRANSLATION_LEVELS = 3;
 const ADDRESS_BITS = PAGE_BITS + TRANSLATION_LEVELS * INDEX_BITS;
 
-const VADDRESS_MASK = 0x0000007f_fffff000;
+const VADDRESS_MASK = 0x0000003f_fffff000;
 
 const KERNEL_BASE = ~@as(u64, VADDRESS_MASK | PAGE_MASK);
 comptime {

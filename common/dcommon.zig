@@ -15,7 +15,7 @@ pub const daintree_arch: Arch = switch (std.builtin.arch) {
 
 pub const daintree_kernel_start: u64 = switch (daintree_arch) {
     .arm64 => 0xffffff80_00000000,
-    .riscv64 => 0xffffff80_00000000,
+    .riscv64 => 0xffffffc0_00000000,
 };
 
 pub const Board = enum {

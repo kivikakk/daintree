@@ -17,7 +17,7 @@ pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) nore
     halt();
 }
 
-pub const Register = enum { XXX };
+pub const Register = enum { satp };
 pub fn writeRegister(comptime register: Register, value: u64) callconv(.Inline) void {
     asm volatile ("csrw " ++ @tagName(register) ++ ", %[value]"
         :
@@ -60,3 +60,51 @@ pub fn reset() void {
 pub fn poweroff() void {
     @panic("unimpl: poweroff");
 }
+
+pub const SATP = struct {
+    pub fn toU64(satp: SATP) callconv(.Inline) u64 {
+        return @as(u64, satp.ppn) |
+            (@as(u64, satp.asid) << 44) |
+            (@as(u64, @enumToInt(satp.mode)) << 60);
+    }
+
+    ppn: u44,
+    asid: u16,
+    mode: enum(u4) {
+        bare = 0,
+        sv39 = 8,
+        sv48 = 9,
+    },
+};
+
+pub const PageTableEntry = struct {
+    pub fn toU64(pte: PageTableEntry) callconv(.Inline) u64 {
+        return @as(u64, pte.v) |
+            (@as(u64, pte.r) << 1) |
+            (@as(u64, pte.w) << 2) |
+            (@as(u64, pte.x) << 3) |
+            (@as(u64, pte.u) << 4) |
+            (@as(u64, pte.g) << 5) |
+            (@as(u64, pte.a) << 6) |
+            (@as(u64, pte.d) << 7) |
+            (@as(u64, pte.ppn0) << 10) |
+            (@as(u64, pte.ppn1) << 19) |
+            (@as(u64, pte.ppn2) << 28);
+    }
+
+    // Set rwx=000 to indicate a non-leaf PTE.
+
+    v: u1 = 1,
+    r: u1, // Readable.
+    w: u1, // Writable.
+    x: u1, // Executable.
+    u: u1, // Accessible to usermode.
+    g: u1, // Global mapping (exists in all address spaces).
+    a: u1, // Access bit.
+    d: u1, // Dirty bit.
+    // _res_rsw: u2,  // Reserved; ignore.
+    ppn0: u9,
+    ppn1: u9,
+    ppn2: u26,
+    // _res: u10,
+};
