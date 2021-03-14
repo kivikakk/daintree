@@ -104,8 +104,13 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         const l1_end = index(1, entry_data.conventional_start + entry_data.conventional_bytes);
 
         var l1_i = l1_start;
-        var l1_address = entry_data.conventional_start;
+
+        // XXX: we had this before, but surely we need to mask off the physical bits???
+        // var l1_address = entry_data.conventional_start;
+        var l1_address = entry_data.conventional_start & ~(@as(usize, BLOCK_L1_SIZE) - 1);
+
         while (l1_i <= l1_end) : (l1_i += 1) {
+            hw.entry_uart.carefully(.{ "mapping identity: page ", l1_i, " address ", l1_address, "\r\n" });
             tableSet(TTBR0_IDENTITY, l1_i, l1_address, IDENTITY_FLAGS.toU64());
             l1_address += BLOCK_L1_SIZE;
         }
