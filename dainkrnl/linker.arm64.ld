@@ -19,9 +19,13 @@ SECTIONS {
     . = ALIGN(0x1000);
 
     __daintree_data_base = .;
-    .data : { *(.data*) }
+    .data : {
+        *(.sdata*)
+        *(.data*)
+    }
 
     .bss : ALIGN(0x1000) {
+        *(.sbss*)
         *(.bss*)
     }
 
