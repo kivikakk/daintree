@@ -87,9 +87,7 @@ pub const PageTableEntry = struct {
             (@as(u64, pte.g) << 5) |
             (@as(u64, pte.a) << 6) |
             (@as(u64, pte.d) << 7) |
-            (@as(u64, pte.ppn0) << 10) |
-            (@as(u64, pte.ppn1) << 19) |
-            (@as(u64, pte.ppn2) << 28);
+            (@as(u64, pte.ppn) << 10);
     }
 
     // Set rwx=000 to indicate a non-leaf PTE.
@@ -103,8 +101,6 @@ pub const PageTableEntry = struct {
     a: u1, // Access bit.
     d: u1, // Dirty bit.
     // _res_rsw: u2,  // Reserved; ignore.
-    ppn0: u9,
-    ppn1: u9,
-    ppn2: u26,
+    ppn: u44,
     // _res: u10,
 };
