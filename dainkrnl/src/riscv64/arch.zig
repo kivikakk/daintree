@@ -50,7 +50,7 @@ pub fn halt() noreturn {
 }
 
 pub fn sleep(ms: u64) void {
-    @panic("unimpl: sleep");
+    // XXX impl
 }
 
 pub fn reset() void {

@@ -108,6 +108,14 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         } else if (address >= daintree_rodata_base) {
             rwx = .ro;
         }
+        switch (rwx) {
+            .rx => hw.entry_uart.carefully(.{"MAP: text at  "}),
+            .rw => hw.entry_uart.carefully(.{"MAP: data at  "}),
+            .ro => hw.entry_uart.carefully(.{"MAP: rodata at "}),
+            else => unreachable,
+        }
+
+        hw.entry_uart.carefully(.{ KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
         tableSet(PTS_L3_1, i, .{ .rwx = rwx, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, address >> PAGE_BITS) });
         address += PAGE_SIZE;
     }
@@ -213,11 +221,13 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     }).toU64();
 
     asm volatile (
+        \\mv sp, %[sp]
         \\csrw satp, %[satp]
         \\sfence.vma
         \\ret
         :
-        : [satp] "r" (satp),
+        : [sp] "r" (new_sp),
+          [satp] "r" (satp),
           [ra] "{ra}" (daintree_main - daintree_base + KERNEL_BASE)
     );
 
