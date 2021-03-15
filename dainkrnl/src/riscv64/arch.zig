@@ -77,12 +77,18 @@ pub const SATP = struct {
     },
 };
 
+pub const RWX = enum(u3) {
+    non_leaf = 0b000,
+    ro = 0b001,
+    rw = 0b011,
+    rx = 0b101,
+    rwx = 0b111,
+};
+
 pub const PageTableEntry = struct {
     pub fn toU64(pte: PageTableEntry) callconv(.Inline) u64 {
         return @as(u64, pte.v) |
-            (@as(u64, pte.r) << 1) |
-            (@as(u64, pte.w) << 2) |
-            (@as(u64, pte.x) << 3) |
+            (@as(u64, @enumToInt(pte.rwx)) << 1) |
             (@as(u64, pte.u) << 4) |
             (@as(u64, pte.g) << 5) |
             (@as(u64, pte.a) << 6) |
@@ -93,9 +99,7 @@ pub const PageTableEntry = struct {
     // Set rwx=000 to indicate a non-leaf PTE.
 
     v: u1 = 1,
-    r: u1, // Readable.
-    w: u1, // Writable.
-    x: u1, // Executable.
+    rwx: RWX,
     u: u1, // Accessible to usermode.
     g: u1, // Global mapping (exists in all address spaces).
     a: u1, // Access bit.

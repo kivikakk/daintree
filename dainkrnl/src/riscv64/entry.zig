@@ -10,6 +10,10 @@ var PTS_L3_1: *[INDEX_SIZE]u64 = undefined;
 var PTS_L3_2: *[INDEX_SIZE]u64 = undefined;
 var PTS_L3_3: *[INDEX_SIZE]u64 = undefined;
 
+const REPORT_MAPS = .{
+    .fb = false,
+};
+
 /// dainboot passes control here.  MMU is **off**.
 pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     hw.entry_uart.base = @intToPtr(*volatile u8, entry_data.uart_base);
@@ -73,21 +77,137 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         while (l1_i <= l1_end) : (l1_i += 1) {
             hw.entry_uart.carefully(.{ "mapping identity: page ", l1_i, " address ", l1_address, "\r\n" });
             tableSet(PT_L1, l1_i, arch.PageTableEntry{
-                .r = 1,
-                .w = 1,
-                .x = 1,
+                .rwx = .rwx,
                 .u = 0,
                 .g = 0,
                 .a = 1, // XXX ???
                 .d = 1, // XXX ???
-                .ppn = @truncate(u44, l1_address >> 12),
+                .ppn = @truncate(u44, l1_address >> PAGE_BITS),
             });
             l1_address += BLOCK_L1_SIZE;
         }
     }
 
+    tableSet(PT_L1, 256, .{ .rwx = .non_leaf, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, @ptrToInt(PTS_L2) >> PAGE_BITS) });
+    tableSet(PTS_L2, 0, .{ .rwx = .non_leaf, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, @ptrToInt(PTS_L3_1) >> PAGE_BITS) });
+    tableSet(PTS_L2, 1, .{ .rwx = .non_leaf, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, @ptrToInt(PTS_L3_2) >> PAGE_BITS) });
+    tableSet(PTS_L2, 2, .{ .rwx = .non_leaf, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, @ptrToInt(PTS_L3_3) >> PAGE_BITS) });
+
+    var end: u64 = (daintree_end - daintree_base) >> PAGE_BITS;
+    if (end > 512) {
+        hw.entry_uart.carefully(.{"end got too big (1)\r\n"});
+        while (true) {}
+    }
+
+    var address = daintree_base;
+    var rwx: arch.RWX = .rx;
+    var i: u64 = 0;
+    while (i < end) : (i += 1) {
+        if (address >= daintree_data_base) {
+            rwx = .rw;
+        } else if (address >= daintree_rodata_base) {
+            rwx = .ro;
+        }
+        tableSet(PTS_L3_1, i, .{ .rwx = rwx, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, address >> PAGE_BITS) });
+        address += PAGE_SIZE;
+    }
+
+    // i = end
+    end += 5; // PT_L1 .. PTS_L3_3
+    while (i < end) : (i += 1) {
+        hw.entry_uart.carefully(.{ "MAP: null at  ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
+        tableSet(PTS_L3_1, i, std.mem.zeroes(arch.PageTableEntry));
+    }
+    end = i + STACK_PAGES;
+    while (i < end) : (i += 1) {
+        hw.entry_uart.carefully(.{ "MAP: stack at ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
+        tableSet(PTS_L3_1, i, .{ .rwx = .rw, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, address >> PAGE_BITS) });
+        address += PAGE_SIZE;
+    }
+
+    if (end > 512) {
+        hw.entry_uart.carefully(.{"end got too big (2)\r\n"});
+        while (true) {}
+    }
+
+    hw.entry_uart.carefully(.{ "MAP: UART at  ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
+    // XXX doesn't look like RV MMU needs any special peripheral/cacheability stuff?
+    tableSet(PTS_L3_1, i, .{ .rwx = .rw, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, entry_data.uart_base >> 12) });
+
+    // Below is verbatim from arm64 entry. ---
+    var entry_address = address - @sizeOf(dcommon.EntryData);
+    entry_address &= ~@as(u64, 15);
+    var new_entry = @intToPtr(*dcommon.EntryData, entry_address);
+    new_entry.* = .{
+        .memory_map = entry_data.memory_map,
+        .memory_map_size = entry_data.memory_map_size,
+        .descriptor_size = entry_data.descriptor_size,
+        .dtb_ptr = undefined,
+        .dtb_len = entry_data.dtb_len,
+        .conventional_start = entry_data.conventional_start,
+        .conventional_bytes = entry_data.conventional_bytes,
+        .fb = entry_data.fb,
+        .fb_vert = entry_data.fb_vert,
+        .fb_horiz = entry_data.fb_horiz,
+        .uart_base = KERNEL_BASE | (end << PAGE_BITS),
+    };
+
+    var new_sp = KERNEL_BASE | (end << PAGE_BITS);
+    new_sp -= @sizeOf(dcommon.EntryData);
+    new_sp &= ~@as(u64, 15);
+
+    {
+        i += 1;
+        new_entry.dtb_ptr = @intToPtr([*]const u8, KERNEL_BASE | (i << PAGE_BITS));
+        std.mem.copy(u8, @intToPtr([*]u8, address)[0..entry_data.dtb_len], entry_data.dtb_ptr[0..entry_data.dtb_len]);
+
+        // How many pages?
+        const dtb_pages = (entry_data.dtb_len + PAGE_SIZE - 1) / PAGE_SIZE;
+
+        var new_end = end + 1 + dtb_pages; // Skip 1 page since UART is there
+        if (new_end > 512) {
+            hw.entry_uart.carefully(.{"end got too big (3)\r\n"});
+            while (true) {}
+        }
+
+        while (i < new_end) : (i += 1) {
+            hw.entry_uart.carefully(.{ "MAP: DTB at   ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
+            tableSet(PTS_L3_1, i, .{ .rwx = .ro, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, address >> PAGE_BITS) });
+            address += PAGE_SIZE;
+        }
+    }
+
+    // Map framebuffer as device.  Put in second/third TTBR1_L3 as it tends to be
+    // huge.
+    if (new_entry.fb) |base| {
+        i = 512;
+        address = @ptrToInt(base);
+        new_entry.fb = @intToPtr([*]u32, KERNEL_BASE | (i << PAGE_BITS));
+        var new_end = i + (new_entry.fb_vert * new_entry.fb_horiz * 4 + PAGE_SIZE - 1) / PAGE_SIZE;
+        if (new_end > 512 + 512 * 2) {
+            hw.entry_uart.carefully(.{ "end got too big (4): ", new_end, "\r\n" });
+            while (true) {}
+        }
+
+        while (i < new_end) : (i += 1) {
+            if (comptime REPORT_MAPS.fb) {
+                hw.entry_uart.carefully(.{ "MAP: FB at    ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
+            }
+            if (i - 512 < 512) {
+                tableSet(PTS_L3_2, i - 512, .{ .rwx = .rw, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, address >> PAGE_BITS) });
+            } else {
+                tableSet(PTS_L3_3, i - 1024, .{ .rwx = .rw, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, address >> PAGE_BITS) });
+            }
+            address += PAGE_SIZE;
+        }
+    }
+
+    hw.entry_uart.carefully(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });
+    hw.entry_uart.carefully(.{ "ra: ", daintree_main - daintree_base + KERNEL_BASE, "\r\n" });
+    hw.entry_uart.carefully(.{ "uart mapped to: ", KERNEL_BASE | (end << PAGE_BITS), "\r\n" });
+
     const satp = (arch.SATP{
-        .ppn = @truncate(u44, @ptrToInt(PT_L1) >> 12),
+        .ppn = @truncate(u44, @ptrToInt(PT_L1) >> PAGE_BITS),
         .asid = 0,
         .mode = .sv39,
     }).toU64();

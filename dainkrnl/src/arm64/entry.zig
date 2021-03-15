@@ -141,10 +141,9 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     }
 
     // i = end
-    end += 6;
+    end += 6; // TTBR0_IDENTITY .. TTBR1_L3_3
     while (i < end) : (i += 1) {
         hw.entry_uart.carefully(.{ "MAP: null at  ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
-
         tableSet(TTBR1_L3_1, i, 0, 0);
     }
     end = i + STACK_PAGES;
