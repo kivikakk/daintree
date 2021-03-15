@@ -13,10 +13,11 @@ pub fn init(uart: ddtb.Uart) void {
             .readBlock = hw_pl011.readBlock,
         },
         .Uart => UART = UartImpl{
-            // XXX this is probably wrong, compatible is "ns16550a"
+            // XXX this is definitely wrong, compatible is "ns16550a",
+            // XXX neither the dw_apb_uart nor pl011 work.  SIGH.
             .base = uart.base,
-            .write = hw_pl011.write,
-            .readBlock = hw_pl011.readBlock,
+            .write = hw_dw_apb_uart.write,
+            .readBlock = hw_dw_apb_uart.readBlock,
         },
         .Serial8250 => UART = UartImpl{
             .base = uart.base,
