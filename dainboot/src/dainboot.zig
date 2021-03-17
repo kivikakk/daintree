@@ -326,12 +326,19 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
 
     printf("looking up serial base in DTB ... ", .{});
     var uart_base: u64 = 0;
+    var uart_width: u3 = 0;
     if (ddtb.searchForUart(dtb)) |uart| {
         uart_base = uart.base;
+        uart_width = switch (uart.kind) {
+            // You **must** do long-sized reads/writes on sifive,uart0, or at least,
+            // you do on QEMU's implementation of it.
+            .SifiveUart0 => 4,
+            else => 1,
+        };
     } else |err| {
         printf("failed to parse dtb: {}", .{err});
     }
-    printf("0x{x:0>8}\r\n", .{uart_base});
+    printf("0x{x:0>8}~{}\r\n", .{ uart_base, uart_width });
 
     printf("we will clean d/i$ for 0x{x} bytes\r\n", .{kernel_size});
 
@@ -413,6 +420,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         .fb_vert = fb_vert,
         .fb_horiz = fb_horiz,
         .uart_base = uart_base,
+        .uart_width = uart_width,
     };
 
     arch.cleanInvalidateDCacheICache(@ptrToInt(&entry_data), @sizeOf(@TypeOf(entry_data)));

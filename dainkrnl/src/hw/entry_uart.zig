@@ -11,10 +11,31 @@
 // These are also called from `exception.zig' to report ESR/ELR and regs,
 // but it might fail if we've actually set things up correctly. Watch out.
 // If `exceptions.zig' is failing, consider inlining `hex' to start with.
+//
+// Note we need to permit both u8 and u32 writes.  The sifive,uart0 MMIO
+// causes a CPU fault if you try to do a byte-sized write to it.  Boo.
 const std = @import("std");
 const build_options = @import("build_options");
 
-pub var base: ?*volatile u8 = null;
+pub var base: ?u64 = null;
+pub var width: ?u3 = null;
+
+const Writer = struct {
+    base: u64,
+    width: u3,
+
+    fn w(self: Writer, c: u8) void {
+        switch (self.width) {
+            1 => @intToPtr(*volatile u8, self.base).* = c,
+            4 => @intToPtr(*volatile u32, self.base).* = c,
+            else => unreachable,
+        }
+    }
+};
+
+fn writerFor(b: u64, w: u3) Writer {
+    return .{ .base = b, .width = w };
+}
 
 fn busyLoop() void {
     var i: usize = 0;
@@ -25,18 +46,18 @@ fn busyLoop() void {
 }
 
 pub fn carefully(parts: anytype) void {
-    carefullyAt(base.?, parts);
+    carefullyAt(writerFor(base.?, width.?), parts);
 }
 
 pub fn hex(n: u64) void {
-    const ptr: *volatile u8 = base.?;
-    ptr.* = '<';
+    const writer = writerFor(base.?, width.?);
+    writer.w('<');
     busyLoop();
 
     if (n == 0) {
-        ptr.* = '0';
+        writer.w('0');
         busyLoop();
-        ptr.* = '>';
+        writer.w('>');
         busyLoop();
         return;
     }
@@ -51,16 +72,16 @@ pub fn hex(n: u64) void {
     while (pow > 0) : (pow /= 16) {
         var digit = c / pow;
         if (digit >= 0 and digit <= 9) {
-            ptr.* = '0' + @truncate(u8, digit);
+            writer.w('0' + @truncate(u8, digit));
         } else if (digit >= 10 and digit <= 16) {
-            ptr.* = 'a' + @truncate(u8, digit) - 10;
+            writer.w('a' + @truncate(u8, digit) - 10);
         } else {
-            ptr.* = '?';
+            writer.w('?');
         }
         busyLoop();
         c -= (digit * pow);
     }
-    ptr.* = '>';
+    writer.w('>');
     busyLoop();
 }
 
@@ -69,7 +90,7 @@ pub const Escape = enum {
     Char,
 };
 
-pub fn carefullyAt(ptr: *volatile u8, parts: anytype) void {
+fn carefullyAt(writer: Writer, parts: anytype) void {
     comptime var next_escape: ?Escape = null;
     inline for (std.meta.fields(@TypeOf(parts))) |info, i| {
         if (info.field_type == Escape) {
@@ -77,40 +98,40 @@ pub fn carefullyAt(ptr: *volatile u8, parts: anytype) void {
         } else if (next_escape) |escape| {
             next_escape = null;
             switch (escape) {
-                .Runtime => writeRuntime(ptr, parts[i]),
+                .Runtime => writeRuntime(writer, parts[i]),
                 .Char => {
-                    ptr.* = parts[i];
+                    writer.w(parts[i]);
                     busyLoop();
                 },
             }
         } else if (comptime std.meta.trait.isPtrTo(.Array)(info.field_type) or comptime std.meta.trait.isSliceOf(.Int)(info.field_type)) {
-            writeCarefully(ptr, parts[i]);
+            writeCarefully(writer, parts[i]);
         } else if (comptime std.meta.trait.isUnsignedInt(info.field_type)) {
-            writeCarefully(ptr, "0x");
-            writeCarefullyHex(ptr, parts[i]);
+            writeCarefully(writer, "0x");
+            writeCarefullyHex(writer, parts[i]);
         } else {
             @compileError("what do I do with this? " ++ @typeName(info.field_type));
         }
     }
 }
 
-fn writeRuntime(ptr: *volatile u8, msg: []const u8) void {
+fn writeRuntime(writer: Writer, msg: []const u8) void {
     for (msg) |c| {
-        ptr.* = c;
+        writer.w(c);
         busyLoop();
     }
 }
 
-fn writeCarefully(ptr: *volatile u8, comptime msg: []const u8) void {
+fn writeCarefully(writer: Writer, comptime msg: []const u8) void {
     inline for (msg) |c| {
-        ptr.* = c;
+        writer.w(c);
         busyLoop();
     }
 }
 
-fn writeCarefullyHex(ptr: *volatile u8, n: u64) void {
+fn writeCarefullyHex(writer: Writer, n: u64) void {
     if (n == 0) {
-        ptr.* = '0';
+        writer.w('0');
         busyLoop();
         return;
     }
@@ -125,11 +146,11 @@ fn writeCarefullyHex(ptr: *volatile u8, n: u64) void {
     while (pow > 0) : (pow /= 16) {
         var digit = c / pow;
         if (digit >= 0 and digit <= 9) {
-            ptr.* = '0' + @truncate(u8, digit);
+            writer.w('0' + @truncate(u8, digit));
         } else if (digit >= 10 and digit <= 16) {
-            ptr.* = 'a' + @truncate(u8, digit) - 10;
+            writer.w('a' + @truncate(u8, digit) - 10);
         } else {
-            ptr.* = '?';
+            writer.w('?');
         }
         busyLoop();
         c -= (digit * pow);

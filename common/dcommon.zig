@@ -27,7 +27,7 @@ pub const Board = enum {
 
 /// Used both in dainboot passing to dainkrnl's daintree_mmu_start, and in
 /// daintree_mmu_start passing to daintree_main.
-pub const EntryData = packed struct {
+pub const EntryData = struct {
     /// dainboot->daintree_mmu_start: PA.  Unused after.
     memory_map: [*]std.os.uefi.tables.MemoryDescriptor,
     memory_map_size: usize,
@@ -46,8 +46,5 @@ pub const EntryData = packed struct {
 
     /// dainboot->daintree_mmu_start: PA.  daintree_mmu_start->daintree_main: VA.
     uart_base: u64,
+    uart_width: u3,
 };
-
-comptime {
-    std.debug.assert(@sizeOf(EntryData) == 0x50);
-}

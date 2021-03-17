@@ -16,7 +16,8 @@ const REPORT_MAPS = .{
 
 /// dainboot passes control here.  MMU is **off**.
 pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
-    hw.entry_uart.base = @intToPtr(*volatile u8, entry_data.uart_base);
+    hw.entry_uart.base = entry_data.uart_base;
+    hw.entry_uart.width = entry_data.uart_width;
 
     hw.entry_uart.carefully(.{ "\r\n\r\ndainkrnl ", build_options.version, " pre-MMU stage on ", build_options.board, "\r\n" });
 
@@ -158,6 +159,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         .fb_vert = entry_data.fb_vert,
         .fb_horiz = entry_data.fb_horiz,
         .uart_base = KERNEL_BASE | (end << PAGE_BITS),
+        .uart_width = entry_data.uart_width,
     };
 
     var new_sp = KERNEL_BASE | (end << PAGE_BITS);

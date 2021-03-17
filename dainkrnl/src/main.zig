@@ -10,7 +10,7 @@ const hw = @import("hw.zig");
 
 // From daintree_mmu_start.
 export fn daintree_main(entry_data: *dcommon.EntryData) void {
-    hw.entry_uart.base = @intToPtr(*volatile u8, entry_data.uart_base);
+    hw.entry_uart.base = entry_data.uart_base;
     hw.entry_uart.carefully(.{ "daintree_main using uart_base ", entry_data.uart_base, "\r\n" });
 
     if (entry_data.fb) |fb_addr| {
