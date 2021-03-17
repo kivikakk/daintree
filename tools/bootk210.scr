@@ -1,0 +1,2 @@
+load mmc 0:1 ${kernel_addr_r} EFI/BOOT/BOOTRISCV64.efi
+bootefi ${kernel_addr_r} ${fdtcontroladdr}
