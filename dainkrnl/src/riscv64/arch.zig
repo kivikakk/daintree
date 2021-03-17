@@ -53,12 +53,12 @@ pub fn sleep(ms: u64) void {
     // XXX impl
 }
 
-pub fn reset() void {
-    @panic("unimpl: reset");
+pub fn reset() noreturn {
+    hw.syscon.reboot();
 }
 
-pub fn poweroff() void {
-    @panic("unimpl: poweroff");
+pub fn poweroff() noreturn {
+    hw.syscon.poweroff();
 }
 
 pub const SATP = struct {

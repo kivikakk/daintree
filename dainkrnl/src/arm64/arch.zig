@@ -101,15 +101,15 @@ pub fn halt() noreturn {
     }
 }
 
-pub fn reset() void {
+pub fn reset() noreturn {
     psci(0x8400_0009);
 }
 
-pub fn poweroff() void {
+pub fn poweroff() noreturn {
     psci(0x8400_0008);
 }
 
-fn psci(val: u32) void {
+fn psci(val: u32) noreturn {
     switch (hw.psci.method) {
         .Hvc => {
             printf("goodbye\n", .{});
@@ -133,6 +133,8 @@ fn psci(val: u32) void {
         },
         else => @panic("unknown psci method"),
     }
+    sleep(5000);
+    @panic("psci returned");
 }
 
 // Avoiding packed structs since they're simply broken right now.
