@@ -7,6 +7,7 @@ An operating system plus a UEFI bootloader, all written in Zig. Currently target
     [patch series adding QFW and QEMU ramfb support on Arm](https://git.src.kameliya.ee/~kameliya/u-boot/log/qfw-ramfb).
     I'm hoping to land this in the coming weeks.
   - There's the [same for riscv](https://git.src.kameliya.ee/~kameliya/u-boot/log/qfw-ramfb-riscv).
+  - CI runs on QEMU and currently makes sure the target can boot and be powered off by command at the serial console. (samples: [arm64](https://buildkite.com/daintree/daintree-arm64/builds/150#a0a1da6d-3764-4529-b25f-66cc605080c7/27-151), [riscv64](https://buildkite.com/daintree/daintree-riscv64/builds/50#38096c20-6e7c-4712-b7dc-7f56ccc9cffe/27-166))
 - ROCKPro64 (arm64) with U-Boot
   - A mainline build is okay, but it must contain this
     [EFI loader fix](https://source.denx.de/u-boot/u-boot/-/commit/9d30a941cce5ed055da18398f4deba18830d00d6).
