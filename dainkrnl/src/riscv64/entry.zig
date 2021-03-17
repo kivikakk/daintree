@@ -102,16 +102,17 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     hw.entry_uart.carefully(.{ "MAP: text at   ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
     while (i < end) : (i += 1) {
         if (address >= daintree_data_base) {
-            if (rwx != .rw)
+            if (rwx != .rw) {
                 hw.entry_uart.carefully(.{ "MAP: data at   ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
-            rwx = .rw;
+                rwx = .rw;
+            }
         } else if (address >= daintree_rodata_base) {
-            if (rwx != .ro)
+            if (rwx != .ro) {
                 hw.entry_uart.carefully(.{ "MAP: rodata at ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
-            rwx = .ro;
+                rwx = .ro;
+            }
         }
 
-        hw.entry_uart.carefully(.{});
         tableSet(PTS_L3_1, i, .{ .rwx = rwx, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, address >> PAGE_BITS) });
         address += PAGE_SIZE;
     }

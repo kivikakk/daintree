@@ -36,6 +36,6 @@ fn doOrDie(comptime name: []const u8, maybe_config: ?Config) noreturn {
     @import("../console/fb.zig").printf("writing {x:0>4} to {x:0>8}+{x:0>4}\n", .{ config.value, config.reg_start, config.offset });
     @intToPtr(*volatile u32, config.reg_start + config.offset).* = config.value;
     var i: usize = 0;
-    while (i < 100_000_000) : (i += 1) asm volatile ("nop");
+    while (i < 1_000_000_000) : (i += 1) asm volatile ("nop");
     @panic("syscon " ++ name ++ " returned");
 }
