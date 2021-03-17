@@ -1,22 +1,19 @@
 // https://developer.arm.com/documentation/ddi0183/g/programmers-model/summary-of-registers
 
-// hack!
-fn busyLoop() void {
-    var i: usize = 0;
-    while (i < 1_000) : (i += 1) {
-        asm volatile ("nop");
-    }
-}
-
 const REGOFF_UARTDR = 0x00;
 const REGOFF_UARTFR = 0x18;
 const REGMASK_UARTFR_RXFE = 1 << 4;
+const REGMASK_UARTFR_TXFF = 1 << 5;
 
 pub fn write(base: u64, data: []const u8) void {
     const uartdr = @intToPtr(*volatile u8, base + REGOFF_UARTDR);
+    const uartfr = @intToPtr(*volatile u8, base + REGOFF_UARTFR);
     for (data) |c| {
+        while (uartfr.* & REGMASK_UARTFR_TXFF == REGMASK_UARTFR_TXFF) {
+            // transmit FIFO full ...
+            asm volatile ("nop");
+        }
         uartdr.* = c;
-        busyLoop();
     }
 }
 
