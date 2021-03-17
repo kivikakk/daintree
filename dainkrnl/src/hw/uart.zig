@@ -1,6 +1,7 @@
 const ddtb = @import("../common/ddtb.zig");
 const hw_pl011 = @import("arm,pl011.zig");
 const hw_dw_apb_uart = @import("snps,dw-apb-uart.zig");
+const hw_sifive_uart0 = @import("sifive,uart0.zig");
 
 pub const Error = error{NoUart};
 
@@ -12,23 +13,20 @@ pub fn init(uart: ddtb.Uart) void {
             .write = hw_pl011.write,
             .readBlock = hw_pl011.readBlock,
         },
-        .SnpsDwApbUart => UART = UartImpl{
+        .SnpsDwApbUart, .Ns16550a => UART = UartImpl{
             .base = uart.base,
             .reg_shift = uart.reg_shift,
             .write = hw_dw_apb_uart.write,
             .readBlock = hw_dw_apb_uart.readBlock,
         },
-        .Ns16550a => UART = UartImpl{
-            .base = uart.base,
-            .reg_shift = uart.reg_shift,
-            .write = hw_dw_apb_uart.write,
-            .readBlock = hw_dw_apb_uart.readBlock,
-        },
-        .SifiveUart0 => UART = UartImpl{
-            .base = uart.base,
-            .reg_shift = uart.reg_shift,
-            .write = hw_dw_apb_uart.write,
-            .readBlock = hw_dw_apb_uart.readBlock,
+        .SifiveUart0 => {
+            hw_sifive_uart0.init(uart.base);
+            UART = UartImpl{
+                .base = uart.base,
+                .reg_shift = uart.reg_shift,
+                .write = hw_sifive_uart0.write,
+                .readBlock = hw_sifive_uart0.readBlock,
+            };
         },
     }
     write("uart.init()\r\n") catch {};
