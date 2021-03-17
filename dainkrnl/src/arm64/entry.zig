@@ -131,11 +131,18 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     var address = daintree_base;
     var flags = KERNEL_CODE_TABLE.toU64();
     var i: u64 = 0;
+    hw.entry_uart.carefully(.{ "MAP: text at   ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
     while (i < end) : (i += 1) {
         if (address >= daintree_data_base) {
-            flags = KERNEL_DATA_TABLE.toU64();
+            if (flags != KERNEL_DATA_TABLE.toU64()) {
+                hw.entry_uart.carefully(.{ "MAP: data at   ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
+                flags = KERNEL_DATA_TABLE.toU64();
+            }
         } else if (address >= daintree_rodata_base) {
-            flags = KERNEL_RODATA_TABLE.toU64();
+            if (flags != KERNEL_RODATA_TABLE.toU64()) {
+                hw.entry_uart.carefully(.{ "MAP: rodata at ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
+                flags = KERNEL_RODATA_TABLE.toU64();
+            }
         }
         tableSet(TTBR1_L3_1, i, address, flags);
         address += PAGE_SIZE;
@@ -143,13 +150,13 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
     // i = end
     end += 6; // TTBR0_IDENTITY .. TTBR1_L3_3
+    hw.entry_uart.carefully(.{ "MAP: null at   ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
     while (i < end) : (i += 1) {
-        hw.entry_uart.carefully(.{ "MAP: null at  ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
         tableSet(TTBR1_L3_1, i, 0, 0);
     }
     end = i + STACK_PAGES;
+    hw.entry_uart.carefully(.{ "MAP: stack at  ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
     while (i < end) : (i += 1) {
-        hw.entry_uart.carefully(.{ "MAP: stack at ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
         tableSet(TTBR1_L3_1, i, address, KERNEL_DATA_TABLE.toU64());
         address += PAGE_SIZE;
     }
@@ -160,7 +167,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     }
 
     // Let's hackily put UART at wherever's next.
-    hw.entry_uart.carefully(.{ "MAP: UART at  ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
+    hw.entry_uart.carefully(.{ "MAP: UART at   ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
     tableSet(TTBR1_L3_1, i, entry_data.uart_base, PERIPHERAL_TABLE.toU64());
 
     // address now points to the stack. make space for common.EntryData, align.
@@ -201,8 +208,8 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
             while (true) {}
         }
 
+        hw.entry_uart.carefully(.{ "MAP: DTB at    ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
         while (i < new_end) : (i += 1) {
-            hw.entry_uart.carefully(.{ "MAP: DTB at   ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
             tableSet(TTBR1_L3_1, i, address, KERNEL_RODATA_TABLE.toU64());
             address += PAGE_SIZE;
         }
@@ -220,10 +227,8 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
             while (true) {}
         }
 
+        hw.entry_uart.carefully(.{ "MAP: FB at     ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
         while (i < new_end) : (i += 1) {
-            if (comptime REPORT_MAPS.fb) {
-                hw.entry_uart.carefully(.{ "MAP: FB at    ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
-            }
             if (i - 512 < 512) {
                 tableSet(TTBR1_L3_2, i - 512, address, PERIPHERAL_TABLE.toU64());
             } else {
@@ -233,6 +238,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         }
     }
 
+    hw.entry_uart.carefully(.{ "MAP: end at    ", KERNEL_BASE | (i << PAGE_BITS), ".\r\n" });
     hw.entry_uart.carefully(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });
     hw.entry_uart.carefully(.{ "lr: ", daintree_main - daintree_base + KERNEL_BASE, "\r\n" });
     hw.entry_uart.carefully(.{ "vbar_el1: ", vbar_el1 - daintree_base + KERNEL_BASE, "\r\n" });
