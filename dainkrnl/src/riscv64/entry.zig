@@ -10,10 +10,6 @@ var PTS_L3_1: *[INDEX_SIZE]u64 = undefined;
 var PTS_L3_2: *[INDEX_SIZE]u64 = undefined;
 var PTS_L3_3: *[INDEX_SIZE]u64 = undefined;
 
-const REPORT_MAPS = .{
-    .fb = false,
-};
-
 /// dainboot passes control here.  MMU is **off**.
 pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     hw.entry_uart.base = entry_data.uart_base;
@@ -103,33 +99,32 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     var address = daintree_base;
     var rwx: arch.RWX = .rx;
     var i: u64 = 0;
+    hw.entry_uart.carefully(.{ "MAP: text at   ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
     while (i < end) : (i += 1) {
         if (address >= daintree_data_base) {
+            if (rwx != .rw)
+                hw.entry_uart.carefully(.{ "MAP: data at   ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
             rwx = .rw;
         } else if (address >= daintree_rodata_base) {
+            if (rwx != .ro)
+                hw.entry_uart.carefully(.{ "MAP: rodata at ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
             rwx = .ro;
         }
-        switch (rwx) {
-            .rx => hw.entry_uart.carefully(.{"MAP: text at  "}),
-            .rw => hw.entry_uart.carefully(.{"MAP: data at  "}),
-            .ro => hw.entry_uart.carefully(.{"MAP: rodata at "}),
-            else => unreachable,
-        }
 
-        hw.entry_uart.carefully(.{ KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
+        hw.entry_uart.carefully(.{});
         tableSet(PTS_L3_1, i, .{ .rwx = rwx, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, address >> PAGE_BITS) });
         address += PAGE_SIZE;
     }
 
     // i = end
     end += 5; // PT_L1 .. PTS_L3_3
+    hw.entry_uart.carefully(.{ "MAP: null at   ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
     while (i < end) : (i += 1) {
-        hw.entry_uart.carefully(.{ "MAP: null at  ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
         tableSet(PTS_L3_1, i, std.mem.zeroes(arch.PageTableEntry));
     }
     end = i + STACK_PAGES;
+    hw.entry_uart.carefully(.{ "MAP: stack at  ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
     while (i < end) : (i += 1) {
-        hw.entry_uart.carefully(.{ "MAP: stack at ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
         tableSet(PTS_L3_1, i, .{ .rwx = .rw, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, address >> PAGE_BITS) });
         address += PAGE_SIZE;
     }
@@ -139,7 +134,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         while (true) {}
     }
 
-    hw.entry_uart.carefully(.{ "MAP: UART at  ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
+    hw.entry_uart.carefully(.{ "MAP: UART at   ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
     // XXX doesn't look like RV MMU needs any special peripheral/cacheability stuff?
     tableSet(PTS_L3_1, i, .{ .rwx = .rw, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, entry_data.uart_base >> 12) });
 
@@ -180,8 +175,8 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
             while (true) {}
         }
 
+        hw.entry_uart.carefully(.{ "MAP: DTB at    ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
         while (i < new_end) : (i += 1) {
-            hw.entry_uart.carefully(.{ "MAP: DTB at   ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
             tableSet(PTS_L3_1, i, .{ .rwx = .ro, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, address >> PAGE_BITS) });
             address += PAGE_SIZE;
         }
@@ -199,10 +194,8 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
             while (true) {}
         }
 
+        hw.entry_uart.carefully(.{ "MAP: FB at     ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
         while (i < new_end) : (i += 1) {
-            if (comptime REPORT_MAPS.fb) {
-                hw.entry_uart.carefully(.{ "MAP: FB at    ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
-            }
             if (i - 512 < 512) {
                 tableSet(PTS_L3_2, i - 512, .{ .rwx = .rw, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, address >> PAGE_BITS) });
             } else {
@@ -211,6 +204,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
             address += PAGE_SIZE;
         }
     }
+    hw.entry_uart.carefully(.{ "MAP: end at    ", KERNEL_BASE | (i << PAGE_BITS), ".\r\n" });
 
     hw.entry_uart.carefully(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });
     hw.entry_uart.carefully(.{ "ra: ", daintree_main - daintree_base + KERNEL_BASE, "\r\n" });
@@ -228,9 +222,11 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         \\sfence.vma
         \\ret
         :
-        : [sp] "r" (new_sp),
+        : [sp] "{a0}" (new_sp),
           [satp] "r" (satp),
-          [ra] "{ra}" (daintree_main - daintree_base + KERNEL_BASE)
+          [ra] "{ra}" (daintree_main - daintree_base + KERNEL_BASE),
+          [uart_base] "r" (@as(u64, 0x38000000))
+        : "memory"
     );
 
     unreachable;
