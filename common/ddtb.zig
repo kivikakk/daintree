@@ -5,6 +5,7 @@ pub const Error = dtblib.Error || error{UartNotFound};
 
 pub const Uart = struct {
     base: u64,
+    reg_shift: u4,
     kind: UartKind,
 };
 
@@ -22,6 +23,7 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
     var in_node = false;
     var state: struct {
         compatible: ?[]const u8 = null,
+        reg_shift: ?u4 = null,
         reg: ?u64 = null,
     } = undefined;
 
@@ -43,9 +45,9 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
                 },
                 .Prop => |prop| {
                     if (std.mem.eql(u8, prop.name, "#address-cells") and address_cells == null) {
-                        address_cells = std.mem.bigToNative(u32, @ptrCast(*const u32, @alignCast(@alignOf(u32), prop.value.ptr)).*);
+                        address_cells = readU32(prop.value);
                     } else if (std.mem.eql(u8, prop.name, "#size-cells") and size_cells == null) {
-                        size_cells = std.mem.bigToNative(u32, @ptrCast(*const u32, @alignCast(@alignOf(u32), prop.value.ptr)).*);
+                        size_cells = readU32(prop.value);
                     }
                 },
                 else => {},
@@ -60,6 +62,8 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
                     }
                 } else if (std.mem.eql(u8, prop.name, "compatible")) {
                     state.compatible = prop.value;
+                } else if (std.mem.eql(u8, prop.name, "reg-shift")) {
+                    state.reg_shift = @truncate(u4, readU32(prop.value));
                 }
             },
             .BeginNode => in_node = false,
@@ -79,6 +83,7 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
                     continue;
                 return Uart{
                     .base = reg,
+                    .reg_shift = state.reg_shift orelse 0,
                     .kind = kind,
                 };
             },
@@ -87,6 +92,10 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
     }
 
     return error.UartNotFound;
+}
+
+fn readU32(value: []const u8) u32 {
+    return std.mem.bigToNative(u32, @ptrCast(*const u32, @alignCast(@alignOf(u32), value.ptr)).*);
 }
 
 fn firstReg(address_cells: u32, value: []const u8) !u64 {

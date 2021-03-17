@@ -24,6 +24,7 @@ export fn daintree_main(entry_data: *dcommon.EntryData) void {
         // We patched this through in the MMU, so be extremely hacky:
         hw.uart.init(.{
             .base = entry_data.uart_base,
+            .reg_shift = uart.reg_shift,
             .kind = uart.kind,
         });
     } else |err| {
