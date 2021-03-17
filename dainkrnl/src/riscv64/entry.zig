@@ -66,10 +66,10 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
     {
         // XXX 0 to capture serial UART for now.
-        const l1_start = @as(usize, 0); // index(1, entry_data.conventional_start);
+        const l1_start: usize = 0; // index(1, entry_data.conventional_start);
         const l1_end = index(1, entry_data.conventional_start + entry_data.conventional_bytes);
         var l1_i = l1_start;
-        var l1_address = entry_data.conventional_start & ~(@as(usize, BLOCK_L1_SIZE) - 1);
+        var l1_address: usize = 0; // entry_data.conventional_start & ~(@as(usize, BLOCK_L1_SIZE) - 1);
 
         while (l1_i <= l1_end) : (l1_i += 1) {
             hw.entry_uart.carefully(.{ "mapping identity: page ", l1_i, " address ", l1_address, "\r\n" });
