@@ -44,26 +44,28 @@ pub fn init(dtb: []const u8) !void {
                 if (compatible == .Psci and psci_method != null) {
                     if (std.mem.eql(u8, psci_method.?, "hvc\x00")) {
                         psci.method = .Hvc;
-                        return;
+                        continue;
                     } else if (std.mem.eql(u8, psci_method.?, "smc\x00")) {
                         psci.method = .Smc;
-                        return;
+                        continue;
                     } else {
                         printf("unknown psci method: {s}\n", .{psci_method.?});
+                        continue;
                     }
                 }
 
                 if (compatible == .SysconReboot) {
                     const value = syscon_conf.value orelse continue;
                     const offset = syscon_conf.offset orelse continue;
-                    printf("syscon init reboot\n", .{});
                     syscon.initReboot(0x100000, offset, value);
+                    continue;
                 }
+
                 if (compatible == .SysconPoweroff) {
                     const value = syscon_conf.value orelse continue;
                     const offset = syscon_conf.offset orelse continue;
-                    printf("syscon init poweroff\n", .{});
                     syscon.initPoweroff(0x100000, offset, value);
+                    continue;
                 }
             },
             .Prop => |prop| {
