@@ -5,37 +5,40 @@ pub const Error = dtblib.Error || error{UartNotFound};
 
 pub const Uart = struct {
     base: u64,
-    kind: enum {
-        Pl011,
-        Uart,
-        Serial8250,
-    },
+    kind: UartKind,
+};
+
+pub const UartKind = enum {
+    ArmPl011, //      "arm,pl011"        -- QEMU ARM
+    SnpsDwApbUart, // "snps,dw-apb-uart" -- ROCKPro64
+    Ns16550a, //      "ns16550a"         -- QEMU RISC-V
+    SifiveUart0, //   "sifive,uart0"     -- Maixduino
 };
 
 pub fn searchForUart(dtb: []const u8) Error!Uart {
     var traverser: dtblib.Traverser = undefined;
     try traverser.init(dtb);
 
-    var state: union(enum) { Node, Pl011, Uart, Serial } = .Node;
+    var in_node = false;
+    var state: struct {
+        compatible: ?[]const u8 = null,
+        reg: ?u64 = null,
+    } = undefined;
+
     var address_cells: ?u32 = null;
     var size_cells: ?u32 = null;
-    var serial_value: ?u64 = null;
 
-    // try pl011, uart, or a serial that doesn't have a 'bluetooth' node.
-
-    // skip root node
     var ev = try traverser.next();
     while (ev != .End) : (ev = try traverser.next()) {
-        switch (state) {
-            .Node => switch (ev) {
+        if (!in_node) {
+            switch (ev) {
                 .BeginNode => |name| {
-                    if (std.mem.startsWith(u8, name, "pl011@")) {
-                        state = .Pl011;
-                    } else if (std.mem.startsWith(u8, name, "serial@")) {
-                        serial_value = null;
-                        state = .Serial;
-                    } else if (std.mem.startsWith(u8, name, "uart@")) {
-                        state = .Uart;
+                    if (std.mem.startsWith(u8, name, "pl011@") or
+                        std.mem.startsWith(u8, name, "serial@") or
+                        std.mem.startsWith(u8, name, "uart@"))
+                    {
+                        in_node = true;
+                        state = .{};
                     }
                 },
                 .Prop => |prop| {
@@ -46,58 +49,40 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
                     }
                 },
                 else => {},
-            },
-            .Pl011 => switch (ev) {
-                .Prop => |prop| {
-                    if (std.mem.eql(u8, prop.name, "reg") and address_cells != null and size_cells != null) {
-                        return Uart{
-                            .base = try firstReg(address_cells.?, prop.value),
-                            .kind = .Pl011,
-                        };
+            }
+        } else switch (ev) {
+            .Prop => |prop| {
+                if (std.mem.eql(u8, prop.name, "reg") and address_cells != null and size_cells != null) {
+                    state.reg = try firstReg(address_cells.?, prop.value);
+                } else if (std.mem.eql(u8, prop.name, "status")) {
+                    if (!std.mem.eql(u8, prop.value, "okay\x00")) {
+                        in_node = false;
                     }
-                },
-                .BeginNode => state = .Node,
-                .EndNode => state = .Node,
-                else => {},
+                } else if (std.mem.eql(u8, prop.name, "compatible")) {
+                    state.compatible = prop.value;
+                }
             },
-            .Uart => switch (ev) {
-                .Prop => |prop| {
-                    if (std.mem.eql(u8, prop.name, "reg") and address_cells != null and size_cells != null) {
-                        return Uart{
-                            .base = try firstReg(address_cells.?, prop.value),
-                            .kind = .Uart,
-                        };
-                    }
-                },
-                .BeginNode => state = .Node,
-                .EndNode => state = .Node,
-                else => {},
+            .BeginNode => in_node = false,
+            .EndNode => {
+                in_node = false;
+                const reg = state.reg orelse continue;
+                const compatible = state.compatible orelse continue;
+                const kind = if (std.mem.indexOf(u8, compatible, "arm,pl011\x00") != null)
+                    UartKind.ArmPl011
+                else if (std.mem.indexOf(u8, compatible, "snps,dw-apb-uart\x00") != null)
+                    UartKind.SnpsDwApbUart
+                else if (std.mem.indexOf(u8, compatible, "ns16550a\x00") != null)
+                    UartKind.Ns16550a
+                else if (std.mem.indexOf(u8, compatible, "sifive,uart0\x00") != null)
+                    UartKind.SifiveUart0
+                else
+                    continue;
+                return Uart{
+                    .base = reg,
+                    .kind = kind,
+                };
             },
-            .Serial => switch (ev) {
-                .Prop => |prop| {
-                    if (std.mem.eql(u8, prop.name, "reg") and address_cells != null and size_cells != null) {
-                        serial_value = try firstReg(address_cells.?, prop.value);
-                    } else if (std.mem.eql(u8, prop.name, "status")) {
-                        if (!std.mem.eql(u8, "okay\x00", prop.value)) {
-                            state = .Node;
-                        }
-                    }
-                },
-                .BeginNode => {
-                    // Don't want any serial with a subnode.
-                    state = .Node;
-                },
-                .EndNode => {
-                    if (serial_value) |made_it| {
-                        return Uart{
-                            .base = made_it,
-                            .kind = .Serial8250, // This may not hold on the K210.
-                        };
-                    }
-                    state = .Node;
-                },
-                else => {},
-            },
+            else => {},
         }
     }
 

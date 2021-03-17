@@ -1,25 +1,29 @@
 const ddtb = @import("../common/ddtb.zig");
 const hw_pl011 = @import("arm,pl011.zig");
 const hw_dw_apb_uart = @import("snps,dw-apb-uart.zig");
+// const hw_ns16650a = @import("ns16550a.zig");
 
 pub const Error = error{NoUart};
 
 pub fn init(uart: ddtb.Uart) void {
     // In future: actually use reg-shift etc. from the DTB!
     switch (uart.kind) {
-        .Pl011 => UART = UartImpl{
+        .ArmPl011 => UART = UartImpl{
             .base = uart.base,
             .write = hw_pl011.write,
             .readBlock = hw_pl011.readBlock,
         },
-        .Uart => UART = UartImpl{
-            // XXX this is definitely wrong, compatible is "ns16550a",
-            // XXX neither the dw_apb_uart nor pl011 work.  SIGH.
+        .SnpsDwApbUart => UART = UartImpl{
             .base = uart.base,
             .write = hw_dw_apb_uart.write,
             .readBlock = hw_dw_apb_uart.readBlock,
         },
-        .Serial8250 => UART = UartImpl{
+        .Ns16550a => UART = UartImpl{
+            .base = uart.base,
+            .write = hw_dw_apb_uart.write,
+            .readBlock = hw_dw_apb_uart.readBlock,
+        },
+        .SifiveUart0 => UART = UartImpl{
             .base = uart.base,
             .write = hw_dw_apb_uart.write,
             .readBlock = hw_dw_apb_uart.readBlock,
