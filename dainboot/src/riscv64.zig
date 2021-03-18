@@ -16,12 +16,10 @@ pub fn transfer(entry_data: *dcommon.EntryData, uart_base: u64, adjusted_entry: 
     // Supervisor mode, MMU disabled. (SATP = 0)
 
     asm volatile (
-        \\li t0, 0x44
-        \\sb t0, 0(a1)
-        \\jr a1
+        \\ret
         :
         : [entry_data] "{a0}" (entry_data),
-          [entry] "{a1}" (adjusted_entry)
+          [entry] "{ra}" (adjusted_entry)
         : "memory"
     );
     unreachable;
