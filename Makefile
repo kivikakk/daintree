@@ -72,12 +72,6 @@ tftp: dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi dainkrnl/zig-cache/bin/daink
 	tools/update-tftp
 endif
 
-ifeq ($(ARCH),riscv64)
-maixduino: dainboot/zig-cache/bin/BOOTRISCV64.maixduino.efi dainkrnl/zig-cache/bin/dainkrnl.maixduino
-	cp dainboot/zig-cache/bin/BOOTRISCV64.maixduino.efi BOOTRISCV64.efi
-	cp dainkrnl/zig-cache/bin/dainkrnl.maixduino dainkrnl.riscv64
-endif
-
 OS_FILES=$(shell find dainkrnl -name zig-cache -prune -o -type f) $(shell find common -type f)
 dainkrnl/zig-cache/bin/dainkrnl.%: $(OS_FILES)
 	cd dainkrnl && zig build -Dboard=$*

@@ -11,7 +11,7 @@ pub fn getBoard(b: *build.Builder) !Board {
 pub fn getArch(board: Board) Arch {
     return switch (board) {
         .qemu_arm64, .rockpro64 => .arm64,
-        .qemu_riscv64, .maixduino => .riscv64,
+        .qemu_riscv64 => .riscv64,
     };
 }
 
@@ -21,7 +21,7 @@ pub fn crossTargetFor(board: Board) std.zig.CrossTarget {
             .cpu_arch = .aarch64,
             .cpu_model = .{ .explicit = &std.Target.arm.cpu.cortex_a53 },
         },
-        .qemu_riscv64, .maixduino => return .{
+        .qemu_riscv64 => return .{
             .cpu_arch = .riscv64,
             .cpu_model = .baseline,
         },

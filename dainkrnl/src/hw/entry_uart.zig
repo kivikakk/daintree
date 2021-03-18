@@ -39,7 +39,7 @@ fn writerFor(b: u64, w: u3) Writer {
 
 fn busyLoop() void {
     var i: usize = 0;
-    const loop_count: usize = if (comptime std.mem.eql(u8, build_options.board, "maixduino")) 40_000 else 100;
+    const loop_count: usize = 100;
     while (i < loop_count) : (i += 1) {
         asm volatile ("nop");
     }
