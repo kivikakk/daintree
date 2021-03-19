@@ -223,10 +223,9 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         \\sfence.vma
         \\ret
         :
-        : [sp] "{a0}" (new_sp),
+        : [sp] "{a0}" (new_sp), // Argument to daintree_main.
           [satp] "r" (satp),
-          [ra] "{ra}" (daintree_main - daintree_base + KERNEL_BASE),
-          [uart_base] "r" (@as(u64, 0x38000000))
+          [ra] "{ra}" (daintree_main - daintree_base + KERNEL_BASE)
         : "memory"
     );
 
