@@ -6,6 +6,13 @@ const hw = @import("../hw.zig");
 
 usingnamespace @import("paging.zig");
 
+fn entryAssert(cond: bool, comptime msg: []const u8) callconv(.Inline) void {
+    if (!cond) {
+        hw.entry_uart.carefully(.{ msg, "\r\n" });
+        while (true) {}
+    }
+}
+
 /// dainboot passes control here.  MMU is **off**.  We are in EL1.
 pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     hw.entry_uart.init(entry_data);
@@ -60,12 +67,10 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     arch.writeRegister(.TTBR0_EL1, ttbr0_el1);
     arch.writeRegister(.TTBR1_EL1, ttbr1_el1);
 
-    {
-        var it = PAGING.range(1, entry_data.conventional_start, entry_data.conventional_bytes);
-        while (it.next()) |r| {
-            hw.entry_uart.carefully(.{ "mapping identity: page ", r.page, " address ", r.address, "\r\n" });
-            tableSet(TTBR0_IDENTITY, r.page, r.address, IDENTITY_FLAGS.toU64());
-        }
+    var it = PAGING.range(1, entry_data.conventional_start, entry_data.conventional_bytes);
+    while (it.next()) |r| {
+        hw.entry_uart.carefully(.{ "mapping identity: page ", r.page, " address ", r.address, "\r\n" });
+        tableSet(TTBR0_IDENTITY, r.page, r.address, IDENTITY_FLAGS.toU64());
     }
 
     tableSet(TTBR1_L1, 0, @ptrToInt(TTBR1_L2), KERNEL_DATA_TABLE.toU64());
@@ -74,10 +79,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     tableSet(TTBR1_L2, 2, @ptrToInt(TTBR1_L3_3), KERNEL_DATA_TABLE.toU64());
 
     var end: u64 = (daintree_end - daintree_base) >> PAGING.page_bits;
-    if (end > 512) {
-        hw.entry_uart.carefully(.{"end got too big (1)\r\n"});
-        while (true) {}
-    }
+    entry_assert(end <= 512, "end got too big (1)");
 
     var address = daintree_base;
     var flags = KERNEL_CODE_TABLE.toU64();
@@ -112,10 +114,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         address += PAGING.page_size;
     }
 
-    if (end > 512) {
-        hw.entry_uart.carefully(.{"end got too big (2)\r\n"});
-        while (true) {}
-    }
+    entry_assert(end <= 512, "end got too big (2)");
 
     // Let's hackily put UART at wherever's next.
     hw.entry_uart.carefully(.{ "MAP: UART at   ", PAGING.kernelPageAddress(i), "\r\n" });
@@ -154,10 +153,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         const dtb_pages = (entry_data.dtb_len + PAGING.page_size - 1) / PAGING.page_size;
 
         var new_end = end + 1 + dtb_pages; // Skip 1 page since UART is there
-        if (new_end > 512) {
-            hw.entry_uart.carefully(.{"end got too big (3)\r\n"});
-            while (true) {}
-        }
+        entry_assert(new_end <= 512, "end got too big (3)");
 
         hw.entry_uart.carefully(.{ "MAP: DTB at    ", PAGING.kernelPageAddress(i), "~\r\n" });
         while (i < new_end) : (i += 1) {
@@ -173,10 +169,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         address = @ptrToInt(base);
         new_entry.fb = @intToPtr([*]u32, PAGING.kernelPageAddress(i));
         var new_end = i + (new_entry.fb_vert * new_entry.fb_horiz * 4 + PAGING.page_size - 1) / PAGING.page_size;
-        if (new_end > 512 + 512 * 2) {
-            hw.entry_uart.carefully(.{ "end got too big (4): ", new_end, "\r\n" });
-            while (true) {}
-        }
+        entry_assert(new_end <= 512 + 512 * 2, "end got too big (4)");
 
         hw.entry_uart.carefully(.{ "MAP: FB at     ", PAGING.kernelPageAddress(i), "~\r\n" });
         while (i < new_end) : (i += 1) {
