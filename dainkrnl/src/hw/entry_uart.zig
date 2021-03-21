@@ -16,9 +16,30 @@
 // causes a CPU fault if you try to do a byte-sized write to it.  Boo.
 const std = @import("std");
 const build_options = @import("build_options");
+const dcommon = @import("../common/dcommon.zig");
 
 pub var base: ?u64 = null;
 pub var width: ?u3 = null;
+
+pub fn init(entry_data: *dcommon.EntryData) void {
+    base = entry_data.uart_base;
+    width = entry_data.uart_width;
+
+    carefully(.{ "\r\n\r\ndainkrnl ", build_options.version, " pre-MMU stage on ", build_options.board, "\r\n" });
+
+    carefully(.{ "entry_data (", @ptrToInt(entry_data), ")\r\n" });
+    carefully(.{ "memory_map:         ", @ptrToInt(entry_data.memory_map), "\r\n" });
+    carefully(.{ "memory_map_size:    ", entry_data.memory_map_size, "\r\n" });
+    carefully(.{ "descriptor_size:    ", entry_data.descriptor_size, "\r\n" });
+    carefully(.{ "dtb_ptr:            ", @ptrToInt(entry_data.dtb_ptr), "\r\n" });
+    carefully(.{ "dtb_len:            ", entry_data.dtb_len, "\r\n" });
+    carefully(.{ "conventional_start: ", entry_data.conventional_start, "\r\n" });
+    carefully(.{ "conventional_bytes: ", entry_data.conventional_bytes, "\r\n" });
+    carefully(.{ "fb:                 ", @ptrToInt(entry_data.fb), "\r\n" });
+    carefully(.{ "fb_vert:            ", entry_data.fb_vert, "\r\n" });
+    carefully(.{ "fb_horiz:           ", entry_data.fb_horiz, "\r\n" });
+    carefully(.{ "uart_base:          ", entry_data.uart_base, "\r\n" });
+}
 
 const Writer = struct {
     base: u64,

@@ -4,57 +4,21 @@ const dcommon = @import("../common/dcommon.zig");
 const arch = @import("arch.zig");
 const hw = @import("../hw.zig");
 
-var TTBR0_IDENTITY: *[INDEX_SIZE]u64 = undefined;
-var TTBR1_L1: *[INDEX_SIZE]u64 = undefined;
-var TTBR1_L2: *[INDEX_SIZE]u64 = undefined;
-var TTBR1_L3_1: *[INDEX_SIZE]u64 = undefined;
-var TTBR1_L3_2: *[INDEX_SIZE]u64 = undefined;
-var TTBR1_L3_3: *[INDEX_SIZE]u64 = undefined;
-
-const REPORT_MAPS = .{
-    .fb = false,
-};
+usingnamespace @import("paging.zig");
 
 /// dainboot passes control here.  MMU is **off**.  We are in EL1.
 pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
-    hw.entry_uart.base = entry_data.uart_base;
-    hw.entry_uart.width = entry_data.uart_width;
+    hw.entry_uart.init(entry_data);
 
-    hw.entry_uart.carefully(.{ "dainkrnl ", build_options.version, " pre-MMU stage on ", build_options.board, "\r\n" });
-
-    hw.entry_uart.carefully(.{ "entry_data (", @ptrToInt(entry_data), ")\r\n" });
-    hw.entry_uart.carefully(.{ "memory_map:         ", @ptrToInt(entry_data.memory_map), "\r\n" });
-    hw.entry_uart.carefully(.{ "memory_map_size:    ", entry_data.memory_map_size, "\r\n" });
-    hw.entry_uart.carefully(.{ "descriptor_size:    ", entry_data.descriptor_size, "\r\n" });
-    hw.entry_uart.carefully(.{ "dtb_ptr:            ", @ptrToInt(entry_data.dtb_ptr), "\r\n" });
-    hw.entry_uart.carefully(.{ "dtb_len:            ", entry_data.dtb_len, "\r\n" });
-    hw.entry_uart.carefully(.{ "conventional_start: ", entry_data.conventional_start, "\r\n" });
-    hw.entry_uart.carefully(.{ "conventional_bytes: ", entry_data.conventional_bytes, "\r\n" });
-    hw.entry_uart.carefully(.{ "fb:                 ", @ptrToInt(entry_data.fb), "\r\n" });
-    hw.entry_uart.carefully(.{ "fb_vert:            ", entry_data.fb_vert, "\r\n" });
-    hw.entry_uart.carefully(.{ "fb_horiz:           ", entry_data.fb_horiz, "\r\n" });
-    hw.entry_uart.carefully(.{ "uart_base:          ", entry_data.uart_base, "\r\n" });
-
-    var daintree_base: u64 = asm volatile ("adr %[ret], __daintree_base"
-        : [ret] "=r" (-> u64)
-    );
-    var daintree_rodata_base: u64 = asm volatile ("adr %[ret], __daintree_rodata_base"
-        : [ret] "=r" (-> u64)
-    );
-    var daintree_data_base: u64 = asm volatile ("adr %[ret], __daintree_data_base"
-        : [ret] "=r" (-> u64)
-    );
-    var daintree_end: u64 = asm volatile ("adr %[ret], __daintree_end"
-        : [ret] "=r" (-> u64)
-    );
-    const daintree_main = asm volatile ("adr %[ret], daintree_main"
-        : [ret] "=r" (-> u64)
-    );
-    const vbar_el1 = asm volatile ("adr %[ret], __vbar_el1"
-        : [ret] "=r" (-> u64)
-    );
+    const daintree_base = arch.loadAddress("__daintree_base");
+    const daintree_rodata_base = arch.loadAddress("__daintree_rodata_base");
+    const daintree_data_base = arch.loadAddress("__daintree_data_base");
+    const daintree_end = arch.loadAddress("__daintree_end");
+    const daintree_main = arch.loadAddress("daintree_main");
+    const vbar_el1 = arch.loadAddress("__vbar_el1");
     const current_el = arch.readRegister(.CurrentEL) >> 2;
     const sctlr_el1 = arch.readRegister(.SCTLR_EL1);
+    const cpacr_el1 = arch.readRegister(.CPACR_EL1);
 
     hw.entry_uart.carefully(.{ "__daintree_base: ", daintree_base, "\r\n" });
     hw.entry_uart.carefully(.{ "__daintree_rodata_base: ", daintree_rodata_base, "\r\n" });
@@ -64,34 +28,29 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     hw.entry_uart.carefully(.{ "__vbar_el1: ", vbar_el1, "\r\n" });
     hw.entry_uart.carefully(.{ "CurrentEL: ", current_el, "\r\n" });
     hw.entry_uart.carefully(.{ "SCTLR_EL1: ", sctlr_el1, "\r\n" });
-
-    const cpacr_el1 = arch.readRegister(.CPACR_EL1);
     hw.entry_uart.carefully(.{ "CPACR_EL1: ", cpacr_el1, "\r\n" });
 
-    const tcr_el1 = comptime (arch.TCR_EL1{
+    const tcr_el1 = comptime (TCR_EL1{
         .ips = .B36,
         .tg1 = .K4,
-        .t1sz = 64 - ADDRESS_BITS, // in practice: 25
+        .t1sz = 64 - PAGING.address_bits, // in practice: 25
         .tg0 = .K4,
-        .t0sz = 64 - ADDRESS_BITS,
+        .t0sz = 64 - PAGING.address_bits,
     }).toU64();
     comptime std.debug.assert(0x00000001_b5193519 == tcr_el1);
     arch.writeRegister(.TCR_EL1, tcr_el1);
 
-    const mair_el1 = comptime (arch.MAIR_EL1{ .index = DEVICE_MAIR_INDEX, .attrs = 0b00 }).toU64() |
-        (arch.MAIR_EL1{ .index = MEMORY_MAIR_INDEX, .attrs = 0b1111_1111 }).toU64();
+    const mair_el1 = comptime (MAIR_EL1{ .index = DEVICE_MAIR_INDEX, .attrs = 0b00 }).toU64() |
+        (MAIR_EL1{ .index = MEMORY_MAIR_INDEX, .attrs = 0b1111_1111 }).toU64();
     comptime std.debug.assert(0x00000000_000000ff == mair_el1);
     arch.writeRegister(.MAIR_EL1, mair_el1);
 
-    comptime {
-        std.debug.assert(@sizeOf([INDEX_SIZE]u64) == PAGE_SIZE);
-    }
-    TTBR0_IDENTITY = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 0);
-    TTBR1_L1 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 1);
-    TTBR1_L2 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 2);
-    TTBR1_L3_1 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 3);
-    TTBR1_L3_2 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 4);
-    TTBR1_L3_3 = @intToPtr(*[INDEX_SIZE]u64, daintree_end + PAGE_SIZE * 5);
+    TTBR0_IDENTITY = @intToPtr(*[PAGING.index_size]u64, daintree_end + PAGING.page_size * 0);
+    TTBR1_L1 = @intToPtr(*[PAGING.index_size]u64, daintree_end + PAGING.page_size * 1);
+    TTBR1_L2 = @intToPtr(*[PAGING.index_size]u64, daintree_end + PAGING.page_size * 2);
+    TTBR1_L3_1 = @intToPtr(*[PAGING.index_size]u64, daintree_end + PAGING.page_size * 3);
+    TTBR1_L3_2 = @intToPtr(*[PAGING.index_size]u64, daintree_end + PAGING.page_size * 4);
+    TTBR1_L3_3 = @intToPtr(*[PAGING.index_size]u64, daintree_end + PAGING.page_size * 5);
 
     const ttbr0_el1 = @ptrToInt(TTBR0_IDENTITY) | 1;
     const ttbr1_el1 = @ptrToInt(TTBR1_L1) | 1;
@@ -101,19 +60,19 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     arch.writeRegister(.TTBR1_EL1, ttbr1_el1);
 
     {
-        const l1_start = index(1, entry_data.conventional_start);
-        const l1_end = index(1, entry_data.conventional_start + entry_data.conventional_bytes);
+        const l1_start = PAGING.index(1, entry_data.conventional_start);
+        const l1_end = PAGING.index(1, entry_data.conventional_start + entry_data.conventional_bytes);
 
         var l1_i = l1_start;
 
         // XXX: we had this before, but surely we need to mask off the physical bits???
         // var l1_address = entry_data.conventional_start;
-        var l1_address = entry_data.conventional_start & ~(@as(usize, BLOCK_L1_SIZE) - 1);
+        var l1_address = entry_data.conventional_start & ~(@as(usize, PAGING.block_l1_size) - 1);
 
         while (l1_i <= l1_end) : (l1_i += 1) {
             hw.entry_uart.carefully(.{ "mapping identity: page ", l1_i, " address ", l1_address, "\r\n" });
             tableSet(TTBR0_IDENTITY, l1_i, l1_address, IDENTITY_FLAGS.toU64());
-            l1_address += BLOCK_L1_SIZE;
+            l1_address += PAGING.block_l1_size;
         }
     }
 
@@ -122,7 +81,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     tableSet(TTBR1_L2, 1, @ptrToInt(TTBR1_L3_2), KERNEL_DATA_TABLE.toU64());
     tableSet(TTBR1_L2, 2, @ptrToInt(TTBR1_L3_3), KERNEL_DATA_TABLE.toU64());
 
-    var end: u64 = (daintree_end - daintree_base) >> PAGE_BITS;
+    var end: u64 = (daintree_end - daintree_base) >> PAGING.page_bits;
     if (end > 512) {
         hw.entry_uart.carefully(.{"end got too big (1)\r\n"});
         while (true) {}
@@ -131,34 +90,34 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     var address = daintree_base;
     var flags = KERNEL_CODE_TABLE.toU64();
     var i: u64 = 0;
-    hw.entry_uart.carefully(.{ "MAP: text at   ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
+    hw.entry_uart.carefully(.{ "MAP: text at   ", PAGING.kernelPageAddress(i), "~\r\n" });
     while (i < end) : (i += 1) {
         if (address >= daintree_data_base) {
             if (flags != KERNEL_DATA_TABLE.toU64()) {
-                hw.entry_uart.carefully(.{ "MAP: data at   ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
+                hw.entry_uart.carefully(.{ "MAP: data at   ", PAGING.kernelPageAddress(i), "~\r\n" });
                 flags = KERNEL_DATA_TABLE.toU64();
             }
         } else if (address >= daintree_rodata_base) {
             if (flags != KERNEL_RODATA_TABLE.toU64()) {
-                hw.entry_uart.carefully(.{ "MAP: rodata at ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
+                hw.entry_uart.carefully(.{ "MAP: rodata at ", PAGING.kernelPageAddress(i), "~\r\n" });
                 flags = KERNEL_RODATA_TABLE.toU64();
             }
         }
         tableSet(TTBR1_L3_1, i, address, flags);
-        address += PAGE_SIZE;
+        address += PAGING.page_size;
     }
 
     // i = end
     end += 6; // TTBR0_IDENTITY .. TTBR1_L3_3
-    hw.entry_uart.carefully(.{ "MAP: null at   ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
+    hw.entry_uart.carefully(.{ "MAP: null at   ", PAGING.kernelPageAddress(i), "~\r\n" });
     while (i < end) : (i += 1) {
         tableSet(TTBR1_L3_1, i, 0, 0);
     }
     end = i + STACK_PAGES;
-    hw.entry_uart.carefully(.{ "MAP: stack at  ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
+    hw.entry_uart.carefully(.{ "MAP: stack at  ", PAGING.kernelPageAddress(i), "~\r\n" });
     while (i < end) : (i += 1) {
         tableSet(TTBR1_L3_1, i, address, KERNEL_DATA_TABLE.toU64());
-        address += PAGE_SIZE;
+        address += PAGING.page_size;
     }
 
     if (end > 512) {
@@ -167,7 +126,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     }
 
     // Let's hackily put UART at wherever's next.
-    hw.entry_uart.carefully(.{ "MAP: UART at   ", KERNEL_BASE | (i << PAGE_BITS), "\r\n" });
+    hw.entry_uart.carefully(.{ "MAP: UART at   ", PAGING.kernelPageAddress(i), "\r\n" });
     tableSet(TTBR1_L3_1, i, entry_data.uart_base, PERIPHERAL_TABLE.toU64());
 
     // address now points to the stack. make space for common.EntryData, align.
@@ -185,22 +144,22 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         .fb = entry_data.fb,
         .fb_vert = entry_data.fb_vert,
         .fb_horiz = entry_data.fb_horiz,
-        .uart_base = KERNEL_BASE | (end << PAGE_BITS),
+        .uart_base = PAGING.kernelPageAddress(i),
         .uart_width = entry_data.uart_width,
     };
 
-    var new_sp = KERNEL_BASE | (end << PAGE_BITS);
+    var new_sp = PAGING.kernelPageAddress(i);
     new_sp -= @sizeOf(dcommon.EntryData);
     new_sp &= ~@as(u64, 15);
 
     // I hate that I'm doing this. Put the DTB in here.
     {
         i += 1;
-        new_entry.dtb_ptr = @intToPtr([*]const u8, KERNEL_BASE | (i << PAGE_BITS));
+        new_entry.dtb_ptr = @intToPtr([*]const u8, PAGING.kernelPageAddress(i));
         std.mem.copy(u8, @intToPtr([*]u8, address)[0..entry_data.dtb_len], entry_data.dtb_ptr[0..entry_data.dtb_len]);
 
         // How many pages?
-        const dtb_pages = (entry_data.dtb_len + PAGE_SIZE - 1) / PAGE_SIZE;
+        const dtb_pages = (entry_data.dtb_len + PAGING.page_size - 1) / PAGING.page_size;
 
         var new_end = end + 1 + dtb_pages; // Skip 1 page since UART is there
         if (new_end > 512) {
@@ -208,10 +167,10 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
             while (true) {}
         }
 
-        hw.entry_uart.carefully(.{ "MAP: DTB at    ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
+        hw.entry_uart.carefully(.{ "MAP: DTB at    ", PAGING.kernelPageAddress(i), "~\r\n" });
         while (i < new_end) : (i += 1) {
             tableSet(TTBR1_L3_1, i, address, KERNEL_RODATA_TABLE.toU64());
-            address += PAGE_SIZE;
+            address += PAGING.page_size;
         }
     }
 
@@ -220,29 +179,29 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     if (new_entry.fb) |base| {
         i = 512;
         address = @ptrToInt(base);
-        new_entry.fb = @intToPtr([*]u32, KERNEL_BASE | (i << PAGE_BITS));
-        var new_end = i + (new_entry.fb_vert * new_entry.fb_horiz * 4 + PAGE_SIZE - 1) / PAGE_SIZE;
+        new_entry.fb = @intToPtr([*]u32, PAGING.kernelPageAddress(i));
+        var new_end = i + (new_entry.fb_vert * new_entry.fb_horiz * 4 + PAGING.page_size - 1) / PAGING.page_size;
         if (new_end > 512 + 512 * 2) {
             hw.entry_uart.carefully(.{ "end got too big (4): ", new_end, "\r\n" });
             while (true) {}
         }
 
-        hw.entry_uart.carefully(.{ "MAP: FB at     ", KERNEL_BASE | (i << PAGE_BITS), "~\r\n" });
+        hw.entry_uart.carefully(.{ "MAP: FB at     ", PAGING.kernelPageAddress(i), "~\r\n" });
         while (i < new_end) : (i += 1) {
             if (i - 512 < 512) {
                 tableSet(TTBR1_L3_2, i - 512, address, PERIPHERAL_TABLE.toU64());
             } else {
                 tableSet(TTBR1_L3_3, i - 1024, address, PERIPHERAL_TABLE.toU64());
             }
-            address += PAGE_SIZE;
+            address += PAGING.page_size;
         }
     }
 
-    hw.entry_uart.carefully(.{ "MAP: end at    ", KERNEL_BASE | (i << PAGE_BITS), ".\r\n" });
+    hw.entry_uart.carefully(.{ "MAP: end at    ", PAGING.kernelPageAddress(i), ".\r\n" });
     hw.entry_uart.carefully(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });
-    hw.entry_uart.carefully(.{ "lr: ", daintree_main - daintree_base + KERNEL_BASE, "\r\n" });
-    hw.entry_uart.carefully(.{ "vbar_el1: ", vbar_el1 - daintree_base + KERNEL_BASE, "\r\n" });
-    hw.entry_uart.carefully(.{ "uart mapped to: ", KERNEL_BASE | (end << PAGE_BITS), "\r\n" });
+    hw.entry_uart.carefully(.{ "lr: ", daintree_main - daintree_base + PAGING.kernel_base, "\r\n" });
+    hw.entry_uart.carefully(.{ "vbar_el1: ", vbar_el1 - daintree_base + PAGING.kernel_base, "\r\n" });
+    hw.entry_uart.carefully(.{ "uart mapped to: ", PAGING.kernelPageAddress(i), "\r\n" });
 
     // Control passes to daintree_main.
     asm volatile (
@@ -259,120 +218,9 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         \\ret
         :
         : [sp] "r" (new_sp),
-          [lr] "r" (daintree_main - daintree_base + KERNEL_BASE),
-          [vbar_el1] "r" (vbar_el1 - daintree_base + KERNEL_BASE)
+          [lr] "r" (daintree_main - daintree_base + PAGING.kernel_base),
+          [vbar_el1] "r" (vbar_el1 - daintree_base + PAGING.kernel_base)
     );
 
     unreachable;
-}
-
-fn index(comptime level: u2, va: u64) usize {
-    if (level == 0) {
-        @compileError("level must be 1, 2, 3");
-    }
-
-    return (va & VADDRESS_MASK) >> (@as(u8, 3 - level) * INDEX_BITS + PAGE_BITS);
-}
-
-fn tableSet(table: []u64, ix: usize, address: u64, flags: u64) void {
-    table[ix] = address | flags;
-}
-
-const DEVICE_MAIR_INDEX = 1;
-const MEMORY_MAIR_INDEX = 0;
-
-const PAGE_BITS = 12;
-const PAGE_SIZE = 1 << PAGE_BITS; // 4096 (= 512 * 8)
-const PAGE_MASK = PAGE_SIZE - 1;
-
-const BLOCK_L1_BITS = 30;
-const BLOCK_L1_SIZE = 1 << BLOCK_L1_BITS;
-
-const INDEX_BITS = 9;
-const INDEX_SIZE = 1 << INDEX_BITS; // 512
-
-const TRANSLATION_LEVELS = 3;
-const ADDRESS_BITS = PAGE_BITS + TRANSLATION_LEVELS * INDEX_BITS;
-
-const VADDRESS_MASK = 0x0000007f_fffff000;
-
-const KERNEL_BASE = ~@as(u64, VADDRESS_MASK | PAGE_MASK);
-comptime {
-    std.debug.assert(dcommon.daintree_kernel_start == KERNEL_BASE);
-}
-const STACK_PAGES = 16;
-
-const IDENTITY_FLAGS = arch.PageTableEntry{
-    .uxn = 1,
-    .pxn = 0,
-    .af = 1,
-    .sh = .inner_shareable,
-    .ap = .readwrite_no_el0,
-    .attr_index = MEMORY_MAIR_INDEX,
-    .type = .block,
-    .oa = 0,
-};
-
-comptime {
-    std.debug.assert(0x0040000000000701 == IDENTITY_FLAGS.toU64());
-}
-
-const KERNEL_DATA_TABLE = arch.PageTableEntry{
-    .uxn = 1,
-    .pxn = 1,
-    .af = 1,
-    .sh = .inner_shareable,
-    .ap = .readwrite_no_el0,
-    .attr_index = MEMORY_MAIR_INDEX,
-    .type = .table,
-    .oa = 0,
-};
-
-comptime {
-    std.debug.assert(0x00600000_00000703 == KERNEL_DATA_TABLE.toU64());
-}
-
-const KERNEL_RODATA_TABLE = arch.PageTableEntry{
-    .uxn = 1,
-    .pxn = 1,
-    .af = 1,
-    .sh = .inner_shareable,
-    .ap = .readonly_no_el0,
-    .attr_index = MEMORY_MAIR_INDEX,
-    .type = .table,
-    .oa = 0,
-};
-
-comptime {
-    std.debug.assert(0x00600000_00000783 == KERNEL_RODATA_TABLE.toU64());
-}
-
-const KERNEL_CODE_TABLE = arch.PageTableEntry{
-    .uxn = 1,
-    .pxn = 0,
-    .af = 1,
-    .sh = .inner_shareable,
-    .ap = .readonly_no_el0,
-    .attr_index = MEMORY_MAIR_INDEX,
-    .type = .table,
-    .oa = 0,
-};
-
-comptime {
-    std.debug.assert(0x00400000_00000783 == KERNEL_CODE_TABLE.toU64());
-}
-
-const PERIPHERAL_TABLE = arch.PageTableEntry{
-    .uxn = 1,
-    .pxn = 1,
-    .af = 1,
-    .sh = .outer_shareable,
-    .ap = .readwrite_no_el0,
-    .attr_index = DEVICE_MAIR_INDEX,
-    .type = .table,
-    .oa = 0,
-};
-
-comptime {
-    std.debug.assert(0x00600000_00000607 == PERIPHERAL_TABLE.toU64());
 }
