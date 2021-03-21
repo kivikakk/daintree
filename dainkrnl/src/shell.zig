@@ -1,4 +1,5 @@
 const std = @import("std");
+const build_options = @import("build_options");
 const printf = @import("console/fb.zig").printf;
 const arch = @import("arch.zig");
 const hw = @import("hw.zig");
@@ -28,6 +29,13 @@ pub const Shell = struct {
                             len -= 1;
                         }
                     },
+                    '\t' => {
+                        if (self.autocomplete(buf[0..len])) |rest| {
+                            std.mem.copy(u8, buf[len..], rest);
+                            printf("{s}", .{rest});
+                            len += @truncate(u8, rest.len);
+                        }
+                    },
                     '\r' => {
                         printf("\n", .{});
                         self.process(buf[0..len]);
@@ -47,17 +55,90 @@ pub const Shell = struct {
         }
     }
 
+    const AUTOCOMPLETES: []const []const u8 = &.{
+        "echo ",
+        "help ",
+        "paging ",
+        "paging dump ",
+        "poweroff ",
+        "reset ",
+    };
+
+    fn autocomplete(self: *Shell, buf: []const u8) ?[]const u8 {
+        var maybe_match: ?[]const u8 = null;
+        for (AUTOCOMPLETES) |candidate| {
+            if (std.mem.startsWith(u8, candidate, buf)) {
+                if (maybe_match) |match| {
+                    // Multiple matches.  If the existing match is a strict prefix, ignore this.
+                    // Otherwise abort due to ambiguity.
+                    if (std.mem.startsWith(u8, candidate, match)) {
+                        continue;
+                    }
+                    return null;
+                }
+                maybe_match = candidate;
+            }
+        }
+        if (maybe_match) |match| {
+            return match[buf.len..];
+        }
+        return null;
+    }
+
     fn process(self: *Shell, cmd: []const u8) void {
-        if (std.mem.eql(u8, cmd, "reset")) {
+        const trimmed = std.mem.trim(u8, cmd, " \t");
+        if (std.mem.eql(u8, trimmed, "reset")) {
             arch.reset();
-        } else if (std.mem.eql(u8, cmd, "poweroff")) {
+        } else if (std.mem.eql(u8, trimmed, "poweroff")) {
             arch.poweroff();
-        } else if (std.mem.startsWith(u8, cmd, "echo ")) {
-            printf("{s}\n", .{cmd[5..]});
-        } else if (std.mem.trim(u8, cmd, " \t").len == 0) {
+        } else if (std.mem.eql(u8, trimmed, "echo")) {
+            printf("\n", .{});
+        } else if (std.mem.startsWith(u8, trimmed, "echo ")) {
+            printf("{s}\n", .{trimmed["echo ".len..]});
+        } else if (std.mem.eql(u8, trimmed, "help")) {
+            self.help();
+        } else if (std.mem.eql(u8, trimmed, "paging")) {
+            self.paging("");
+        } else if (std.mem.eql(u8, trimmed, "paging ")) {
+            self.paging(std.mem.trim(u8, trimmed["paging ".len..], " \t"));
+        } else if (trimmed.len == 0) {
             // nop
         } else {
-            printf("unknown command: {s}\n", .{cmd});
+            printf("unknown command: {s}\n", .{trimmed});
+        }
+    }
+
+    fn help(self: *Shell) void {
+        printf(
+            \\daintree kernel shell ({s} on {s})
+            \\
+            \\echo         Print a blank line.
+            \\echo STRING  Print a given string.
+            \\help         Show this help.
+            \\paging       Paging commands.
+            \\poweroff     Power the board off.
+            \\reset        Reset the system.
+            \\
+        ,
+            .{ build_options.version, build_options.board },
+        );
+    }
+
+    fn paging(self: *Shell, cmd: []const u8) void {
+        if (cmd.len == 0) {
+            printf(
+                \\Paging commands.
+                \\
+                \\paging       Show this help.
+                \\paging dump  Dump the page table trees.
+                \\
+            ,
+                .{},
+            );
+        } else if (std.mem.eql(u8, cmd, "dump")) {
+            // TODO -- need to unify arm/riscv entry files first.
+        } else {
+            printf("unknown paging command: {s}\n", .{cmd});
         }
     }
 };
