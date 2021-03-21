@@ -117,6 +117,15 @@ pub fn print(msg: []const u8) void {
                         }
                         hw.uart.write("\r\n") catch {};
                     },
+                    '\x08' => {
+                        hw.uart.write("\x08") catch {};
+                        if (console_col > 0) {
+                            console_col -= 1;
+                        } else if (console_row > 0) {
+                            console_row -= 1;
+                            console_col = console_width - 1;
+                        }
+                    },
                     else => {
                         hw.uart.write(&[_]u8{c}) catch {};
                         if (fb != null) {
