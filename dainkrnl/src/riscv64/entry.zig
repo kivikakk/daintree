@@ -60,7 +60,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     tableSet(PTS_L2, 2, .{ .rwx = .non_leaf, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, @ptrToInt(PTS_L3_3) >> PAGING.page_bits) });
 
     var end: u64 = (daintree_end - daintree_base) >> PAGING.page_bits;
-    entry_assert(end <= 512, "end got too big (1)");
+    entryAssert(end <= 512, "end got too big (1)");
 
     var address = daintree_base;
     var rwx: RWX = .rx;
@@ -96,7 +96,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         address += PAGING.page_size;
     }
 
-    entry_assert(end <= 512, "end got too big (2)");
+    entryAssert(end <= 512, "end got too big (2)");
 
     hw.entry_uart.carefully(.{ "MAP: UART at   ", PAGING.kernelPageAddress(i), "\r\n" });
     // XXX doesn't look like RV MMU needs any special peripheral/cacheability stuff?
@@ -134,7 +134,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         const dtb_pages = (entry_data.dtb_len + PAGING.page_size - 1) / PAGING.page_size;
 
         var new_end = end + 1 + dtb_pages; // Skip 1 page since UART is there
-        entry_assert(new_end <= 512, "end got too big (3)");
+        entryAssert(new_end <= 512, "end got too big (3)");
 
         hw.entry_uart.carefully(.{ "MAP: DTB at    ", PAGING.kernelPageAddress(i), "~\r\n" });
         while (i < new_end) : (i += 1) {
@@ -150,7 +150,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         address = @ptrToInt(base);
         new_entry.fb = @intToPtr([*]u32, PAGING.kernelPageAddress(i));
         var new_end = i + (new_entry.fb_vert * new_entry.fb_horiz * 4 + PAGING.page_size - 1) / PAGING.page_size;
-        entry_assert(new_end <= 512 + 512 * 2, "end got too big (4)");
+        entryAssert(new_end <= 512 + 512 * 2, "end got too big (4)");
 
         hw.entry_uart.carefully(.{ "MAP: FB at     ", PAGING.kernelPageAddress(i), "~\r\n" });
         while (i < new_end) : (i += 1) {
