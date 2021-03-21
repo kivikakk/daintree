@@ -17,9 +17,20 @@ pub fn getArch(board: Board) Arch {
 
 pub fn crossTargetFor(board: Board) std.zig.CrossTarget {
     switch (board) {
-        .qemu_arm64, .rockpro64 => return .{
-            .cpu_arch = .aarch64,
-            .cpu_model = .{ .explicit = &std.Target.arm.cpu.cortex_a53 },
+        .qemu_arm64, .rockpro64 => {
+            var features = std.Target.Cpu.Feature.Set.empty;
+            // Unaligned LDR in daintree_mmu_start (before MMU bring up) is
+            // causing crashes.  I wish I could turn this on just for that one
+            // function.  Can't seem to find a register setting (like in SCTLR_EL1
+            // or something) that stops this happening.  Reproduced on both
+            // QEMU and rockpro64 so giving up for now.
+            features.addFeature(@enumToInt(std.Target.aarch64.Feature.strict_align));
+
+            return .{
+                .cpu_arch = .aarch64,
+                .cpu_model = .{ .explicit = &std.Target.arm.cpu.cortex_a53 },
+                .cpu_features_add = features,
+            };
         },
         .qemu_riscv64 => return .{
             .cpu_arch = .riscv64,

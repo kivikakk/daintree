@@ -46,7 +46,7 @@ pub const PagingConfiguration = struct {
     block_l1_bits: u8,
     block_l1_size: u64,
 
-    pub fn index(self: PagingConfiguration, comptime level: u2, va: u64) usize {
+    pub fn index(self: PagingConfiguration, comptime level: u2, va: u64) callconv(.Inline) usize {
         if (level == 0) {
             @compileError("level must be 1, 2, 3");
         }

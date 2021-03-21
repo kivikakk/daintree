@@ -6,6 +6,24 @@ const hw = @import("../hw.zig");
 
 usingnamespace @import("paging.zig");
 
+const BumpAllocator = struct {
+    next: u64,
+
+    fn allocSz(self: *BumpAllocator, comptime size: u64) callconv(.Inline) u64 {
+        if (size % PAGING.page_size != 0) {
+            @compileError("must be in whole pages");
+        }
+
+        const next = self.next;
+        self.next += size;
+        return next;
+    }
+
+    fn alloc(self: *BumpAllocator, comptime T: type) callconv(.Inline) *T {
+        return @intToPtr(*T, self.allocSz(@sizeOf(T)));
+    }
+};
+
 /// dainboot passes control here.  MMU is **off**.  We are in EL1.
 pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     hw.entry_uart.init(entry_data);
@@ -45,12 +63,13 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     comptime std.debug.assert(0x00000000_000000ff == mair_el1);
     arch.writeRegister(.MAIR_EL1, mair_el1);
 
-    TTBR0_IDENTITY = @intToPtr(*[PAGING.index_size]u64, daintree_end + PAGING.page_size * 0);
-    TTBR1_L1 = @intToPtr(*[PAGING.index_size]u64, daintree_end + PAGING.page_size * 1);
-    TTBR1_L2 = @intToPtr(*[PAGING.index_size]u64, daintree_end + PAGING.page_size * 2);
-    TTBR1_L3_1 = @intToPtr(*[PAGING.index_size]u64, daintree_end + PAGING.page_size * 3);
-    TTBR1_L3_2 = @intToPtr(*[PAGING.index_size]u64, daintree_end + PAGING.page_size * 4);
-    TTBR1_L3_3 = @intToPtr(*[PAGING.index_size]u64, daintree_end + PAGING.page_size * 5);
+    var bump = BumpAllocator{ .next = daintree_end };
+    TTBR0_IDENTITY = bump.alloc([PAGING.index_size]u64);
+    TTBR1_L1 = bump.alloc([PAGING.index_size]u64);
+    TTBR1_L2 = bump.alloc([PAGING.index_size]u64);
+    TTBR1_L3_1 = bump.alloc([PAGING.index_size]u64);
+    TTBR1_L3_2 = bump.alloc([PAGING.index_size]u64);
+    TTBR1_L3_3 = bump.alloc([PAGING.index_size]u64);
 
     const ttbr0_el1 = @ptrToInt(TTBR0_IDENTITY) | 1;
     const ttbr1_el1 = @ptrToInt(TTBR1_L1) | 1;
@@ -64,9 +83,6 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         const l1_end = PAGING.index(1, entry_data.conventional_start + entry_data.conventional_bytes);
 
         var l1_i = l1_start;
-
-        // XXX: we had this before, but surely we need to mask off the physical bits???
-        // var l1_address = entry_data.conventional_start;
         var l1_address = entry_data.conventional_start & ~(@as(usize, PAGING.block_l1_size) - 1);
 
         while (l1_i <= l1_end) : (l1_i += 1) {
