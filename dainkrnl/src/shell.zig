@@ -30,7 +30,13 @@ pub const Shell = struct {
                         }
                     },
                     '\t' => {
-                        if (self.autocomplete(buf[0..len])) |rest| {
+                        const maybe_rest = self.autocomplete(buf[0..len]) catch |err| switch (err) {
+                            error.PromptNeedsRedraw => {
+                                printf("> {s}", .{buf[0..len]});
+                                continue;
+                            },
+                        };
+                        if (maybe_rest) |rest| {
                             std.mem.copy(u8, buf[len..], rest);
                             printf("{s}", .{rest});
                             len += @truncate(u8, rest.len);
@@ -64,20 +70,35 @@ pub const Shell = struct {
         "reset ",
     };
 
-    fn autocomplete(self: *Shell, buf: []const u8) ?[]const u8 {
+    const AutocompleteError = error{PromptNeedsRedraw};
+
+    fn autocomplete(self: *Shell, buf: []const u8) AutocompleteError!?[]const u8 {
         var maybe_match: ?[]const u8 = null;
+        var ambiguous = false;
         for (AUTOCOMPLETES) |candidate| {
             if (std.mem.startsWith(u8, candidate, buf)) {
+                if (ambiguous) {
+                    printf("{s}", .{candidate});
+                    continue;
+                }
                 if (maybe_match) |match| {
-                    // Multiple matches.  If the existing match is a strict prefix, ignore this.
-                    // Otherwise abort due to ambiguity.
+                    // Multiple matches.  If the existing match is a strict prefix, ignore this
+                    // to allow prefix completion.
+                    // Otherwise we can't continue due to multiple possible matches; start dumping
+                    // all potential matches.
                     if (std.mem.startsWith(u8, candidate, match)) {
                         continue;
                     }
-                    return null;
+                    printf("\n{s}{s}", .{ match, candidate });
+                    ambiguous = true;
+                    continue;
                 }
                 maybe_match = candidate;
             }
+        }
+        if (ambiguous) {
+            printf("\n", .{});
+            return error.PromptNeedsRedraw;
         }
         if (maybe_match) |match| {
             return match[buf.len..];
