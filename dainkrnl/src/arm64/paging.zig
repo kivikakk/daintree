@@ -1,5 +1,5 @@
 const std = @import("std");
-const paging = @import("../paging.zig");
+pub const paging = @import("../paging.zig");
 const dcommon = @import("../common/dcommon.zig");
 
 pub var TTBR0_IDENTITY: *[PAGING.index_size]u64 = undefined;

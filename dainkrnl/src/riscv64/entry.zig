@@ -24,33 +24,27 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     hw.entry_uart.carefully(.{ "daintree_main: ", daintree_main, "\r\n" });
     hw.entry_uart.carefully(.{ "__trap_entry: ", trap_entry, "\r\n" });
 
-    PT_L1 = @intToPtr(*[PAGING.index_size]u64, daintree_end + PAGING.page_size * 0);
-    PTS_L2 = @intToPtr(*[PAGING.index_size]u64, daintree_end + PAGING.page_size * 1);
-    PTS_L3_1 = @intToPtr(*[PAGING.index_size]u64, daintree_end + PAGING.page_size * 2);
-    PTS_L3_2 = @intToPtr(*[PAGING.index_size]u64, daintree_end + PAGING.page_size * 3);
-    PTS_L3_3 = @intToPtr(*[PAGING.index_size]u64, daintree_end + PAGING.page_size * 4);
+    var bump = paging.BumpAllocator{ .next = daintree_end };
+    PT_L1 = bump.alloc([PAGING.index_size]u64);
+    PTS_L2 = bump.alloc([PAGING.index_size]u64);
+    PTS_L3_1 = bump.alloc([PAGING.index_size]u64);
+    PTS_L3_2 = bump.alloc([PAGING.index_size]u64);
+    PTS_L3_3 = bump.alloc([PAGING.index_size]u64);
 
     std.debug.assert((@ptrToInt(PT_L1) & 0xfff) == 0);
 
-    {
-        // XXX 0 to capture serial UART for now.
-        const l1_start: usize = 0; // index(1, entry_data.conventional_start);
-        const l1_end = PAGING.index(1, entry_data.conventional_start + entry_data.conventional_bytes);
-        var l1_i = l1_start;
-        var l1_address: usize = 0; // entry_data.conventional_start & ~(@as(usize, BLOCK_L1_SIZE) - 1);
-
-        while (l1_i <= l1_end) : (l1_i += 1) {
-            hw.entry_uart.carefully(.{ "mapping identity: page ", l1_i, " address ", l1_address, "\r\n" });
-            tableSet(PT_L1, l1_i, PageTableEntry{
-                .rwx = .rwx,
-                .u = 0,
-                .g = 0,
-                .a = 1, // XXX ???
-                .d = 1, // XXX ???
-                .ppn = @truncate(u44, l1_address >> PAGING.page_bits),
-            });
-            l1_address += PAGING.block_l1_size;
-        }
+    // XXX: start from 0 to include syscon in mapped range so CI works.
+    var it = PAGING.range(1, 0, entry_data.conventional_start + entry_data.conventional_bytes);
+    while (it.next()) |r| {
+        hw.entry_uart.carefully(.{ "mapping identity: page ", r.page, " address ", r.address, "\r\n" });
+        tableSet(PT_L1, r.page, PageTableEntry{
+            .rwx = .rwx,
+            .u = 0,
+            .g = 0,
+            .a = 1, // XXX ???
+            .d = 1, // XXX ???
+            .ppn = @truncate(u44, r.address >> PAGING.page_bits),
+        });
     }
 
     tableSet(PT_L1, 256, .{ .rwx = .non_leaf, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, @ptrToInt(PTS_L2) >> PAGING.page_bits) });

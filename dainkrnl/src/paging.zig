@@ -54,7 +54,52 @@ pub const PagingConfiguration = struct {
         return (va & self.vaddress_mask) >> (@as(u6, 3 - level) * self.index_bits + self.page_bits);
     }
 
+    pub fn range(self: PagingConfiguration, comptime level: u2, start_va: u64, length: u64) RangeIterator {
+        return .{
+            .next_page = self.index(level, start_va),
+            .last_page = self.index(level, start_va + length),
+            .level_bits = @as(u6, 3 - level) * self.index_bits + self.page_bits,
+        };
+    }
+
+    pub const RangeIterator = struct {
+        next_page: usize,
+        last_page: usize,
+        level_bits: u6,
+
+        pub fn next(self: *RangeIterator) ?Range {
+            if (self.next_page > self.last_page) {
+                return null;
+            }
+            const page = self.next_page;
+            self.next_page += 1;
+            return Range{
+                .page = page,
+                .address = page << self.level_bits,
+            };
+        }
+    };
+
+    pub const Range = struct {
+        page: usize,
+        address: usize,
+    };
+
     pub fn kernelPageAddress(self: PagingConfiguration, i: usize) callconv(.Inline) u64 {
         return self.kernel_base | (i << self.page_bits);
+    }
+};
+
+pub const BumpAllocator = struct {
+    next: u64,
+
+    fn allocSz(self: *BumpAllocator, comptime size: u64) callconv(.Inline) u64 {
+        const next = self.next;
+        self.next += size;
+        return next;
+    }
+
+    pub fn alloc(self: *BumpAllocator, comptime T: type) callconv(.Inline) *T {
+        return @intToPtr(*T, self.allocSz(@sizeOf(T)));
     }
 };
