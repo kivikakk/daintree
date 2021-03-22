@@ -6,8 +6,7 @@ pub var con_out: *uefi.protocols.SimpleTextOutputProtocol = undefined;
 
 pub fn puts(msg: []const u8) void {
     for (msg) |c| {
-        const c_ = [2]u16{ c, 0 };
-        _ = con_out.outputString(@ptrCast(*const [1:0]u16, &c_));
+        _ = con_out.outputString(&u16{c});
     }
 }
 
