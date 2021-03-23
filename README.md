@@ -75,7 +75,7 @@ A gentle introduction to Zig's UEFI support. Boots like this:
 
 MIT.
 
-Some included code is GPL-2+ or GPL-2.0+ -- copyright notices retained and
+Some included binaries are GPL-2+ or GPL-2.0+ -- copyright notices retained and
 sources noted where so.
 
 The [`roms/`](roms/) directory contains an arm64 build of

@@ -11,6 +11,8 @@
  * Sourced from
  * https://source.denx.de/u-boot/u-boot/-/blob/52ba373b7825e9feab8357065155cf43dfe2f4ff/arch/riscv/lib/elf_riscv64_efi.lds
  * May god have mercy on my soul.
+ *
+ * Using this under BSD-2-Clause.
  */
 
 OUTPUT_FORMAT("elf64-littleriscv", "elf64-littleriscv", "elf64-littleriscv")
