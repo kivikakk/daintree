@@ -64,9 +64,9 @@ pub const PageTable = packed struct {
                     @panic("empty table");
                 }
 
-                if ((self.entries[i] & 0x3) == 0x3) {
-                    // Valid table
-
+                if ((self.entries[i] & 0xf) == 0x1) {
+                    // Valid non-leaf entry
+                    hw.entry_uart.carefully(.{ "self.virts[", i, "] = ", self.virts[i], "\r\n" });
                     if (@intToPtr(*PageTable, self.virts[i]).mapFreePage(
                         level + 1,
                         base_address + (i << (PAGING.page_bits + PAGING.index_bits * (3 - level))),

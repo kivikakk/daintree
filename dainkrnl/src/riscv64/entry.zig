@@ -40,7 +40,8 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     }
 
     // XXX: start from 0 to include syscon in mapped range so CI works.
-    var it = PAGING.range(1, 0, entry_data.conventional_start + entry_data.conventional_bytes);
+    // XXX add 100MiB to catch page tables
+    var it = PAGING.range(1, 0, entry_data.conventional_start + entry_data.conventional_bytes + 100 * 1048576);
     while (it.next()) |r| {
         hw.entry_uart.carefully(.{ "mapping identity: page ", r.page, " address ", r.address, "\r\n" });
         K_DIRECTORY.map(r.page, r.address, .kernel_promisc);
@@ -85,7 +86,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     i += 1;
 
     var l2_va = PAGING.kernelPageAddress(i);
-    K_DIRECTORY.setVirt(0, l2_va);
+    K_DIRECTORY.setVirt(256, l2_va);
     l3.map(i, address, .kernel_data);
     address += PAGING.page_size;
     i += 1;

@@ -28,16 +28,18 @@ pub const mapPage = arch_paging.mapPage;
 pub var bump = BumpAllocator{ .next = 0 };
 
 pub fn mapPagesConsecutive(base_in: usize, page_count_in: usize, flags: MapFlags) Error!usize {
-    // XXX: not guaranteed consecutive.
     var base = base_in;
     var page_count = page_count_in - 1;
 
     var first = try mapPage(base, flags);
-    hw.entry_uart.carefully(.{ "FB: ", first, "\r\n" });
+    var last = first;
     while (page_count > 0) : (page_count -= 1) {
         base += PAGING.page_size;
-        const n = try mapPage(base, flags);
-        hw.entry_uart.carefully(.{ "FB~ ", n, "\r\n" });
+        var next = try mapPage(base, flags);
+        if (next - last != PAGING.page_size) {
+            @panic("mapPagesConsecutive wasn't consecutive");
+        }
+        last = next;
     }
     arch_paging.flushTLB();
     return first;
@@ -49,7 +51,9 @@ pub const BumpAllocator = struct {
     fn allocSz(self: *BumpAllocator, comptime size: usize) callconv(.Inline) usize {
         const next = self.next;
         self.next += size;
-        std.mem.set(u8, @intToPtr([*]u8, next)[0..size], 0); // Can only do this if in phys mode.
+        // XXX this only works if physical addresses are mapped, i.e. MMU is off
+        // or identity mapping is in place
+        std.mem.set(u8, @intToPtr([*]u8, next)[0..size], 0);
         return next;
     }
 
