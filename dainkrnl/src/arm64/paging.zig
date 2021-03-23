@@ -59,14 +59,14 @@ pub const PageTable = packed struct {
             // Recurse into subtables.
             while (i < self.entries.len) : (i += 1) {
                 if ((self.entries[i] & 0x1) == 0x0) {
-                    hw.entry_uart.carefully(.{ "mapFreePage(", @ptrToInt(self), "): level ", level, " base ", base_address, " phys ", phys_address, "\r\n" });
-                    hw.entry_uart.carefully(.{ "  empty table at i = ", i, " (entry is ", self.entries[i], ")\r\n" });
-                    @panic("empty table");
+                    var new_phys = paging.bump.alloc(PageTable);
+                    self.map(i, @ptrToInt(new_phys), .table, .non_leaf);
+                    self.setVirt(i, @ptrToInt(new_phys)); // XXX let's try relying on lower identity mapping
+                    flushTLB();
                 }
 
                 if ((self.entries[i] & 0x3) == 0x3) {
-                    // Valid table
-
+                    // Valid non-leaf entry
                     if (@intToPtr(*PageTable, self.virts[i]).mapFreePage(
                         level + 1,
                         base_address + (i << (PAGING.page_bits + PAGING.index_bits * (3 - level))),
@@ -80,7 +80,7 @@ pub const PageTable = packed struct {
         } else {
             while (i < self.entries.len) : (i += 1) {
                 if ((self.entries[i] & 0x1) == 0) {
-                    // Empty page -- allocate.
+                    // Empty page -- allocate to them.
                     self.map(i, phys_address, .table, flags);
                     return base_address + (i << PAGING.page_bits);
                 }

@@ -56,11 +56,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     TTBR0_IDENTITY = bump.alloc(PageTable);
     K_DIRECTORY = bump.alloc(PageTable);
     var l2 = bump.alloc(PageTable);
-    // Preallocate a whole lot of level 3 tables.
-    var l3s: [16]*PageTable = undefined;
-    for (l3s) |*l3| {
-        l3.* = bump.alloc(PageTable);
-    }
+    var l3 = bump.alloc(PageTable);
 
     const ttbr0_el1 = @ptrToInt(TTBR0_IDENTITY) | 1;
     const ttbr1_el1 = @ptrToInt(K_DIRECTORY) | 1;
@@ -69,17 +65,15 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     arch.writeRegister(.TTBR0_EL1, ttbr0_el1);
     arch.writeRegister(.TTBR1_EL1, ttbr1_el1);
 
-    var it = PAGING.range(1, entry_data.conventional_start, entry_data.conventional_bytes);
+    // XXX add 100MiB to catch page tables
+    var it = PAGING.range(1, entry_data.conventional_start, entry_data.conventional_bytes + 100 * 1048576);
     while (it.next()) |r| {
         hw.entry_uart.carefully(.{ "mapping identity: page ", r.page, " address ", r.address, "\r\n" });
         TTBR0_IDENTITY.map(r.page, r.address, .block, .kernel_promisc);
     }
 
     K_DIRECTORY.map(0, @ptrToInt(l2), .table, .non_leaf);
-    for (l3s) |l3, i| {
-        l2.map(i, @ptrToInt(l3), .table, .non_leaf);
-    }
-    var l3 = l3s[0];
+    l2.map(0, @ptrToInt(l3), .table, .non_leaf);
 
     var end: u64 = (daintree_end - daintree_base) >> PAGING.page_bits;
     entryAssert(end <= 512, "end got too big (1)");
@@ -130,16 +124,14 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     address += PAGING.page_size;
     i += 1;
 
-    for (l3s) |_, j| {
-        var l3x_va = PAGING.kernelPageAddress(i);
-        l2.setVirt(j, l3x_va);
-        l3.map(i, address, .table, .kernel_data);
-        address += PAGING.page_size;
-        i += 1;
-        l3.map(i, address, .table, .kernel_data);
-        address += PAGING.page_size;
-        i += 1;
-    }
+    var l3x_va = PAGING.kernelPageAddress(i);
+    l2.setVirt(0, l3x_va);
+    l3.map(i, address, .table, .kernel_data);
+    address += PAGING.page_size;
+    i += 1;
+    l3.map(i, address, .table, .kernel_data);
+    address += PAGING.page_size;
+    i += 1;
 
     hw.entry_uart.carefully(.{ "MAP: null at   ", PAGING.kernelPageAddress(i), "\r\n" });
     l3.map(i, 0, .table, .kernel_rodata);
