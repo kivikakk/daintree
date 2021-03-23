@@ -18,7 +18,10 @@ fn flagsToU64(size: paging.MapSize, flags: paging.MapFlags) u64 {
         .block => 0 << 1,
         .table => 1 << 1,
     }) | switch (flags) {
+        .non_leaf => KERNEL_DATA_FLAGS.toU64(),
+
         .kernel_promisc => KERNEL_PROMISC_FLAGS.toU64(),
+
         .kernel_data => KERNEL_DATA_FLAGS.toU64(),
         .kernel_rodata => KERNEL_RODATA_FLAGS.toU64(),
         .kernel_code => KERNEL_CODE_FLAGS.toU64(),

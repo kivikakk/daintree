@@ -15,6 +15,7 @@ pub const MapSize = enum {
 };
 
 pub const MapFlags = enum {
+    non_leaf,
     kernel_promisc,
     kernel_data,
     kernel_rodata,

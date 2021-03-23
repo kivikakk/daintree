@@ -75,9 +75,9 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         TTBR0_IDENTITY.map(r.page, r.address, .block, .kernel_promisc);
     }
 
-    K_DIRECTORY.map(0, @ptrToInt(l2), .table, .kernel_data);
+    K_DIRECTORY.map(0, @ptrToInt(l2), .table, .non_leaf);
     for (l3s) |l3, i| {
-        l2.map(i, @ptrToInt(l3), .table, .kernel_data);
+        l2.map(i, @ptrToInt(l3), .table, .non_leaf);
     }
 
     var l3 = l3s[0];

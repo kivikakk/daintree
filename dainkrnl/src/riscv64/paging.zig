@@ -1,16 +1,9 @@
 const std = @import("std");
 pub const paging = @import("../paging.zig");
 const dcommon = @import("../common/dcommon.zig");
+const hw = @import("../hw.zig");
 
-pub var PT_L1: *[PAGING.index_size]u64 = undefined;
-pub var PTS_L2: *[PAGING.index_size]u64 = undefined;
-pub var PTS_L3_1: *[PAGING.index_size]u64 = undefined;
-pub var PTS_L3_2: *[PAGING.index_size]u64 = undefined;
-pub var PTS_L3_3: *[PAGING.index_size]u64 = undefined;
-
-pub fn tableSet(table: []u64, ix: usize, pte: PageTableEntry) void {
-    table[ix] = pte.toU64();
-}
+pub var K_DIRECTORY: *[PAGING.index_size]u64 = undefined;
 
 pub const PAGING = paging.configuration(.{
     .vaddress_mask = 0x0000003f_fffff000,
@@ -18,6 +11,73 @@ pub const PAGING = paging.configuration(.{
 comptime {
     std.debug.assert(dcommon.daintree_kernel_start == PAGING.kernel_base);
 }
+
+fn flagsToRWX(flags: paging.MapFlags) u64 {
+    return switch (flags) {
+        .non_leaf => RWX.non_leaf,
+
+        .kernel_promisc => RWX.rwx,
+
+        .kernel_data => RWX.rw,
+        .kernel_rodata => RWX.ro,
+        .kernel_code => RWX.rx,
+        .peripheral => RWX.rw,
+    };
+}
+
+pub fn mapPage(phys_address: usize, flags: paging.MapFlags) paging.Error!usize {
+    // XXX yikes
+    return K_DIRECTORY.virts[256].mapFreePage(2, PAGING.kernel_base, phys_address, flags) orelse error.OutOfMemory;
+}
+
+pub const PageTable = packed struct {
+    entries: [PAGING.index_size]u64,
+    virts: [PAGING.index_size]usize,
+
+    pub fn map(self: *PageTable, index: usize, phys_address: usize, size: paging.MapSize, flags: paging.MapFlags) void {
+        self.entries[index] = phys_address | flagsToU64(size, flags);
+    }
+
+    pub fn setVirt(self: *PageTable, index: usize, virt_address: usize) void {
+        self.virts[index] = virt_address;
+    }
+
+    pub fn mapFreePage(self: *PageTable, comptime level: u2, base_address: usize, phys_address: usize, flags: paging.MapFlags) ?usize {
+        var i: usize = 0;
+        if (level < 3) {
+            // Recurse into subtables.
+            while (i < self.entries.len) : (i += 1) {
+                if ((self.entries[i] & 0x1) == 0x0) {
+                    hw.entry_uart.carefully(.{ "mapFreePage(", @ptrToInt(self), "): level ", level, " base ", base_address, " phys ", phys_address, "\r\n" });
+                    hw.entry_uart.carefully(.{ "  empty table at i = ", i, " (entry is ", self.entries[i], ")\r\n" });
+                    @panic("empty table");
+                }
+
+                if ((self.entries[i] & 0x3) == 0x3) {
+                    // Valid table
+
+                    if (@intToPtr(*PageTable, self.virts[i]).mapFreePage(
+                        level + 1,
+                        base_address + (i << (PAGING.page_bits + PAGING.index_bits * (3 - level))),
+                        phys_address,
+                        flags,
+                    )) |addr| {
+                        return addr;
+                    }
+                }
+            }
+        } else {
+            while (i < self.entries.len) : (i += 1) {
+                if ((self.entries[i] & 0x1) == 0) {
+                    // Empty page -- allocate.
+                    self.map(i, phys_address, .table, flags);
+                    return base_address + (i << PAGING.page_bits);
+                }
+            }
+        }
+        return null;
+    }
+};
 
 pub const STACK_PAGES = 16;
 
@@ -45,8 +105,8 @@ pub const RWX = enum(u3) {
     rwx = 0b111,
 };
 
-pub const PageTableEntry = struct {
-    pub fn toU64(pte: PageTableEntry) callconv(.Inline) u64 {
+pub const ArchPte = struct {
+    pub fn toU64(pte: ArchPte) callconv(.Inline) u64 {
         return @as(u64, pte.v) |
             (@as(u64, @enumToInt(pte.rwx)) << 1) |
             (@as(u64, pte.u) << 4) |
