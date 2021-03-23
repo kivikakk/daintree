@@ -43,14 +43,9 @@ pub fn mapPage(phys_address: usize, flags: paging.MapFlags) paging.Error!usize {
 
 pub const PageTable = packed struct {
     entries: [PAGING.index_size]u64,
-    virts: [PAGING.index_size]usize,
 
     pub fn map(self: *PageTable, index: usize, phys_address: usize, size: paging.MapSize, flags: paging.MapFlags) void {
         self.entries[index] = phys_address | flagsToU64(size, flags);
-    }
-
-    pub fn setVirt(self: *PageTable, index: usize, virt_address: usize) void {
-        self.virts[index] = virt_address;
     }
 
     pub fn mapFreePage(self: *PageTable, comptime level: u2, base_address: usize, phys_address: usize, flags: paging.MapFlags) ?usize {
@@ -61,13 +56,11 @@ pub const PageTable = packed struct {
                 if ((self.entries[i] & 0x1) == 0x0) {
                     var new_phys = paging.bump.alloc(PageTable);
                     self.map(i, @ptrToInt(new_phys), .table, .non_leaf);
-                    self.setVirt(i, @ptrToInt(new_phys)); // XXX let's try relying on lower identity mapping
-                    flushTLB();
                 }
 
                 if ((self.entries[i] & 0x3) == 0x3) {
                     // Valid non-leaf entry
-                    if (@intToPtr(*PageTable, self.virts[i]).mapFreePage(
+                    if (self.pageAt(i).mapFreePage(
                         level + 1,
                         base_address + (i << (PAGING.page_bits + PAGING.index_bits * (3 - level))),
                         phys_address,
@@ -88,6 +81,12 @@ pub const PageTable = packed struct {
         }
         return null;
     }
+
+    fn pageAt(self: *const PageTable, index: usize) *PageTable {
+        var entry = self.entries[index];
+        if ((entry & 0x3) != 0x3) @panic("pageAt on non-page");
+        return @intToPtr(*PageTable, entry & ArchPte.OA_MASK_Lx_TABLE);
+    }
 };
 
 pub const DEVICE_MAIR_INDEX = 1;
@@ -95,31 +94,31 @@ pub const MEMORY_MAIR_INDEX = 0;
 
 pub const STACK_PAGES = 16;
 
-pub const KERNEL_PROMISC_FLAGS = ArchPte{ .uxn = 1, .pxn = 0, .af = 1, .sh = .inner_shareable, .ap = .readwrite_no_el0, .attr_index = MEMORY_MAIR_INDEX, .type = .block, .oa = 0 };
+pub const KERNEL_PROMISC_FLAGS = ArchPte{ .uxn = 1, .pxn = 0, .af = 1, .sh = .inner_shareable, .ap = .readwrite_no_el0, .attr_index = MEMORY_MAIR_INDEX, .type = .block };
 
 comptime {
     std.debug.assert(0x0040000000000701 == KERNEL_PROMISC_FLAGS.toU64());
 }
 
-pub const KERNEL_DATA_FLAGS = ArchPte{ .uxn = 1, .pxn = 1, .af = 1, .sh = .inner_shareable, .ap = .readwrite_no_el0, .attr_index = MEMORY_MAIR_INDEX, .type = .block, .oa = 0 };
+pub const KERNEL_DATA_FLAGS = ArchPte{ .uxn = 1, .pxn = 1, .af = 1, .sh = .inner_shareable, .ap = .readwrite_no_el0, .attr_index = MEMORY_MAIR_INDEX, .type = .block };
 
 comptime {
     std.debug.assert(0x00600000_00000701 == KERNEL_DATA_FLAGS.toU64());
 }
 
-pub const KERNEL_RODATA_FLAGS = ArchPte{ .uxn = 1, .pxn = 1, .af = 1, .sh = .inner_shareable, .ap = .readonly_no_el0, .attr_index = MEMORY_MAIR_INDEX, .type = .block, .oa = 0 };
+pub const KERNEL_RODATA_FLAGS = ArchPte{ .uxn = 1, .pxn = 1, .af = 1, .sh = .inner_shareable, .ap = .readonly_no_el0, .attr_index = MEMORY_MAIR_INDEX, .type = .block };
 
 comptime {
     std.debug.assert(0x00600000_00000781 == KERNEL_RODATA_FLAGS.toU64());
 }
 
-pub const KERNEL_CODE_FLAGS = ArchPte{ .uxn = 1, .pxn = 0, .af = 1, .sh = .inner_shareable, .ap = .readonly_no_el0, .attr_index = MEMORY_MAIR_INDEX, .type = .block, .oa = 0 };
+pub const KERNEL_CODE_FLAGS = ArchPte{ .uxn = 1, .pxn = 0, .af = 1, .sh = .inner_shareable, .ap = .readonly_no_el0, .attr_index = MEMORY_MAIR_INDEX, .type = .block };
 
 comptime {
     std.debug.assert(0x00400000_00000781 == KERNEL_CODE_FLAGS.toU64());
 }
 
-pub const PERIPHERAL_FLAGS = ArchPte{ .uxn = 1, .pxn = 1, .af = 1, .sh = .outer_shareable, .ap = .readwrite_no_el0, .attr_index = DEVICE_MAIR_INDEX, .type = .block, .oa = 0 };
+pub const PERIPHERAL_FLAGS = ArchPte{ .uxn = 1, .pxn = 1, .af = 1, .sh = .outer_shareable, .ap = .readwrite_no_el0, .attr_index = DEVICE_MAIR_INDEX, .type = .block };
 
 comptime {
     std.debug.assert(0x00600000_00000605 == PERIPHERAL_FLAGS.toU64());
@@ -131,7 +130,9 @@ comptime {
 
 // ref Figure D5-15
 pub const ArchPte = struct {
-    pub const OA_MASK: u64 = 0x7ffff << 29;
+    pub const OA_MASK_L1_BLOCK: u64 = 0x0000ffff_c0000000;
+    pub const OA_MASK_L2_BLOCK: u64 = 0x0000ffff_ffe00000;
+    pub const OA_MASK_Lx_TABLE: u64 = 0x0000ffff_fffff000;
     pub fn toU64(pte: ArchPte) callconv(.Inline) u64 {
         return @as(u64, pte.valid) |
             (@as(u64, @enumToInt(pte.type)) << 1) |
@@ -140,7 +141,6 @@ pub const ArchPte = struct {
             (@as(u64, @enumToInt(pte.ap)) << 6) |
             (@as(u64, @enumToInt(pte.sh)) << 8) |
             (@as(u64, pte.af) << 10) |
-            (@as(u64, pte.oa) << 29) |
             (@as(u64, pte.pxn) << 53) |
             (@as(u64, pte.uxn) << 54);
     }
@@ -169,7 +169,6 @@ pub const ArchPte = struct {
     // _res0a: u4 = 0, // OA[51:48]
     // _res0b: u1 = 0, // nT
     // _res0c: u12 = 0,
-    oa: u19, // OA[47:29]
     // _res0d: u4 = 0,
 
     // contiguous: u1 = 0,

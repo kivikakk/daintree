@@ -70,32 +70,8 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         address += PAGING.page_size;
     }
 
-    hw.entry_uart.carefully(.{ "MAP: PTs at    ", PAGING.kernelPageAddress(i), "~\r\n" });
-    var k_directory_va = PAGING.kernelPageAddress(i);
-    l3.map(i, address, .kernel_data);
-    address += PAGING.page_size;
-    i += 1;
-    l3.map(i, address, .kernel_data);
-    address += PAGING.page_size;
-    i += 1;
-
-    var l2_va = PAGING.kernelPageAddress(i);
-    K_DIRECTORY.setVirt(256, l2_va);
-    l3.map(i, address, .kernel_data);
-    address += PAGING.page_size;
-    i += 1;
-    l3.map(i, address, .kernel_data);
-    address += PAGING.page_size;
-    i += 1;
-
-    var l3x_va = PAGING.kernelPageAddress(i);
-    l2.setVirt(0, l3x_va);
-    l3.map(i, address, .kernel_data);
-    address += PAGING.page_size;
-    i += 1;
-    l3.map(i, address, .kernel_data);
-    address += PAGING.page_size;
-    i += 1;
+    // Skip over the page tables; we don't want to e.g. point the stack (or its guard page) at them.
+    address += @sizeOf(PageTable) * 3;
 
     hw.entry_uart.carefully(.{ "MAP: null at   ", PAGING.kernelPageAddress(i), "\r\n" });
     l3.map(i, 0, .kernel_rodata);
@@ -159,10 +135,6 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         .asid = 0,
         .mode = .sv39,
     }).toU64();
-
-    // Adjust for paging enable.
-    hw.entry_uart.carefully(.{ "changing K_DIRECTORY: ", @ptrToInt(K_DIRECTORY), " -> ", k_directory_va, "\r\n" });
-    K_DIRECTORY = @intToPtr(*PageTable, k_directory_va);
 
     hw.entry_uart.carefully(.{ "MAP: end at    ", PAGING.kernelPageAddress(i), ".\r\n" });
     hw.entry_uart.carefully(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });

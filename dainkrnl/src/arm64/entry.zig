@@ -98,40 +98,8 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         address += PAGING.page_size;
     }
 
-    hw.entry_uart.carefully(.{ "MAP: PTs at    ", PAGING.kernelPageAddress(i), "~\r\n" });
-    var ttbr0_identity_va = PAGING.kernelPageAddress(i);
-    l3.map(i, address, .table, .kernel_data);
-    address += PAGING.page_size;
-    i += 1;
-    l3.map(i, address, .table, .kernel_data);
-    address += PAGING.page_size;
-    i += 1;
-
-    var k_directory_va = PAGING.kernelPageAddress(i);
-    l3.map(i, address, .table, .kernel_data);
-    address += PAGING.page_size;
-    i += 1;
-    l3.map(i, address, .table, .kernel_data);
-    address += PAGING.page_size;
-    i += 1;
-
-    var l2_va = PAGING.kernelPageAddress(i);
-    K_DIRECTORY.setVirt(0, l2_va);
-    l3.map(i, address, .table, .kernel_data);
-    address += PAGING.page_size;
-    i += 1;
-    l3.map(i, address, .table, .kernel_data);
-    address += PAGING.page_size;
-    i += 1;
-
-    var l3x_va = PAGING.kernelPageAddress(i);
-    l2.setVirt(0, l3x_va);
-    l3.map(i, address, .table, .kernel_data);
-    address += PAGING.page_size;
-    i += 1;
-    l3.map(i, address, .table, .kernel_data);
-    address += PAGING.page_size;
-    i += 1;
+    // Skip over the page tables; we don't want to e.g. point the stack (or its guard page) at them.
+    address += @sizeOf(PageTable) * 4;
 
     hw.entry_uart.carefully(.{ "MAP: null at   ", PAGING.kernelPageAddress(i), "\r\n" });
     l3.map(i, 0, .table, .kernel_rodata);
@@ -192,11 +160,6 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
             address += PAGING.page_size;
         }
     }
-
-    // Adjust these for paging enable.
-    TTBR0_IDENTITY = @intToPtr(*PageTable, ttbr0_identity_va);
-    hw.entry_uart.carefully(.{ "changing K_DIRECTORY: ", @ptrToInt(K_DIRECTORY), " -> ", k_directory_va, "\r\n" });
-    K_DIRECTORY = @intToPtr(*PageTable, k_directory_va);
 
     hw.entry_uart.carefully(.{ "MAP: end at    ", PAGING.kernelPageAddress(i), ".\r\n" });
     hw.entry_uart.carefully(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });

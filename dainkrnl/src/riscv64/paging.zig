@@ -31,12 +31,11 @@ pub fn flushTLB() void {
 
 pub fn mapPage(phys_address: usize, flags: paging.MapFlags) paging.Error!usize {
     // XXX yikes
-    return @intToPtr(*PageTable, K_DIRECTORY.virts[256]).mapFreePage(2, PAGING.kernel_base, phys_address, flags) orelse error.OutOfMemory;
+    return K_DIRECTORY.pageAt(256).mapFreePage(2, PAGING.kernel_base, phys_address, flags) orelse error.OutOfMemory;
 }
 
 pub const PageTable = packed struct {
     entries: [PAGING.index_size]u64,
-    virts: [PAGING.index_size]usize,
 
     pub fn map(self: *PageTable, index: usize, phys_address: usize, flags: paging.MapFlags) void {
         self.entries[index] = (ArchPte{
@@ -49,10 +48,6 @@ pub const PageTable = packed struct {
         }).toU64();
     }
 
-    pub fn setVirt(self: *PageTable, index: usize, virt_address: usize) void {
-        self.virts[index] = virt_address;
-    }
-
     pub fn mapFreePage(self: *PageTable, comptime level: u2, base_address: usize, phys_address: usize, flags: paging.MapFlags) ?usize {
         var i: usize = 0;
         if (level < 3) {
@@ -61,13 +56,11 @@ pub const PageTable = packed struct {
                 if ((self.entries[i] & 0x1) == 0x0) {
                     var new_phys = paging.bump.alloc(PageTable);
                     self.map(i, @ptrToInt(new_phys), .non_leaf);
-                    self.setVirt(i, @ptrToInt(new_phys)); // XXX let's try relying on lower identity mapping
-                    flushTLB();
                 }
 
                 if ((self.entries[i] & 0xf) == 0x1) {
                     // Valid non-leaf entry
-                    if (@intToPtr(*PageTable, self.virts[i]).mapFreePage(
+                    if (self.pageAt(i).mapFreePage(
                         level + 1,
                         base_address + (i << (PAGING.page_bits + PAGING.index_bits * (3 - level))),
                         phys_address,
@@ -87,6 +80,12 @@ pub const PageTable = packed struct {
             }
         }
         return null;
+    }
+
+    fn pageAt(self: *const PageTable, index: usize) *PageTable {
+        const entry = self.entries[index];
+        if ((entry & 0xf) != 0x1) @panic("pageAt on non-page");
+        return @intToPtr(*PageTable, ((entry & ArchPte.PPN_MASK) >> ArchPte.PPN_OFFSET) << PAGING.page_bits);
     }
 };
 
@@ -117,6 +116,8 @@ pub const RWX = enum(u3) {
 };
 
 pub const ArchPte = struct {
+    pub const PPN_MASK: u64 = 0x003fffff_fffffc00;
+    pub const PPN_OFFSET = 10;
     pub fn toU64(pte: ArchPte) callconv(.Inline) u64 {
         return @as(u64, pte.v) |
             (@as(u64, @enumToInt(pte.rwx)) << 1) |
