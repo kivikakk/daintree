@@ -143,8 +143,8 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         }
     }
 
-    // Map framebuffer as device.  Put in second/third TTBR1_L3 as it tends to be
-    // huge.
+    // Map framebuffer as device.  Put in second/third PTS_L3 as it tends to be
+    // huge and probably benefits from the larger alignment.
     if (new_entry.fb) |base| {
         i = 512;
         address = @ptrToInt(base);

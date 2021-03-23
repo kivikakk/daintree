@@ -2,16 +2,8 @@ const std = @import("std");
 pub const paging = @import("../paging.zig");
 const dcommon = @import("../common/dcommon.zig");
 
-pub var TTBR0_IDENTITY: *[PAGING.index_size]u64 = undefined;
-pub var TTBR1_L1: *[PAGING.index_size]u64 = undefined;
-pub var TTBR1_L2: *[PAGING.index_size]u64 = undefined;
-pub var TTBR1_L3_1: *[PAGING.index_size]u64 = undefined;
-pub var TTBR1_L3_2: *[PAGING.index_size]u64 = undefined;
-pub var TTBR1_L3_3: *[PAGING.index_size]u64 = undefined;
-
-pub fn tableSet(table: []u64, ix: usize, address: u64, flags: u64) void {
-    table[ix] = address | flags;
-}
+pub var TTBR0_IDENTITY: *PageTable = undefined;
+pub var K_DIRECTORY: *PageTable = undefined;
 
 pub const PAGING = paging.configuration(.{
     .vaddress_mask = 0x0000007f_fffff000,
@@ -20,39 +12,109 @@ comptime {
     std.debug.assert(dcommon.daintree_kernel_start == PAGING.kernel_base);
 }
 
+fn flagsToU64(size: paging.MapSize, flags: paging.MapFlags) u64 {
+    return @as(u64, switch (size) {
+        .block => 0 << 1,
+        .table => 1 << 1,
+    }) | switch (flags) {
+        .kernel_promisc => KERNEL_PROMISC_FLAGS.toU64(),
+        .kernel_data => KERNEL_DATA_FLAGS.toU64(),
+        .kernel_rodata => KERNEL_RODATA_FLAGS.toU64(),
+        .kernel_code => KERNEL_CODE_FLAGS.toU64(),
+        .peripheral => PERIPHERAL_FLAGS.toU64(),
+        .none => return 0,
+    };
+}
+
+pub fn mapPage(phys_address: usize, flags: paging.MapFlags) paging.Error!usize {
+    return K_DIRECTORY.mapFreePage(1, PAGING.kernel_base, phys_address, flags) orelse error.OutOfMemory;
+}
+
+pub const PageTable = struct {
+    entries: [PAGING.index_size]u64 align(0x1000),
+    virts: [PAGING.index_size]usize,
+
+    pub fn map(self: *PageTable, index: usize, phys_address: usize, size: paging.MapSize, flags: paging.MapFlags) void {
+        self.entries[index] = phys_address | flagsToU64(size, flags);
+    }
+
+    pub fn setVirt(self: *PageTable, index: usize, virt_address: usize) void {
+        self.virts[index] = virt_address;
+    }
+
+    pub fn mapFreePage(self: *PageTable, comptime level: u2, base_address: usize, phys_address: usize, flags: paging.MapFlags) ?usize {
+        var i: usize = 0;
+        if (level < 3) {
+            // Recurse into subtables.
+            while (i < self.entries.len) : (i += 1) {
+                if ((self.entries[i] & 0x1) == 0x0) {
+                    @panic("empty table at level " ++ switch (level) {
+                        0 => "0",
+                        1 => "1",
+                        2 => "2",
+                        3 => "3",
+                    });
+                }
+
+                if ((self.entries[i] & 0x3) == 0x3) {
+                    // Valid table
+
+                    if (@intToPtr(*PageTable, self.virts[i]).mapFreePage(
+                        level + 1,
+                        base_address + (i << (PAGING.page_bits + PAGING.index_bits * (3 - level))),
+                        phys_address,
+                        flags,
+                    )) |addr| {
+                        return addr;
+                    }
+                }
+            }
+        } else {
+            while (i < self.entries.len) : (i += 1) {
+                if ((self.entries[i] & 0x1) == 0) {
+                    // Empty page -- allocate.
+                    self.map(i, phys_address, .table, flags);
+                    return base_address + (i << PAGING.page_bits);
+                }
+            }
+        }
+        return null;
+    }
+};
+
 pub const DEVICE_MAIR_INDEX = 1;
 pub const MEMORY_MAIR_INDEX = 0;
 
 pub const STACK_PAGES = 16;
 
-pub const IDENTITY_FLAGS = PageTableEntry{ .uxn = 1, .pxn = 0, .af = 1, .sh = .inner_shareable, .ap = .readwrite_no_el0, .attr_index = MEMORY_MAIR_INDEX, .type = .block, .oa = 0 };
+pub const KERNEL_PROMISC_FLAGS = ArchPte{ .uxn = 1, .pxn = 0, .af = 1, .sh = .inner_shareable, .ap = .readwrite_no_el0, .attr_index = MEMORY_MAIR_INDEX, .type = .block, .oa = 0 };
 
 comptime {
-    std.debug.assert(0x0040000000000701 == IDENTITY_FLAGS.toU64());
+    std.debug.assert(0x0040000000000701 == KERNEL_PROMISC_FLAGS.toU64());
 }
 
-pub const KERNEL_DATA_TABLE = PageTableEntry{ .uxn = 1, .pxn = 1, .af = 1, .sh = .inner_shareable, .ap = .readwrite_no_el0, .attr_index = MEMORY_MAIR_INDEX, .type = .table, .oa = 0 };
+pub const KERNEL_DATA_FLAGS = ArchPte{ .uxn = 1, .pxn = 1, .af = 1, .sh = .inner_shareable, .ap = .readwrite_no_el0, .attr_index = MEMORY_MAIR_INDEX, .type = .block, .oa = 0 };
 
 comptime {
-    std.debug.assert(0x00600000_00000703 == KERNEL_DATA_TABLE.toU64());
+    std.debug.assert(0x00600000_00000701 == KERNEL_DATA_FLAGS.toU64());
 }
 
-pub const KERNEL_RODATA_TABLE = PageTableEntry{ .uxn = 1, .pxn = 1, .af = 1, .sh = .inner_shareable, .ap = .readonly_no_el0, .attr_index = MEMORY_MAIR_INDEX, .type = .table, .oa = 0 };
+pub const KERNEL_RODATA_FLAGS = ArchPte{ .uxn = 1, .pxn = 1, .af = 1, .sh = .inner_shareable, .ap = .readonly_no_el0, .attr_index = MEMORY_MAIR_INDEX, .type = .block, .oa = 0 };
 
 comptime {
-    std.debug.assert(0x00600000_00000783 == KERNEL_RODATA_TABLE.toU64());
+    std.debug.assert(0x00600000_00000781 == KERNEL_RODATA_FLAGS.toU64());
 }
 
-pub const KERNEL_CODE_TABLE = PageTableEntry{ .uxn = 1, .pxn = 0, .af = 1, .sh = .inner_shareable, .ap = .readonly_no_el0, .attr_index = MEMORY_MAIR_INDEX, .type = .table, .oa = 0 };
+pub const KERNEL_CODE_FLAGS = ArchPte{ .uxn = 1, .pxn = 0, .af = 1, .sh = .inner_shareable, .ap = .readonly_no_el0, .attr_index = MEMORY_MAIR_INDEX, .type = .block, .oa = 0 };
 
 comptime {
-    std.debug.assert(0x00400000_00000783 == KERNEL_CODE_TABLE.toU64());
+    std.debug.assert(0x00400000_00000781 == KERNEL_CODE_FLAGS.toU64());
 }
 
-pub const PERIPHERAL_TABLE = PageTableEntry{ .uxn = 1, .pxn = 1, .af = 1, .sh = .outer_shareable, .ap = .readwrite_no_el0, .attr_index = DEVICE_MAIR_INDEX, .type = .table, .oa = 0 };
+pub const PERIPHERAL_FLAGS = ArchPte{ .uxn = 1, .pxn = 1, .af = 1, .sh = .outer_shareable, .ap = .readwrite_no_el0, .attr_index = DEVICE_MAIR_INDEX, .type = .block, .oa = 0 };
 
 comptime {
-    std.debug.assert(0x00600000_00000607 == PERIPHERAL_TABLE.toU64());
+    std.debug.assert(0x00600000_00000605 == PERIPHERAL_FLAGS.toU64());
 }
 
 // Avoiding packed structs since they're simply broken right now.
@@ -60,8 +122,9 @@ comptime {
 // wisdom is to avoid for now.)
 
 // ref Figure D5-15
-pub const PageTableEntry = struct {
-    pub fn toU64(pte: PageTableEntry) callconv(.Inline) u64 {
+pub const ArchPte = struct {
+    pub const OA_MASK: u64 = 0x7ffff << 29;
+    pub fn toU64(pte: ArchPte) callconv(.Inline) u64 {
         return @as(u64, pte.valid) |
             (@as(u64, @enumToInt(pte.type)) << 1) |
             (@as(u64, pte.attr_index) << 2) |
@@ -180,11 +243,11 @@ pub const MAIR_EL1 = struct {
 };
 
 comptime {
-    if (@bitSizeOf(PageTableEntry) != 64) {
-        // @compileLog("PageTableEntry misshapen; ", @bitSizeOf(PageTableEntry));
+    if (@bitSizeOf(ArchPte) != 64) {
+        // @compileLog("ArchPte misshapen; ", @bitSizeOf(ArchPte));
     }
-    if (@sizeOf(PageTableEntry) != 8) {
-        // @compileLog("PageTableEntry misshapen; ", @sizeOf(PageTableEntry));
+    if (@sizeOf(ArchPte) != 8) {
+        // @compileLog("ArchPte misshapen; ", @sizeOf(ArchPte));
     }
 
     if (@bitSizeOf(TCR_EL1) != 64) {

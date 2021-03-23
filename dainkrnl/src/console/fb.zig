@@ -2,6 +2,7 @@ const std = @import("std");
 const font = @import("font.zig");
 const arch = @import("../arch.zig");
 const hw = @import("../hw.zig");
+const paging = @import("../paging.zig");
 
 pub const CONSOLE_DIMENSION = u16;
 
@@ -23,7 +24,7 @@ var console_row: CONSOLE_DIMENSION = 0;
 var console_colour: u8 = 0x07;
 
 pub fn init(in_fb: [*]u32, in_vert: u32, in_horiz: u32) void {
-    fb = in_fb;
+    fb = mapFb(in_fb, in_vert * in_horiz);
     fb_vert = in_vert;
     fb_horiz = in_horiz;
 
@@ -41,6 +42,13 @@ pub fn init(in_fb: [*]u32, in_vert: u32, in_horiz: u32) void {
     drawEnergyStar(true);
     arch.sleep(50);
     drawEnergyStar(false);
+}
+
+fn mapFb(base: [*]u32, pixels: usize) [*]u32 {
+    var page_count = (pixels * 4 + paging.PAGING.page_size - 1) / paging.PAGING.page_size;
+    var virt = paging.mapPagesConsecutive(@ptrToInt(base), page_count, .peripheral) catch @panic("oom");
+    hw.entry_uart.carefully(.{ "MAP: FB at     ", virt, "~\r\n" });
+    return @intToPtr([*]u32, virt);
 }
 
 pub fn present() callconv(.Inline) bool {

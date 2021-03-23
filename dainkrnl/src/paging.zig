@@ -1,3 +1,57 @@
+const dcommon = @import("common/dcommon.zig");
+const arch_paging = switch (dcommon.daintree_arch) {
+    .arm64 => @import("arm64/paging.zig"),
+    .riscv64 => @import("riscv64/paging.zig"),
+};
+
+pub const Error = error{OutOfMemory};
+pub const PAGING = arch_paging.PAGING;
+
+pub const MapSize = enum {
+    block,
+    table,
+};
+
+pub const MapFlags = enum {
+    kernel_promisc,
+    kernel_data,
+    kernel_rodata,
+    kernel_code,
+    peripheral,
+    none,
+};
+
+pub const mapPage = arch_paging.mapPage;
+
+pub var bump = BumpAllocator{ .next = 0 };
+
+pub fn mapPagesConsecutive(base_in: usize, page_count_in: usize, flags: MapFlags) Error!usize {
+    // XXX: not guaranteed consecutive.
+    var base = base_in;
+    var page_count = page_count_in - 1;
+
+    var first = try mapPage(base, flags);
+    while (page_count > 0) : (page_count -= 1) {
+        base += PAGING.page_size;
+        _ = try mapPage(base, flags);
+    }
+    return first;
+}
+
+pub const BumpAllocator = struct {
+    next: usize,
+
+    fn allocSz(self: *BumpAllocator, comptime size: usize) callconv(.Inline) usize {
+        const next = self.next;
+        self.next += size;
+        return next;
+    }
+
+    pub fn alloc(self: *BumpAllocator, comptime T: type) callconv(.Inline) *T {
+        return @intToPtr(*T, self.allocSz(@sizeOf(T)));
+    }
+};
+
 pub const PagingConfigurationInput = struct {
     translation_levels: u2 = 3,
     index_bits: u6 = 9,
@@ -87,19 +141,5 @@ pub const PagingConfiguration = struct {
 
     pub fn kernelPageAddress(self: PagingConfiguration, i: usize) callconv(.Inline) u64 {
         return self.kernel_base | (i << self.page_bits);
-    }
-};
-
-pub const BumpAllocator = struct {
-    next: u64,
-
-    fn allocSz(self: *BumpAllocator, comptime size: u64) callconv(.Inline) u64 {
-        const next = self.next;
-        self.next += size;
-        return next;
-    }
-
-    pub fn alloc(self: *BumpAllocator, comptime T: type) callconv(.Inline) *T {
-        return @intToPtr(*T, self.allocSz(@sizeOf(T)));
     }
 };

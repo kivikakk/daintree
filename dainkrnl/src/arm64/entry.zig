@@ -53,15 +53,17 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     arch.writeRegister(.MAIR_EL1, mair_el1);
 
     var bump = paging.BumpAllocator{ .next = daintree_end };
-    TTBR0_IDENTITY = bump.alloc([PAGING.index_size]u64);
-    TTBR1_L1 = bump.alloc([PAGING.index_size]u64);
-    TTBR1_L2 = bump.alloc([PAGING.index_size]u64);
-    TTBR1_L3_1 = bump.alloc([PAGING.index_size]u64);
-    TTBR1_L3_2 = bump.alloc([PAGING.index_size]u64);
-    TTBR1_L3_3 = bump.alloc([PAGING.index_size]u64);
+    TTBR0_IDENTITY = bump.alloc(PageTable);
+    K_DIRECTORY = bump.alloc(PageTable);
+    var l2 = bump.alloc(PageTable);
+    // Preallocate a whole lot of level 3 tables.
+    var l3s: [16]*PageTable = undefined;
+    for (l3s) |*l3| {
+        l3.* = bump.alloc(PageTable);
+    }
 
     const ttbr0_el1 = @ptrToInt(TTBR0_IDENTITY) | 1;
-    const ttbr1_el1 = @ptrToInt(TTBR1_L1) | 1;
+    const ttbr1_el1 = @ptrToInt(K_DIRECTORY) | 1;
     hw.entry_uart.carefully(.{ "setting TTBR0_EL1: ", ttbr0_el1, "\r\n" });
     hw.entry_uart.carefully(.{ "setting TTBR1_EL1: ", ttbr1_el1, "\r\n" });
     arch.writeRegister(.TTBR0_EL1, ttbr0_el1);
@@ -70,47 +72,71 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     var it = PAGING.range(1, entry_data.conventional_start, entry_data.conventional_bytes);
     while (it.next()) |r| {
         hw.entry_uart.carefully(.{ "mapping identity: page ", r.page, " address ", r.address, "\r\n" });
-        tableSet(TTBR0_IDENTITY, r.page, r.address, IDENTITY_FLAGS.toU64());
+        TTBR0_IDENTITY.map(r.page, r.address, .block, .kernel_promisc);
     }
 
-    tableSet(TTBR1_L1, 0, @ptrToInt(TTBR1_L2), KERNEL_DATA_TABLE.toU64());
-    tableSet(TTBR1_L2, 0, @ptrToInt(TTBR1_L3_1), KERNEL_DATA_TABLE.toU64());
-    tableSet(TTBR1_L2, 1, @ptrToInt(TTBR1_L3_2), KERNEL_DATA_TABLE.toU64());
-    tableSet(TTBR1_L2, 2, @ptrToInt(TTBR1_L3_3), KERNEL_DATA_TABLE.toU64());
+    K_DIRECTORY.map(0, @ptrToInt(l2), .table, .kernel_data);
+    for (l3s) |l3, i| {
+        l2.map(i, @ptrToInt(l3), .table, .kernel_data);
+    }
+
+    var l3 = l3s[0];
 
     var end: u64 = (daintree_end - daintree_base) >> PAGING.page_bits;
     entryAssert(end <= 512, "end got too big (1)");
 
     var address = daintree_base;
-    var flags = KERNEL_CODE_TABLE.toU64();
+    var flags: paging.MapFlags = .kernel_code;
     var i: u64 = 0;
     hw.entry_uart.carefully(.{ "MAP: text at   ", PAGING.kernelPageAddress(i), "~\r\n" });
     while (i < end) : (i += 1) {
         if (address >= daintree_data_base) {
-            if (flags != KERNEL_DATA_TABLE.toU64()) {
+            if (flags != .kernel_data) {
                 hw.entry_uart.carefully(.{ "MAP: data at   ", PAGING.kernelPageAddress(i), "~\r\n" });
-                flags = KERNEL_DATA_TABLE.toU64();
+                flags = .kernel_data;
             }
         } else if (address >= daintree_rodata_base) {
-            if (flags != KERNEL_RODATA_TABLE.toU64()) {
+            if (flags != .kernel_rodata) {
                 hw.entry_uart.carefully(.{ "MAP: rodata at ", PAGING.kernelPageAddress(i), "~\r\n" });
-                flags = KERNEL_RODATA_TABLE.toU64();
+                flags = .kernel_rodata;
             }
         }
-        tableSet(TTBR1_L3_1, i, address, flags);
+        l3.map(i, address, .table, flags);
         address += PAGING.page_size;
     }
 
-    // i = end
-    end += 6; // TTBR0_IDENTITY .. TTBR1_L3_3
-    hw.entry_uart.carefully(.{ "MAP: null at   ", PAGING.kernelPageAddress(i), "~\r\n" });
-    while (i < end) : (i += 1) {
-        tableSet(TTBR1_L3_1, i, 0, 0);
+    hw.entry_uart.carefully(.{ "MAP: PTs at    ", PAGING.kernelPageAddress(i), "~\r\n" });
+    var ttbr0_identity_va = PAGING.kernelPageAddress(i);
+    l3.map(i, address, .table, .kernel_data);
+    address += PAGING.page_size;
+    i += 1;
+
+    var k_directory_va = PAGING.kernelPageAddress(i);
+    l3.map(i, address, .table, .kernel_data);
+    address += PAGING.page_size;
+    i += 1;
+
+    var l2_va = PAGING.kernelPageAddress(i);
+    l3.map(i, address, .table, .kernel_data);
+    K_DIRECTORY.setVirt(0, l2_va);
+    address += PAGING.page_size;
+    i += 1;
+
+    for (l3s) |_, j| {
+        var l3x_va = PAGING.kernelPageAddress(i);
+        l3.map(i, address, .table, .kernel_data);
+        l2.setVirt(j, l3x_va);
+        address += PAGING.page_size;
+        i += 1;
     }
+
+    hw.entry_uart.carefully(.{ "MAP: null at   ", PAGING.kernelPageAddress(i), "\r\n" });
+    l3.map(i, 0, .table, .none);
+    i += 1;
     end = i + STACK_PAGES;
     hw.entry_uart.carefully(.{ "MAP: stack at  ", PAGING.kernelPageAddress(i), "~\r\n" });
     while (i < end) : (i += 1) {
-        tableSet(TTBR1_L3_1, i, address, KERNEL_DATA_TABLE.toU64());
+        l3.map(i, address, .table, .kernel_data);
         address += PAGING.page_size;
     }
 
@@ -118,7 +144,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
     // Let's hackily put UART at wherever's next.
     hw.entry_uart.carefully(.{ "MAP: UART at   ", PAGING.kernelPageAddress(i), "\r\n" });
-    tableSet(TTBR1_L3_1, i, entry_data.uart_base, PERIPHERAL_TABLE.toU64());
+    l3.map(i, entry_data.uart_base, .table, .peripheral);
 
     // address now points to the stack. make space for common.EntryData, align.
     var entry_address = address - @sizeOf(dcommon.EntryData);
@@ -137,6 +163,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         .fb_horiz = entry_data.fb_horiz,
         .uart_base = PAGING.kernelPageAddress(i),
         .uart_width = entry_data.uart_width,
+        .bump_next = bump.next,
     };
 
     var new_sp = PAGING.kernelPageAddress(i);
@@ -157,30 +184,14 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
         hw.entry_uart.carefully(.{ "MAP: DTB at    ", PAGING.kernelPageAddress(i), "~\r\n" });
         while (i < new_end) : (i += 1) {
-            tableSet(TTBR1_L3_1, i, address, KERNEL_RODATA_TABLE.toU64());
+            l3.map(i, address, .table, .kernel_rodata);
             address += PAGING.page_size;
         }
     }
 
-    // Map framebuffer as device.  Put in second/third TTBR1_L3 as it tends to be
-    // huge.
-    if (new_entry.fb) |base| {
-        i = 512;
-        address = @ptrToInt(base);
-        new_entry.fb = @intToPtr([*]u32, PAGING.kernelPageAddress(i));
-        var new_end = i + (new_entry.fb_vert * new_entry.fb_horiz * 4 + PAGING.page_size - 1) / PAGING.page_size;
-        entryAssert(new_end <= 512 + 512 * 2, "end got too big (4)");
-
-        hw.entry_uart.carefully(.{ "MAP: FB at     ", PAGING.kernelPageAddress(i), "~\r\n" });
-        while (i < new_end) : (i += 1) {
-            if (i - 512 < 512) {
-                tableSet(TTBR1_L3_2, i - 512, address, PERIPHERAL_TABLE.toU64());
-            } else {
-                tableSet(TTBR1_L3_3, i - 1024, address, PERIPHERAL_TABLE.toU64());
-            }
-            address += PAGING.page_size;
-        }
-    }
+    // Adjust these for paging enable.
+    TTBR0_IDENTITY = @intToPtr(*PageTable, ttbr0_identity_va);
+    K_DIRECTORY = @intToPtr(*PageTable, k_directory_va);
 
     hw.entry_uart.carefully(.{ "MAP: end at    ", PAGING.kernelPageAddress(i), ".\r\n" });
     hw.entry_uart.carefully(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });
