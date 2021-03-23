@@ -161,6 +161,12 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         }
     }
 
+    const satp = (SATP{
+        .ppn = @truncate(u44, @ptrToInt(K_DIRECTORY) >> PAGING.page_bits),
+        .asid = 0,
+        .mode = .sv39,
+    }).toU64();
+
     // Adjust for paging enable.
     hw.entry_uart.carefully(.{ "changing K_DIRECTORY: ", @ptrToInt(K_DIRECTORY), " -> ", k_directory_va, "\r\n" });
     K_DIRECTORY = @intToPtr(*PageTable, k_directory_va);
@@ -169,12 +175,6 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     hw.entry_uart.carefully(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });
     hw.entry_uart.carefully(.{ "ra: ", daintree_main - daintree_base + PAGING.kernel_base, "\r\n" });
     hw.entry_uart.carefully(.{ "uart mapped to: ", PAGING.kernelPageAddress(end), "\r\n" });
-
-    const satp = (SATP{
-        .ppn = @truncate(u44, @ptrToInt(K_DIRECTORY) >> PAGING.page_bits),
-        .asid = 0,
-        .mode = .sv39,
-    }).toU64();
 
     asm volatile (
         \\mv sp, %[sp]
