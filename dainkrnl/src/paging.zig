@@ -39,11 +39,7 @@ pub fn mapPagesConsecutive(base_in: usize, page_count_in: usize, flags: MapFlags
         const n = try mapPage(base, flags);
         hw.entry_uart.carefully(.{ "FB~ ", n, "\r\n" });
     }
-    asm volatile (
-        \\tlbi vmalle1
-        \\dsb ish
-        \\isb
-        ::: "memory");
+    arch_paging.flushTLB();
     return first;
 }
 

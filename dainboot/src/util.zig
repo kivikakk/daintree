@@ -6,7 +6,8 @@ pub var con_out: *uefi.protocols.SimpleTextOutputProtocol = undefined;
 
 pub fn puts(msg: []const u8) void {
     for (msg) |c| {
-        _ = con_out.outputString(&[1:0]u16{c});
+        // https://github.com/ziglang/zig/issues/4372
+        _ = con_out.outputString(&[2:0]u16{ c, 0 });
     }
 }
 

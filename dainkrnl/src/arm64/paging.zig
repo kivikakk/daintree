@@ -29,6 +29,14 @@ fn flagsToU64(size: paging.MapSize, flags: paging.MapFlags) u64 {
     };
 }
 
+pub fn flushTLB() void {
+    asm volatile (
+        \\tlbi vmalle1
+        \\dsb ish
+        \\isb
+        ::: "memory");
+}
+
 pub fn mapPage(phys_address: usize, flags: paging.MapFlags) paging.Error!usize {
     return K_DIRECTORY.mapFreePage(1, PAGING.kernel_base, phys_address, flags) orelse error.OutOfMemory;
 }

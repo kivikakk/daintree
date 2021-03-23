@@ -3,7 +3,7 @@ pub const paging = @import("../paging.zig");
 const dcommon = @import("../common/dcommon.zig");
 const hw = @import("../hw.zig");
 
-pub var K_DIRECTORY: *[PAGING.index_size]u64 = undefined;
+pub var K_DIRECTORY: *PageTable = undefined;
 
 pub const PAGING = paging.configuration(.{
     .vaddress_mask = 0x0000003f_fffff000,
@@ -12,7 +12,7 @@ comptime {
     std.debug.assert(dcommon.daintree_kernel_start == PAGING.kernel_base);
 }
 
-fn flagsToRWX(flags: paging.MapFlags) u64 {
+fn flagsToRWX(flags: paging.MapFlags) RWX {
     return switch (flags) {
         .non_leaf => RWX.non_leaf,
 
@@ -25,17 +25,28 @@ fn flagsToRWX(flags: paging.MapFlags) u64 {
     };
 }
 
+pub fn flushTLB() void {
+    asm volatile ("sfence.vma" ::: "memory");
+}
+
 pub fn mapPage(phys_address: usize, flags: paging.MapFlags) paging.Error!usize {
     // XXX yikes
-    return K_DIRECTORY.virts[256].mapFreePage(2, PAGING.kernel_base, phys_address, flags) orelse error.OutOfMemory;
+    return @intToPtr(*PageTable, K_DIRECTORY.virts[256]).mapFreePage(2, PAGING.kernel_base, phys_address, flags) orelse error.OutOfMemory;
 }
 
 pub const PageTable = packed struct {
     entries: [PAGING.index_size]u64,
     virts: [PAGING.index_size]usize,
 
-    pub fn map(self: *PageTable, index: usize, phys_address: usize, size: paging.MapSize, flags: paging.MapFlags) void {
-        self.entries[index] = phys_address | flagsToU64(size, flags);
+    pub fn map(self: *PageTable, index: usize, phys_address: usize, flags: paging.MapFlags) void {
+        self.entries[index] = (ArchPte{
+            .rwx = flagsToRWX(flags),
+            .u = 0,
+            .g = 0,
+            .a = 1, // XXX ???
+            .d = 1, // XXX ???
+            .ppn = @truncate(u44, phys_address >> PAGING.page_bits),
+        }).toU64();
     }
 
     pub fn setVirt(self: *PageTable, index: usize, virt_address: usize) void {
@@ -70,7 +81,7 @@ pub const PageTable = packed struct {
             while (i < self.entries.len) : (i += 1) {
                 if ((self.entries[i] & 0x1) == 0) {
                     // Empty page -- allocate.
-                    self.map(i, phys_address, .table, flags);
+                    self.map(i, phys_address, flags);
                     return base_address + (i << PAGING.page_bits);
                 }
             }

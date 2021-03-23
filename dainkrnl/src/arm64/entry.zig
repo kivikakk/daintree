@@ -79,7 +79,6 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     for (l3s) |l3, i| {
         l2.map(i, @ptrToInt(l3), .table, .non_leaf);
     }
-
     var l3 = l3s[0];
 
     var end: u64 = (daintree_end - daintree_base) >> PAGING.page_bits;
