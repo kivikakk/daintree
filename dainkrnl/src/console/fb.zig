@@ -188,9 +188,13 @@ pub fn printf(comptime format: []const u8, args: anytype) void {
     print(slice);
 }
 
-pub fn putchar(c: u8) void {
+pub fn placechar(c: u8) void {
     font.putChar(console_row, console_col, c, console_colour);
     console_buf[console_row * console_width + console_col] = (@as(u16, console_colour) << 8) | c;
+}
+
+pub fn putchar(c: u8) void {
+    placechar(c);
     console_col += 1;
     if (console_col >= console_width) {
         console_row += 1;
