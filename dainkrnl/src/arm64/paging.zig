@@ -1,6 +1,7 @@
 const std = @import("std");
 pub const paging = @import("../paging.zig");
 const dcommon = @import("../common/dcommon.zig");
+const hw = @import("../hw.zig");
 
 pub var TTBR0_IDENTITY: *PageTable = undefined;
 pub var K_DIRECTORY: *PageTable = undefined;
@@ -30,8 +31,8 @@ pub fn mapPage(phys_address: usize, flags: paging.MapFlags) paging.Error!usize {
     return K_DIRECTORY.mapFreePage(1, PAGING.kernel_base, phys_address, flags) orelse error.OutOfMemory;
 }
 
-pub const PageTable = struct {
-    entries: [PAGING.index_size]u64 align(0x1000),
+pub const PageTable = packed struct {
+    entries: [PAGING.index_size]u64,
     virts: [PAGING.index_size]usize,
 
     pub fn map(self: *PageTable, index: usize, phys_address: usize, size: paging.MapSize, flags: paging.MapFlags) void {
@@ -48,12 +49,9 @@ pub const PageTable = struct {
             // Recurse into subtables.
             while (i < self.entries.len) : (i += 1) {
                 if ((self.entries[i] & 0x1) == 0x0) {
-                    @panic("empty table at level " ++ switch (level) {
-                        0 => "0",
-                        1 => "1",
-                        2 => "2",
-                        3 => "3",
-                    });
+                    hw.entry_uart.carefully(.{ "mapFreePage(", @ptrToInt(self), "): level ", level, " base ", base_address, " phys ", phys_address, "\r\n" });
+                    hw.entry_uart.carefully(.{ "  empty table at i = ", i, " (entry is ", self.entries[i], ")\r\n" });
+                    @panic("empty table");
                 }
 
                 if ((self.entries[i] & 0x3) == 0x3) {

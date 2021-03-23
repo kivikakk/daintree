@@ -110,22 +110,34 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     l3.map(i, address, .table, .kernel_data);
     address += PAGING.page_size;
     i += 1;
+    l3.map(i, address, .table, .kernel_data);
+    address += PAGING.page_size;
+    i += 1;
 
     var k_directory_va = PAGING.kernelPageAddress(i);
     l3.map(i, address, .table, .kernel_data);
     address += PAGING.page_size;
     i += 1;
+    l3.map(i, address, .table, .kernel_data);
+    address += PAGING.page_size;
+    i += 1;
 
     var l2_va = PAGING.kernelPageAddress(i);
-    l3.map(i, address, .table, .kernel_data);
     K_DIRECTORY.setVirt(0, l2_va);
+    l3.map(i, address, .table, .kernel_data);
+    address += PAGING.page_size;
+    i += 1;
+    l3.map(i, address, .table, .kernel_data);
     address += PAGING.page_size;
     i += 1;
 
     for (l3s) |_, j| {
         var l3x_va = PAGING.kernelPageAddress(i);
-        l3.map(i, address, .table, .kernel_data);
         l2.setVirt(j, l3x_va);
+        l3.map(i, address, .table, .kernel_data);
+        address += PAGING.page_size;
+        i += 1;
+        l3.map(i, address, .table, .kernel_data);
         address += PAGING.page_size;
         i += 1;
     }
@@ -133,6 +145,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     hw.entry_uart.carefully(.{ "MAP: null at   ", PAGING.kernelPageAddress(i), "\r\n" });
     l3.map(i, 0, .table, .none);
     i += 1;
+
     end = i + STACK_PAGES;
     hw.entry_uart.carefully(.{ "MAP: stack at  ", PAGING.kernelPageAddress(i), "~\r\n" });
     while (i < end) : (i += 1) {
@@ -191,6 +204,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
     // Adjust these for paging enable.
     TTBR0_IDENTITY = @intToPtr(*PageTable, ttbr0_identity_va);
+    hw.entry_uart.carefully(.{ "changing K_DIRECTORY: ", @ptrToInt(K_DIRECTORY), " -> ", k_directory_va, "\r\n" });
     K_DIRECTORY = @intToPtr(*PageTable, k_directory_va);
 
     hw.entry_uart.carefully(.{ "MAP: end at    ", PAGING.kernelPageAddress(i), ".\r\n" });

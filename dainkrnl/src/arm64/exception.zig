@@ -15,7 +15,7 @@ fn handle(ctx: *ExceptionContext, comptime name: []const u8) callconv(.Inline) n
 
     dumpRegs(ctx);
 
-    @panic(name);
+    while (true) {}
 }
 
 fn dumpRegs(ctx: *ExceptionContext) void {
