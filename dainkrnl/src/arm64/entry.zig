@@ -143,7 +143,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     }
 
     hw.entry_uart.carefully(.{ "MAP: null at   ", PAGING.kernelPageAddress(i), "\r\n" });
-    l3.map(i, 0, .table, .none);
+    l3.map(i, 0, .table, .kernel_rodata);
     i += 1;
 
     end = i + STACK_PAGES;

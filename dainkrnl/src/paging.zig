@@ -1,8 +1,10 @@
+const std = @import("std");
 const dcommon = @import("common/dcommon.zig");
 const arch_paging = switch (dcommon.daintree_arch) {
     .arm64 => @import("arm64/paging.zig"),
     .riscv64 => @import("riscv64/paging.zig"),
 };
+const hw = @import("hw.zig");
 
 pub const Error = error{OutOfMemory};
 pub const PAGING = arch_paging.PAGING;
@@ -18,7 +20,6 @@ pub const MapFlags = enum {
     kernel_rodata,
     kernel_code,
     peripheral,
-    none,
 };
 
 pub const mapPage = arch_paging.mapPage;
@@ -31,10 +32,17 @@ pub fn mapPagesConsecutive(base_in: usize, page_count_in: usize, flags: MapFlags
     var page_count = page_count_in - 1;
 
     var first = try mapPage(base, flags);
+    hw.entry_uart.carefully(.{ "FB: ", first, "\r\n" });
     while (page_count > 0) : (page_count -= 1) {
         base += PAGING.page_size;
-        _ = try mapPage(base, flags);
+        const n = try mapPage(base, flags);
+        hw.entry_uart.carefully(.{ "FB~ ", n, "\r\n" });
     }
+    asm volatile (
+        \\tlbi vmalle1
+        \\dsb ish
+        \\isb
+        ::: "memory");
     return first;
 }
 
@@ -44,6 +52,7 @@ pub const BumpAllocator = struct {
     fn allocSz(self: *BumpAllocator, comptime size: usize) callconv(.Inline) usize {
         const next = self.next;
         self.next += size;
+        std.mem.set(u8, @intToPtr([*]u8, next)[0..size], 0); // Can only do this if in phys mode.
         return next;
     }
 

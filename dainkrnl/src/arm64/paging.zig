@@ -23,7 +23,6 @@ fn flagsToU64(size: paging.MapSize, flags: paging.MapFlags) u64 {
         .kernel_rodata => KERNEL_RODATA_FLAGS.toU64(),
         .kernel_code => KERNEL_CODE_FLAGS.toU64(),
         .peripheral => PERIPHERAL_FLAGS.toU64(),
-        .none => return 0,
     };
 }
 
