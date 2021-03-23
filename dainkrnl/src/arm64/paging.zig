@@ -83,7 +83,7 @@ pub const PageTable = packed struct {
     }
 
     fn pageAt(self: *const PageTable, index: usize) *PageTable {
-        var entry = self.entries[index];
+        const entry = self.entries[index];
         if ((entry & 0x3) != 0x3) @panic("pageAt on non-page");
         return @intToPtr(*PageTable, entry & ArchPte.OA_MASK_Lx_TABLE);
     }
