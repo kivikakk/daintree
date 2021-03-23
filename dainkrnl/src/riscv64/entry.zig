@@ -32,77 +32,94 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     hw.entry_uart.carefully(.{ "__trap_entry: ", trap_entry, "\r\n" });
 
     var bump = paging.BumpAllocator{ .next = daintree_end };
-    PT_L1 = bump.alloc([PAGING.index_size]u64);
-    PTS_L2 = bump.alloc([PAGING.index_size]u64);
-    PTS_L3_1 = bump.alloc([PAGING.index_size]u64);
-    PTS_L3_2 = bump.alloc([PAGING.index_size]u64);
-    PTS_L3_3 = bump.alloc([PAGING.index_size]u64);
-
-    std.debug.assert((@ptrToInt(PT_L1) & 0xfff) == 0);
+    K_DIRECTORY = bump.alloc(PageTable);
+    var l2 = bump.alloc(PageTable);
+    var l3s: [16]*PageTable = undefined;
+    for (l3s) |*l3| {
+        l3.* = bump.alloc(PageTable);
+    }
 
     // XXX: start from 0 to include syscon in mapped range so CI works.
     var it = PAGING.range(1, 0, entry_data.conventional_start + entry_data.conventional_bytes);
     while (it.next()) |r| {
         hw.entry_uart.carefully(.{ "mapping identity: page ", r.page, " address ", r.address, "\r\n" });
-        tableSet(PT_L1, r.page, PageTableEntry{
-            .rwx = .rwx,
-            .u = 0,
-            .g = 0,
-            .a = 1, // XXX ???
-            .d = 1, // XXX ???
-            .ppn = @truncate(u44, r.address >> PAGING.page_bits),
-        });
+        K_DIRECTORY.map(r.page, r.address, .kernel_promisc);
     }
 
-    tableSet(PT_L1, 256, .{ .rwx = .non_leaf, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, @ptrToInt(PTS_L2) >> PAGING.page_bits) });
-    tableSet(PTS_L2, 0, .{ .rwx = .non_leaf, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, @ptrToInt(PTS_L3_1) >> PAGING.page_bits) });
-    tableSet(PTS_L2, 1, .{ .rwx = .non_leaf, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, @ptrToInt(PTS_L3_2) >> PAGING.page_bits) });
-    tableSet(PTS_L2, 2, .{ .rwx = .non_leaf, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, @ptrToInt(PTS_L3_3) >> PAGING.page_bits) });
+    K_DIRECTORY.map(256, @ptrToInt(l2), .non_leaf);
+    for (l3s) |l3, i| {
+        l2.map(i, @ptrToInt(l3), .non_leaf);
+    }
+    var l3 = l3s[0];
 
     var end: u64 = (daintree_end - daintree_base) >> PAGING.page_bits;
     entryAssert(end <= 512, "end got too big (1)");
 
     var address = daintree_base;
-    var rwx: RWX = .rx;
+    var flags: paging.MapFlags = .kernel_code;
     var i: u64 = 0;
     hw.entry_uart.carefully(.{ "MAP: text at   ", PAGING.kernelPageAddress(i), "~\r\n" });
     while (i < end) : (i += 1) {
         if (address >= daintree_data_base) {
-            if (rwx != .rw) {
+            if (flags != .kernel_data) {
                 hw.entry_uart.carefully(.{ "MAP: data at   ", PAGING.kernelPageAddress(i), "~\r\n" });
-                rwx = .rw;
+                flags = .kernel_data;
             }
         } else if (address >= daintree_rodata_base) {
-            if (rwx != .ro) {
+            if (flags != .kernel_rodata) {
                 hw.entry_uart.carefully(.{ "MAP: rodata at ", PAGING.kernelPageAddress(i), "~\r\n" });
-                rwx = .ro;
+                flags = .kernel_rodata;
             }
         }
-
-        tableSet(PTS_L3_1, i, .{ .rwx = rwx, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, address >> PAGING.page_bits) });
+        l3.map(i, address, flags);
         address += PAGING.page_size;
     }
 
-    // i = end
-    end += 5; // PT_L1 .. PTS_L3_3
-    hw.entry_uart.carefully(.{ "MAP: null at   ", PAGING.kernelPageAddress(i), "~\r\n" });
-    while (i < end) : (i += 1) {
-        tableSet(PTS_L3_1, i, std.mem.zeroes(PageTableEntry));
+    hw.entry_uart.carefully(.{ "MAP: PTs at    ", PAGING.kernelPageAddress(i), "~\r\n" });
+    var k_directory_va = PAGING.kernelPageAddress(i);
+    l3.map(i, address, .kernel_data);
+    address += PAGING.page_size;
+    i += 1;
+    l3.map(i, address, .kernel_data);
+    address += PAGING.page_size;
+    i += 1;
+
+    var l2_va = PAGING.kernelPageAddress(i);
+    K_DIRECTORY.setVirt(0, l2_va);
+    l3.map(i, address, .kernel_data);
+    address += PAGING.page_size;
+    i += 1;
+    l3.map(i, address, .kernel_data);
+    address += PAGING.page_size;
+    i += 1;
+
+    for (l3s) |_, j| {
+        var l3x_va = PAGING.kernelPageAddress(i);
+        l2.setVirt(j, l3x_va);
+        l3.map(i, address, .kernel_data);
+        address += PAGING.page_size;
+        i += 1;
+        l3.map(i, address, .kernel_data);
+        address += PAGING.page_size;
+        i += 1;
     }
+
+    hw.entry_uart.carefully(.{ "MAP: null at   ", PAGING.kernelPageAddress(i), "\r\n" });
+    l3.map(i, 0, .kernel_rodata);
+    i += 1;
+
     end = i + STACK_PAGES;
     hw.entry_uart.carefully(.{ "MAP: stack at  ", PAGING.kernelPageAddress(i), "~\r\n" });
     while (i < end) : (i += 1) {
-        tableSet(PTS_L3_1, i, .{ .rwx = .rw, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, address >> PAGING.page_bits) });
+        l3.map(i, address, .kernel_data);
         address += PAGING.page_size;
     }
 
     entryAssert(end <= 512, "end got too big (2)");
 
     hw.entry_uart.carefully(.{ "MAP: UART at   ", PAGING.kernelPageAddress(i), "\r\n" });
-    // XXX doesn't look like RV MMU needs any special peripheral/cacheability stuff?
-    tableSet(PTS_L3_1, i, .{ .rwx = .rw, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, entry_data.uart_base >> 12) });
+    l3.map(i, entry_data.uart_base, .peripheral);
 
-    // Below is verbatim from arm64 entry. ---
     var entry_address = address - @sizeOf(dcommon.EntryData);
     entry_address &= ~@as(u64, 15);
     var new_entry = @intToPtr(*dcommon.EntryData, entry_address);
@@ -119,6 +136,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         .fb_horiz = entry_data.fb_horiz,
         .uart_base = PAGING.kernelPageAddress(end),
         .uart_width = entry_data.uart_width,
+        .bump_next = bump.next,
     };
 
     var new_sp = PAGING.kernelPageAddress(end);
@@ -138,41 +156,25 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
         hw.entry_uart.carefully(.{ "MAP: DTB at    ", PAGING.kernelPageAddress(i), "~\r\n" });
         while (i < new_end) : (i += 1) {
-            tableSet(PTS_L3_1, i, .{ .rwx = .ro, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, address >> PAGING.page_bits) });
+            l3.map(i, address, .kernel_rodata);
             address += PAGING.page_size;
         }
     }
-
-    // Map framebuffer as device.  Put in second/third TTBR1_L3 as it tends to be
-    // huge.
-    if (new_entry.fb) |base| {
-        i = 512;
-        address = @ptrToInt(base);
-        new_entry.fb = @intToPtr([*]u32, PAGING.kernelPageAddress(i));
-        var new_end = i + (new_entry.fb_vert * new_entry.fb_horiz * 4 + PAGING.page_size - 1) / PAGING.page_size;
-        entryAssert(new_end <= 512 + 512 * 2, "end got too big (4)");
-
-        hw.entry_uart.carefully(.{ "MAP: FB at     ", PAGING.kernelPageAddress(i), "~\r\n" });
-        while (i < new_end) : (i += 1) {
-            if (i - 512 < 512) {
-                tableSet(PTS_L3_2, i - 512, .{ .rwx = .rw, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, address >> PAGING.page_bits) });
-            } else {
-                tableSet(PTS_L3_3, i - 1024, .{ .rwx = .rw, .u = 0, .g = 0, .a = 1, .d = 1, .ppn = @truncate(u44, address >> PAGING.page_bits) });
-            }
-            address += PAGING.page_size;
-        }
-    }
-    hw.entry_uart.carefully(.{ "MAP: end at    ", PAGING.kernelPageAddress(i), ".\r\n" });
-
-    hw.entry_uart.carefully(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });
-    hw.entry_uart.carefully(.{ "ra: ", daintree_main - daintree_base + PAGING.kernel_base, "\r\n" });
-    hw.entry_uart.carefully(.{ "uart mapped to: ", PAGING.kernelPageAddress(end), "\r\n" });
 
     const satp = (SATP{
-        .ppn = @truncate(u44, @ptrToInt(PT_L1) >> PAGING.page_bits),
+        .ppn = @truncate(u44, @ptrToInt(K_DIRECTORY) >> PAGING.page_bits),
         .asid = 0,
         .mode = .sv39,
     }).toU64();
+
+    // Adjust for paging enable.
+    hw.entry_uart.carefully(.{ "changing K_DIRECTORY: ", @ptrToInt(K_DIRECTORY), " -> ", k_directory_va, "\r\n" });
+    K_DIRECTORY = @intToPtr(*PageTable, k_directory_va);
+
+    hw.entry_uart.carefully(.{ "MAP: end at    ", PAGING.kernelPageAddress(i), ".\r\n" });
+    hw.entry_uart.carefully(.{ "about to install:\r\nsp: ", new_sp, "\r\n" });
+    hw.entry_uart.carefully(.{ "ra: ", daintree_main - daintree_base + PAGING.kernel_base, "\r\n" });
+    hw.entry_uart.carefully(.{ "uart mapped to: ", PAGING.kernelPageAddress(end), "\r\n" });
 
     asm volatile (
         \\mv sp, %[sp]

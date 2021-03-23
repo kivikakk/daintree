@@ -46,4 +46,6 @@ pub const EntryData = struct {
     /// dainboot->daintree_mmu_start: PA.  daintree_mmu_start->daintree_main: VA.
     uart_base: u64,
     uart_width: u3,
+
+    bump_next: usize = 0,
 };

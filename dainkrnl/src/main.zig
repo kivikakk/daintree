@@ -7,11 +7,14 @@ const halt = @import("arch.zig").halt;
 const Shell = @import("shell.zig").Shell;
 const ddtb = @import("common/ddtb.zig");
 const hw = @import("hw.zig");
+const paging = @import("paging.zig");
 
 // From daintree_mmu_start.
 export fn daintree_main(entry_data: *dcommon.EntryData) void {
     hw.entry_uart.base = entry_data.uart_base;
     hw.entry_uart.carefully(.{ "daintree_main using uart_base ", entry_data.uart_base, "\r\n" });
+
+    paging.bump.next = entry_data.bump_next;
 
     if (entry_data.fb) |fb_addr| {
         hw.entry_uart.carefully(.{ "initting fb at ", @ptrToInt(fb_addr), "\r\n" });
