@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const daintree_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 1 };
+pub const daintree_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 2 };
 
 pub const Arch = enum {
     arm64,
