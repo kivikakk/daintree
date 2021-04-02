@@ -48,13 +48,17 @@ pub fn mapPagesConsecutive(base_in: usize, page_count_in: usize, flags: MapFlags
 pub const BumpAllocator = struct {
     next: usize,
 
-    fn allocSz(self: *BumpAllocator, comptime size: usize) callconv(.Inline) usize {
+    pub fn allocSz(self: *BumpAllocator, comptime size: usize) callconv(.Inline) usize {
         const next = self.next;
         self.next += size;
         // XXX this only works if physical addresses are mapped, i.e. MMU is off
         // or identity mapping is in place
         std.mem.set(u8, @intToPtr([*]u8, next)[0..size], 0);
         return next;
+    }
+
+    pub fn allocPage(self: *BumpAllocator) callconv(.Inline) usize {
+        return self.allocSz(PAGING.page_size);
     }
 
     pub fn alloc(self: *BumpAllocator, comptime T: type) callconv(.Inline) *T {

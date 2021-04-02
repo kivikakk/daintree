@@ -50,29 +50,27 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     var end: u64 = (daintree_end - daintree_base) >> PAGING.page_bits;
     entryAssert(end <= 512, "end got too big (1)");
 
-    var address = daintree_base;
-    var flags: paging.MapFlags = .kernel_code;
     var i: u64 = 0;
-    hw.entry_uart.carefully(.{ "MAP: text at   ", PAGING.kernelPageAddress(i), "~\r\n" });
-    while (i < end) : (i += 1) {
-        if (address >= daintree_data_base) {
-            if (flags != .kernel_data) {
-                hw.entry_uart.carefully(.{ "MAP: data at   ", PAGING.kernelPageAddress(i), "~\r\n" });
-                flags = .kernel_data;
+    {
+        var address = daintree_base;
+        var flags: paging.MapFlags = .kernel_code;
+        hw.entry_uart.carefully(.{ "MAP: text at   ", PAGING.kernelPageAddress(i), "~\r\n" });
+        while (i < end) : (i += 1) {
+            if (address >= daintree_data_base) {
+                if (flags != .kernel_data) {
+                    hw.entry_uart.carefully(.{ "MAP: data at   ", PAGING.kernelPageAddress(i), "~\r\n" });
+                    flags = .kernel_data;
+                }
+            } else if (address >= daintree_rodata_base) {
+                if (flags != .kernel_rodata) {
+                    hw.entry_uart.carefully(.{ "MAP: rodata at ", PAGING.kernelPageAddress(i), "~\r\n" });
+                    flags = .kernel_rodata;
+                }
             }
-        } else if (address >= daintree_rodata_base) {
-            if (flags != .kernel_rodata) {
-                hw.entry_uart.carefully(.{ "MAP: rodata at ", PAGING.kernelPageAddress(i), "~\r\n" });
-                flags = .kernel_rodata;
-            }
+            l3.map(i, address, flags);
+            address += PAGING.page_size;
         }
-        l3.map(i, address, flags);
-        address += PAGING.page_size;
     }
-
-    // Skip over the page tables; we don't want to e.g. point the stack (or its guard page) at them.
-    entryAssert(address == daintree_end, "address != daintree_end");
-    address = bump.next;
 
     hw.entry_uart.carefully(.{ "MAP: null at   ", PAGING.kernelPageAddress(i), "\r\n" });
     l3.map(i, 0, .kernel_rodata);
@@ -81,8 +79,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     end = i + STACK_PAGES;
     hw.entry_uart.carefully(.{ "MAP: stack at  ", PAGING.kernelPageAddress(i), "~\r\n" });
     while (i < end) : (i += 1) {
-        l3.map(i, address, .kernel_data);
-        address += PAGING.page_size;
+        l3.map(i, bump.allocPage(), .kernel_data);
     }
 
     entryAssert(end <= 512, "end got too big (2)");
@@ -90,7 +87,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     hw.entry_uart.carefully(.{ "MAP: UART at   ", PAGING.kernelPageAddress(i), "\r\n" });
     l3.map(i, entry_data.uart_base, .peripheral);
 
-    var entry_address = address - @sizeOf(dcommon.EntryData);
+    var entry_address = bump.next - @sizeOf(dcommon.EntryData);
     entry_address &= ~@as(u64, 15);
     var new_entry = @intToPtr(*dcommon.EntryData, entry_address);
     new_entry.* = .{
@@ -106,7 +103,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         .fb_horiz = entry_data.fb_horiz,
         .uart_base = PAGING.kernelPageAddress(end),
         .uart_width = entry_data.uart_width,
-        .bump_next = bump.next,
+        .bump_next = undefined,
     };
 
     var new_sp = PAGING.kernelPageAddress(end);
@@ -116,7 +113,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     {
         i += 1;
         new_entry.dtb_ptr = @intToPtr([*]const u8, PAGING.kernelPageAddress(i));
-        std.mem.copy(u8, @intToPtr([*]u8, address)[0..entry_data.dtb_len], entry_data.dtb_ptr[0..entry_data.dtb_len]);
+        var dtb_target = @intToPtr([*]u8, bump.next)[0..entry_data.dtb_len];
 
         // How many pages?
         const dtb_pages = (entry_data.dtb_len + PAGING.page_size - 1) / PAGING.page_size;
@@ -126,10 +123,13 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
         hw.entry_uart.carefully(.{ "MAP: DTB at    ", PAGING.kernelPageAddress(i), "~\r\n" });
         while (i < new_end) : (i += 1) {
-            l3.map(i, address, .kernel_rodata);
-            address += PAGING.page_size;
+            l3.map(i, bump.allocPage(), .kernel_rodata);
         }
+
+        std.mem.copy(u8, dtb_target, entry_data.dtb_ptr[0..entry_data.dtb_len]);
     }
+
+    new_entry.bump_next = bump.next;
 
     const satp = (SATP{
         .ppn = @truncate(u44, @ptrToInt(K_DIRECTORY) >> PAGING.page_bits),
