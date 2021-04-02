@@ -99,7 +99,8 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     }
 
     // Skip over the page tables; we don't want to e.g. point the stack (or its guard page) at them.
-    address += @sizeOf(PageTable) * 4;
+    entryAssert(address == daintree_end, "address != daintree_end");
+    address = bump.next;
 
     hw.entry_uart.carefully(.{ "MAP: null at   ", PAGING.kernelPageAddress(i), "\r\n" });
     l3.map(i, 0, .table, .kernel_rodata);
