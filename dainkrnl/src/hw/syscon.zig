@@ -1,25 +1,28 @@
 const printf = @import("../console/fb.zig").printf;
+const paging = @import("../paging.zig");
 
 const Config = struct {
-    reg_start: u64,
     offset: u32,
     value: u32,
 };
 
+var regBase: ?u64 = null;
 var rebootConfig: ?Config = null;
 var poweroffConfig: ?Config = null;
 
-pub fn initReboot(reg_start: u64, offset: u32, value: u32) void {
+pub fn init(base: u64) void {
+    regBase = paging.mapPage(base, .peripheral) catch |_| @panic("couldn't map syscon");
+}
+
+pub fn initReboot(offset: u32, value: u32) void {
     rebootConfig = Config{
-        .reg_start = reg_start,
         .offset = offset,
         .value = value,
     };
 }
 
-pub fn initPoweroff(reg_start: u64, offset: u32, value: u32) void {
+pub fn initPoweroff(offset: u32, value: u32) void {
     poweroffConfig = Config{
-        .reg_start = reg_start,
         .offset = offset,
         .value = value,
     };
@@ -34,8 +37,10 @@ pub fn poweroff() noreturn {
 }
 
 fn doOrDie(comptime name: []const u8, maybe_config: ?Config) noreturn {
+    const reg_base = regBase orelse @panic("syscon base register not configured!");
     const config = maybe_config orelse @panic("syscon " ++ name ++ " not configured!");
+
     printf("goodbye\n", .{});
-    @intToPtr(*volatile u32, config.reg_start + config.offset).* = config.value;
+    @intToPtr(*volatile u32, reg_base + config.offset).* = config.value;
     @panic("syscon " ++ name ++ " returned");
 }
