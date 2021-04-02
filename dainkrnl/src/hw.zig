@@ -21,9 +21,12 @@ pub fn init(dtb: []const u8) !void {
     try traverser.init(dtb);
 
     var depth: usize = 1;
-    var compatible: enum { Unknown, Psci, SysconReboot, SysconPoweroff } = .Unknown;
+    var compatible: enum { Unknown, Psci, Syscon, SysconReboot, SysconPoweroff } = .Unknown;
+
+    var address_cells: ?u32 = null;
 
     var psci_method: ?[]const u8 = null;
+    var reg: ?[]const u8 = null;
     var syscon_conf: SysconConf = .{};
 
     var ev = try traverser.next();
@@ -38,6 +41,7 @@ pub fn init(dtb: []const u8) !void {
                 defer {
                     compatible = .Unknown;
                     psci_method = null;
+                    reg = null;
                     syscon_conf = .{};
                 }
 
@@ -54,29 +58,43 @@ pub fn init(dtb: []const u8) !void {
                     }
                 }
 
-                if (compatible == .SysconReboot) {
-                    const value = syscon_conf.value orelse continue;
-                    const offset = syscon_conf.offset orelse continue;
-                    syscon.initReboot(0x100000, offset, value);
-                    continue;
-                }
-
-                if (compatible == .SysconPoweroff) {
-                    const value = syscon_conf.value orelse continue;
-                    const offset = syscon_conf.offset orelse continue;
-                    syscon.initPoweroff(0x100000, offset, value);
-                    continue;
+                switch (compatible) {
+                    .Syscon => {
+                        syscon.init(readCells(address_cells orelse continue, reg orelse continue));
+                        continue;
+                    },
+                    .SysconReboot => {
+                        const value = syscon_conf.value orelse continue;
+                        const offset = syscon_conf.offset orelse continue;
+                        syscon.initReboot(offset, value);
+                        continue;
+                    },
+                    .SysconPoweroff => {
+                        const value = syscon_conf.value orelse continue;
+                        const offset = syscon_conf.offset orelse continue;
+                        syscon.initPoweroff(offset, value);
+                        continue;
+                    },
+                    else => {},
                 }
             },
             .Prop => |prop| {
                 if (compatible == .Unknown and std.mem.eql(u8, prop.name, "compatible")) {
                     if (std.mem.indexOf(u8, prop.value, "arm,psci") != null) {
                         compatible = .Psci;
-                    } else if (std.mem.indexOf(u8, prop.value, "syscon-poweroff") != null) {
+                    } else if (std.mem.indexOf(u8, prop.value, "syscon\x00") != null) {
+                        compatible = .Syscon;
+                    } else if (std.mem.indexOf(u8, prop.value, "syscon-poweroff\x00") != null) {
                         compatible = .SysconPoweroff;
-                    } else if (std.mem.indexOf(u8, prop.value, "syscon-reboot") != null) {
+                    } else if (std.mem.indexOf(u8, prop.value, "syscon-reboot\x00") != null) {
                         compatible = .SysconReboot;
                     }
+                } else if (std.mem.eql(u8, prop.name, "#address-cells")) {
+                    if (address_cells == null) {
+                        address_cells = readU32(prop.value);
+                    }
+                } else if (std.mem.eql(u8, prop.name, "reg")) {
+                    reg = prop.value;
                 } else if (std.mem.eql(u8, prop.name, "method")) {
                     psci_method = prop.value;
                 } else if (std.mem.eql(u8, prop.name, "value")) {
@@ -91,7 +109,23 @@ pub fn init(dtb: []const u8) !void {
     }
 }
 
-// XXX this is copied everywhere lol
+// XXX these things are copied everywhere lol
 fn readU32(value: []const u8) u32 {
     return std.mem.bigToNative(u32, @ptrCast(*const u32, @alignCast(@alignOf(u32), value.ptr)).*);
+}
+fn readU64(value: []const u8) u64 {
+    return (@as(u64, readU32(value[0..4])) << 32) | readU32(value[4..8]);
+}
+fn readCells(cell_count: u32, value: []const u8) u64 {
+    if (cell_count == 1) {
+        if (value.len < @sizeOf(u32))
+            @panic("readCells: cell_count = 1, bad len");
+        return readU32(value);
+    }
+    if (cell_count == 2) {
+        if (value.len < @sizeOf(u64))
+            @panic("readCells: cell_count = 2, bad len");
+        return readU64(value);
+    }
+    @panic("readCells: cell_count unk");
 }
