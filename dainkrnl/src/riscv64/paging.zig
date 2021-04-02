@@ -30,7 +30,6 @@ pub fn flushTLB() void {
 }
 
 pub fn mapPage(phys_address: usize, flags: paging.MapFlags) paging.Error!usize {
-    // XXX yikes
     return K_DIRECTORY.pageAt(256).mapFreePage(2, PAGING.kernel_base, phys_address, flags) orelse error.OutOfMemory;
 }
 
