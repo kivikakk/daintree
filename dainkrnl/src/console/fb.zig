@@ -172,6 +172,9 @@ fn scroll() void {
 }
 
 fn refresh() void {
+    if (fb == null) {
+        return;
+    }
     var row: CONSOLE_DIMENSION = 0;
     while (row < console_height) : (row += 1) {
         var col: CONSOLE_DIMENSION = 0;
@@ -189,7 +192,9 @@ pub fn printf(comptime format: []const u8, args: anytype) void {
 }
 
 pub fn placechar(c: u8) void {
-    font.putChar(console_row, console_col, c, console_colour);
+    if (fb != null) {
+        font.putChar(console_row, console_col, c, console_colour);
+    }
     console_buf[console_row * console_width + console_col] = (@as(u16, console_colour) << 8) | c;
 }
 

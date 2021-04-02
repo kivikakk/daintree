@@ -15,6 +15,7 @@ clean:
 # Everything below needs ARCH.
 
 ARCH =
+QEMU_RAMFB = -device ramfb
 
 ifeq ($(ARCH),arm64)
 QEMU_BIN := qemu-system-aarch64
@@ -58,7 +59,7 @@ QEMU_CMD := $(QEMU_BIN) \
 		-device virtio-net-device,netdev=net0 \
 		-netdev user,id=net0 \
 		-vga none \
-		-device ramfb \
+		$(QEMU_RAMFB) \
 		-device usb-ehci \
 		-device usb-kbd \
 		-device usb-mouse \
