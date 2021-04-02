@@ -99,6 +99,8 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
             l3.map(i, address, .table, flags);
             address += PAGING.page_size;
         }
+
+        entryAssert(address == daintree_end, "address != daintree_end");
     }
 
     hw.entry_uart.carefully(.{ "MAP: null at   ", PAGING.kernelPageAddress(i), "\r\n" });
