@@ -33,13 +33,13 @@ pub const EntryData = struct {
     memory_map_size: usize,
     descriptor_size: usize,
 
-    /// dainboot->daintree_mmu_start: PA.  daintree_mmu_start->daintree_main: VA.
+    /// PA before and after.
     dtb_ptr: [*]const u8,
     dtb_len: usize,
     conventional_start: usize,
     conventional_bytes: usize,
 
-    /// dainboot->daintree_mmu_start: PA.  XXX handwaved after. Still works because identity mapped.
+    /// PA before and after.
     fb: ?[*]u32,
     fb_horiz: u32,
     fb_vert: u32,

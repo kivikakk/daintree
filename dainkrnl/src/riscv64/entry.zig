@@ -35,8 +35,10 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     var l2 = bump.alloc(p.PageTable);
     var l3 = bump.alloc(p.PageTable);
 
-    // XXX add 100MiB to catch page tables
-    var it = p.PAGING.range(1, entry_data.conventional_start, entry_data.conventional_bytes + 100 * 1048576);
+    // XXX add 100MiB to catch page tables, then ensure we get the DTB in too.
+    var top = entry_data.conventional_start + entry_data.conventional_bytes + 100 * 1024 * 1024;
+    top = std.math.max(top, @ptrToInt(entry_data.dtb_ptr) + entry_data.dtb_len);
+    var it = p.PAGING.range(1, entry_data.conventional_start, top - entry_data.conventional_start);
     while (it.next()) |r| {
         hw.entry_uart.carefully(.{ "mapping identity: page ", r.page, " address ", r.address, "\r\n" });
         hw.entry_uart.carefully(.{ "p.K_DIRECTORY is ", @ptrToInt(p.K_DIRECTORY), "\r\n" });
@@ -97,7 +99,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         .memory_map = entry_data.memory_map,
         .memory_map_size = entry_data.memory_map_size,
         .descriptor_size = entry_data.descriptor_size,
-        .dtb_ptr = undefined,
+        .dtb_ptr = entry_data.dtb_ptr,
         .dtb_len = entry_data.dtb_len,
         .conventional_start = entry_data.conventional_start,
         .conventional_bytes = entry_data.conventional_bytes,
@@ -112,25 +114,6 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     var new_sp = p.PAGING.kernelPageAddress(end);
     new_sp -= @sizeOf(dcommon.EntryData);
     new_sp &= ~@as(u64, 15);
-
-    {
-        i += 1;
-        new_entry.dtb_ptr = @intToPtr([*]const u8, p.PAGING.kernelPageAddress(i));
-        var dtb_target = @intToPtr([*]u8, bump.next)[0..entry_data.dtb_len];
-
-        // How many pages?
-        const dtb_pages = (entry_data.dtb_len + p.PAGING.page_size - 1) / p.PAGING.page_size;
-
-        var new_end = end + 1 + dtb_pages; // Skip 1 page since UART is there
-        entryAssert(new_end <= 512, "end got too big (3)");
-
-        hw.entry_uart.carefully(.{ "MAP: DTB at    ", p.PAGING.kernelPageAddress(i), "~\r\n" });
-        while (i < new_end) : (i += 1) {
-            l3.map(i, bump.allocPage(), .kernel_rodata);
-        }
-
-        std.mem.copy(u8, dtb_target, entry_data.dtb_ptr[0..entry_data.dtb_len]);
-    }
 
     new_entry.bump_next = bump.next;
 

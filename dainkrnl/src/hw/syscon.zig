@@ -12,6 +12,7 @@ var poweroffConfig: ?Config = null;
 
 pub fn init(base: u64) void {
     regBase = paging.mapPage(base, .peripheral) catch @panic("couldn't map syscon");
+    paging.flushTLB();
 }
 
 pub fn initReboot(offset: u32, value: u32) void {

@@ -6,6 +6,7 @@ pub const syscon = @import("hw/syscon.zig");
 const std = @import("std");
 const fb = @import("console/fb.zig");
 const printf = fb.printf;
+const paging = @import("paging.zig");
 const dtblib = @import("dtb");
 
 const SysconConf = struct {
@@ -14,8 +15,9 @@ const SysconConf = struct {
     offset: ?u32 = null,
 };
 
-pub fn init(dtb: []const u8) !void {
-    printf("dtb at {*:0>16} (0x{x} bytes)\n", .{ dtb.ptr, dtb.len });
+pub fn init(dtb_in: []const u8) !void {
+    const dtb = mapDtb(dtb_in);
+    printf("dtb ({*}) at {*} (0x{x} bytes)\n", .{ dtb_in.ptr, dtb.ptr, dtb.len });
 
     var traverser: dtblib.Traverser = undefined;
     try traverser.init(dtb);
@@ -107,6 +109,17 @@ pub fn init(dtb: []const u8) !void {
             .End => {},
         }
     }
+}
+
+fn mapDtb(dtb_in: []const u8) []const u8 {
+    if (dtb_in.len == 0) {
+        return dtb_in;
+    }
+
+    const page_count = (dtb_in.len + paging.PAGING.page_size - 1) / paging.PAGING.page_size;
+    const dtb = paging.kallocConsecutivePages(page_count, .kernel_rodata) catch @panic("nope"); // this should crash
+    std.mem.copy(u8, dtb, dtb_in);
+    return dtb[0..dtb_in.len];
 }
 
 // XXX these things are copied everywhere lol
