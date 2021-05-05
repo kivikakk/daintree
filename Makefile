@@ -7,7 +7,7 @@ dtb/%.dtb:
 	dtc $@ -o $@
 
 clean:
-	-rm -rf dtb/zig-cache dainkrnl/zig-cache dainboot/zig-cache target
+	-rm -rf dtb/zig-cache dtb/zig-out dainkrnl/zig-cache dainkrnl/zig-out dainboot/zig-cache dainboot/zig-out target
 
 %.dts:
 	dtc -I dtb -O dts $*
@@ -69,23 +69,23 @@ qemu: target/disk/EFI/BOOT/$(EFI_BOOTLOADER_NAME).efi target/disk/dainkrnl.$(ARC
 	$(QEMU_CMD) $(QEMU_DTB_ARGS) -s $$EXTRA_ARGS
 
 ifeq ($(ARCH),arm64)
-tftp: dainboot/zig-cache/bin/BOOTAA64.rockpro64.efi dainkrnl/zig-cache/bin/dainkrnl.rockpro64
+tftp: dainboot/zig-out/bin/BOOTAA64.rockpro64.efi dainkrnl/zig-out/bin/dainkrnl.rockpro64
 	tools/update-tftp
 endif
 
 OS_FILES=$(shell find dainkrnl -name zig-cache -prune -o -type f) $(shell find common -type f)
-dainkrnl/zig-cache/bin/dainkrnl.%: $(OS_FILES)
+dainkrnl/zig-out/bin/dainkrnl.%: $(OS_FILES)
 	cd dainkrnl && zig build -Dboard=$*
 
-target/disk/dainkrnl.$(ARCH): dainkrnl/zig-cache/bin/dainkrnl.qemu_$(ARCH)
+target/disk/dainkrnl.$(ARCH): dainkrnl/zig-out/bin/dainkrnl.qemu_$(ARCH)
 	mkdir -p $(@D)
 	cp $< $@
 
 DAINBOOT_FILES=$(shell find dainboot -name zig-cache -prune -o -type f -name \*.zig) $(shell find common -type f) dainboot/elf_riscv64_efi.lds dainboot/src/crt0-efi-riscv64.S
-dainboot/zig-cache/bin/$(EFI_BOOTLOADER_NAME).%.efi: $(DAINBOOT_FILES)
+dainboot/zig-out/bin/$(EFI_BOOTLOADER_NAME).%.efi: $(DAINBOOT_FILES)
 	cd dainboot && zig build -Dboard=$*
 
-target/disk/EFI/BOOT/$(EFI_BOOTLOADER_NAME).efi: dainboot/zig-cache/bin/$(EFI_BOOTLOADER_NAME).qemu_$(ARCH).efi
+target/disk/EFI/BOOT/$(EFI_BOOTLOADER_NAME).efi: dainboot/zig-out/bin/$(EFI_BOOTLOADER_NAME).qemu_$(ARCH).efi
 	mkdir -p $(@D)
 	cp $< $@
 

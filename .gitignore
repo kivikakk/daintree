@@ -5,4 +5,5 @@
 dainkrnl.riscv64
 dainkrnl.arm64
 zig-cache
+zig-out
 target/disk
