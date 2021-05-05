@@ -53,7 +53,7 @@ fn buildRiscv64(b: *Builder, board: dcommon.Board, target: std.zig.CrossTarget) 
     combined.addArtifactArg(crt0);
     combined.addArtifactArg(obj);
 
-    try std.fs.cwd().makePath("zig-cache/bin");
+    try std.fs.cwd().makePath("zig-out/bin");
     const efi = b.addSystemCommand(&.{
         "llvm-objcopy",
         "-j",
@@ -80,7 +80,7 @@ fn buildRiscv64(b: *Builder, board: dcommon.Board, target: std.zig.CrossTarget) 
         ".reloc",
         "--output-target=binary",
         "combined.o",
-        b.fmt("zig-cache/bin/{s}.efi", .{bootName(b, board, target)}),
+        b.fmt("zig-out/bin/{s}.efi", .{bootName(b, board, target)}),
     });
     efi.step.dependOn(&combined.step);
 
