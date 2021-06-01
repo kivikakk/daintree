@@ -7,7 +7,7 @@ pub const Arch = enum {
     riscv64,
 };
 
-pub const daintree_arch: Arch = switch (std.builtin.arch) {
+pub const daintree_arch: Arch = switch (std.builtin.target.cpu.arch) {
     .aarch64 => .arm64,
     .riscv64 => .riscv64,
     else => @panic("unsupported arch"),
