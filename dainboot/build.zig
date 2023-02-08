@@ -33,6 +33,8 @@ pub fn build(b: *Build) !void {
 }
 
 fn buildRiscv64(b: *Build, board: dcommon.Board, target: std.zig.CrossTarget) !void {
+    const optimize = b.standardOptimizeOption(.{});
+
     const crt0 = b.addAssembly(.{
         .name = "crt0-efi-riscv64",
         .source_file = .{ .path = "src/crt0-efi-riscv64.S" },
@@ -40,19 +42,22 @@ fn buildRiscv64(b: *Build, board: dcommon.Board, target: std.zig.CrossTarget) !v
             .cpu_arch = target.cpu_arch,
             .os_tag = .freestanding,
         },
-        .optimize = b.standardOptimizeOption(.{}),
+        .optimize = optimize,
     });
 
     const obj = b.addObject(.{
         .name = bootName(b, board, target),
         .root_source_file = .{ .path = "src/dainboot.zig" },
         .target = target,
-        .optimize = b.standardOptimizeOption(.{}),
+        .optimize = optimize,
     });
     try dbuild.addBuildOptions(b, obj, board);
 
-    const dtb_pkg = b.dependency("dtb", .{});
-    obj.addModule("dtb", dtb_pkg.module("dbt"));
+    b.addModule(.{
+        .name = "dtb",
+        .source_file = .{ .path = "../dtb/src/dtb.zig" },
+    });
+    obj.addModule("dtb", b.modules.get("dtb").?);
 
     const combined = b.addSystemCommand(&.{
         "ld.lld",
