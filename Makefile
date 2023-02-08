@@ -75,7 +75,7 @@ tftp: dainboot/zig-out/bin/BOOTAA64.rockpro64.efi dainkrnl/zig-out/bin/dainkrnl.
 	tools/update-tftp
 endif
 
-OS_FILES=$(shell find dainkrnl -name zig-cache -prune -o -type f) $(shell find common -type f)
+OS_FILES=$(shell find dainkrnl -name zig-out -prune -o -type f) $(shell find common -type f)
 dainkrnl/zig-out/bin/dainkrnl.%: $(OS_FILES)
 	cd dainkrnl && zig build -Dboard=$*
 

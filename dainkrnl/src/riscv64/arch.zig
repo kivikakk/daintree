@@ -3,10 +3,11 @@ const fb = @import("../console/fb.zig");
 const hw = @import("../hw.zig");
 const printf = @import("../console/fb.zig").printf;
 
-pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) noreturn {
+pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
     _ = error_return_trace;
 
     hw.entry_uart.carefully(.{"\r\n!!!!!!!!!!!!\r\nkernel panic\r\n!!!!!!!!!!!!\r\n"});
+    hw.entry_uart.carefully(.{ "ret_addr: ", ret_addr, "\r\n" });
     hw.entry_uart.carefully(.{ "@returnAddress: ", @returnAddress(), "\r\n" });
 
     hw.entry_uart.carefully(.{ "panic message ptr: ", @ptrToInt(msg.ptr), "\r\n<" });
