@@ -37,6 +37,8 @@ QEMU_ARGS := \
 # qemu-system-riscv64: FDT: Failed to create subnode /fw-cfg@10100000: FDT_ERR_EXISTS
 QEMU_DTB_ARGS :=
 EFI_BOOTLOADER_NAME := BOOTRISCV64
+else
+$(error ARCH must be set to arm64 or riscv64)
 endif
 
 QEMU_ACCEL := tcg

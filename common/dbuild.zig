@@ -1,7 +1,9 @@
 const std = @import("std");
 const build = std.build;
 
-usingnamespace @import("dcommon.zig");
+const dcommon = @import("dcommon.zig");
+const Arch = dcommon.Arch;
+const Board = dcommon.Board;
 
 pub fn getBoard(b: *build.Builder) !Board {
     return b.option(Board, "board", "Target board.") orelse
@@ -47,15 +49,18 @@ pub fn efiTagFor(cpu_arch: std.Target.Cpu.Arch) []const u8 {
     };
 }
 
-pub fn addBuildOptions(b: *build.Builder, exe: *build.LibExeObjStep, board: Board) !void {
-    exe.addBuildOption([:0]const u8, "version", try b.allocator.dupeZ(u8, try getVersion(b)));
-    exe.addBuildOption([:0]const u8, "board", try b.allocator.dupeZ(u8, @tagName(board)));
+pub fn addBuildOptions(b: *build.Builder, exe: *build.CompileStep, board: Board) !void {
+    const options = b.addOptions();
+    options.addOption([]const u8, "version", try b.allocator.dupe(u8, try getVersion(b)));
+    options.addOption([]const u8, "board", try b.allocator.dupe(u8, @tagName(board)));
+    exe.addOptions("build_options", options);
 }
 
 // adapted from Zig's own build.zig:
 // https://github.com/ziglang/zig/blob/a021c7b1b2428ecda85e79e281d43fa1c92f8c94/build.zig#L140-L188
 fn getVersion(b: *build.Builder) ![]u8 {
-    const version_string = b.fmt("{d}.{d}.{d}", .{ daintree_version.major, daintree_version.minor, daintree_version.patch });
+    const version = dcommon.version;
+    const version_string = b.fmt("{d}.{d}.{d}", .{ version.major, version.minor, version.patch });
 
     var code: u8 = undefined;
     const git_describe_untrimmed = b.execAllowFail(&[_][]const u8{
@@ -76,14 +81,14 @@ fn getVersion(b: *build.Builder) ![]u8 {
         },
         2 => {
             // Untagged development build (e.g. 0.7.0-684-gbbe2cca1a).
-            var it = std.mem.split(git_describe, "-");
+            var it = std.mem.split(u8, git_describe, "-");
             const tagged_ancestor = it.next() orelse unreachable;
             const commit_height = it.next() orelse unreachable;
             const commit_id = it.next() orelse unreachable;
 
             const ancestor_ver = try std.builtin.Version.parse(tagged_ancestor);
-            if (daintree_version.order(ancestor_ver) != .gt) {
-                std.debug.print("Daintree version '{}' must be greater than tagged ancestor '{}'\n", .{ daintree_version, ancestor_ver });
+            if (version.order(ancestor_ver) != .gt) {
+                std.debug.print("Daintree version '{}' must be greater than tagged ancestor '{}'\n", .{ version, ancestor_ver });
                 std.process.exit(1);
             }
 

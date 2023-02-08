@@ -1,13 +1,14 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
-pub const daintree_version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 2 };
+pub const version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 2 };
 
 pub const Arch = enum {
     arm64,
     riscv64,
 };
 
-pub const daintree_arch: Arch = switch (std.builtin.target.cpu.arch) {
+pub const daintree_arch: Arch = switch (builtin.target.cpu.arch) {
     .aarch64 => .arm64,
     .riscv64 => .riscv64,
     else => @panic("unsupported arch"),
