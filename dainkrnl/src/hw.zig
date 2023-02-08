@@ -29,8 +29,8 @@ pub fn init(dtb: []const u8) !void {
     var reg: ?[]const u8 = null;
     var syscon_conf: SysconConf = .{};
 
-    var ev = try traverser.next();
-    while (ev != .End) : (ev = try traverser.next()) {
+    var ev = try traverser.event();
+    while (ev != .End) : (ev = try traverser.event()) {
         switch (ev) {
             .BeginNode => {
                 depth += 1;

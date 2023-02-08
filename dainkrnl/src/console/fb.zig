@@ -51,7 +51,7 @@ fn mapFb(base: [*]u32, pixels: usize) [*]u32 {
     return @intToPtr([*]u32, virt);
 }
 
-pub fn present() callconv(.Inline) bool {
+pub inline fn present() bool {
     return fb != null;
 }
 
@@ -94,15 +94,15 @@ fn drawEnergyStar(comptime allWhite: bool) void {
     }
 }
 
-pub fn plot(x: u32, y: u32, c: u32) callconv(.Inline) void {
+pub inline fn plot(x: u32, y: u32, c: u32) void {
     fb.?[fb_horiz * y + x] = c;
 }
 
-pub fn colour(bgfg: u8) callconv(.Inline) void {
+pub inline fn colour(bgfg: u8) void {
     console_colour = bgfg;
 }
 
-pub fn locate(row: CONSOLE_DIMENSION, col: CONSOLE_DIMENSION) callconv(.Inline) void {
+pub inline fn locate(row: CONSOLE_DIMENSION, col: CONSOLE_DIMENSION) void {
     console_row = row;
     console_col = col;
 }
@@ -110,7 +110,7 @@ pub fn locate(row: CONSOLE_DIMENSION, col: CONSOLE_DIMENSION) callconv(.Inline) 
 pub fn print(msg: []const u8) void {
     var state: enum { NORMAL, ESCAPE } = .NORMAL;
 
-    loop: for (msg) |c, i| {
+    loop: for (msg) |c| {
         switch (state) {
             .NORMAL => {
                 switch (c) {

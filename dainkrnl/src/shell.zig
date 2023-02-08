@@ -111,6 +111,8 @@ pub const Shell = struct {
     const AutocompleteError = error{PromptNeedsRedraw};
 
     fn autocomplete(self: *Shell, buf: []const u8) AutocompleteError!?[]const u8 {
+        _ = self;
+
         var maybe_match: ?[]const u8 = null;
         var ambiguous = false;
         for (AUTOCOMPLETES) |candidate| {
@@ -168,6 +170,8 @@ pub const Shell = struct {
     }
 
     fn help(self: *Shell) void {
+        _ = self;
+
         printf(
             \\daintree kernel shell ({s} on {s})
             \\
@@ -184,6 +188,8 @@ pub const Shell = struct {
     }
 
     fn paging(self: *Shell, cmd: []const u8) void {
+        _ = self;
+
         if (cmd.len == 0) {
             printf(
                 \\Paging commands.

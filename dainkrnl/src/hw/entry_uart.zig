@@ -114,7 +114,7 @@ pub const Escape = enum {
 fn carefullyAt(writer: Writer, parts: anytype) void {
     comptime var next_escape: ?Escape = null;
     inline for (std.meta.fields(@TypeOf(parts))) |info, i| {
-        if (info.field_type == Escape) {
+        if (info.type == Escape) {
             next_escape = parts[i];
         } else if (next_escape) |escape| {
             next_escape = null;
@@ -125,13 +125,15 @@ fn carefullyAt(writer: Writer, parts: anytype) void {
                     busyLoop();
                 },
             }
-        } else if (comptime std.meta.trait.isPtrTo(.Array)(info.field_type) or comptime std.meta.trait.isSliceOf(.Int)(info.field_type)) {
+        } else if (comptime std.meta.trait.isPtrTo(.Array)(info.type) or std.meta.trait.isSliceOf(.Int)(info.type)) {
             writeCarefully(writer, parts[i]);
-        } else if (comptime std.meta.trait.isUnsignedInt(info.field_type)) {
+        } else if (comptime std.meta.trait.isUnsignedInt(info.type)) {
             writeCarefully(writer, "0x");
             writeCarefullyHex(writer, parts[i]);
+        } else if (comptime std.meta.trait.is(.Optional)(info.type)) {
+            writeCarefully(writer, "OPTIONAL THING");
         } else {
-            @compileError("what do I do with this? " ++ @typeName(info.field_type));
+            @compileError("what do I do with this? " ++ @typeName(info.type));
         }
     }
 }

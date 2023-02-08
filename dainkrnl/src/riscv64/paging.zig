@@ -33,7 +33,7 @@ pub fn mapPage(phys_address: usize, flags: paging.MapFlags) paging.Error!usize {
     return K_DIRECTORY.pageAt(256).mapFreePage(2, PAGING.kernel_base, phys_address, flags) orelse error.OutOfMemory;
 }
 
-pub const PageTable = packed struct {
+pub const PageTable = extern struct {
     entries: [PAGING.index_size]u64,
 
     pub fn map(self: *PageTable, index: usize, phys_address: usize, flags: paging.MapFlags) void {
@@ -91,7 +91,7 @@ pub const PageTable = packed struct {
 pub const STACK_PAGES = 16;
 
 pub const SATP = struct {
-    pub fn toU64(satp: SATP) callconv(.Inline) u64 {
+    pub inline fn toU64(satp: SATP) u64 {
         return @as(u64, satp.ppn) |
             (@as(u64, satp.asid) << 44) |
             (@as(u64, @enumToInt(satp.mode)) << 60);
@@ -117,7 +117,7 @@ pub const RWX = enum(u3) {
 pub const ArchPte = struct {
     pub const PPN_MASK: u64 = 0x003fffff_fffffc00;
     pub const PPN_OFFSET = 10;
-    pub fn toU64(pte: ArchPte) callconv(.Inline) u64 {
+    pub inline fn toU64(pte: ArchPte) u64 {
         return @as(u64, pte.v) |
             (@as(u64, @enumToInt(pte.rwx)) << 1) |
             (@as(u64, pte.u) << 4) |

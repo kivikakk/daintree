@@ -2,7 +2,7 @@
 const arch = @import("arch.zig");
 const hw = @import("../hw.zig");
 
-const ExceptionContext = packed struct {
+const ExceptionContext = extern struct {
     regs: [30]u64,
     elr_el1: u64,
     spsr_el1: u64,
@@ -10,7 +10,7 @@ const ExceptionContext = packed struct {
     far_el1: u64,
 };
 
-fn handle(ctx: *ExceptionContext, comptime name: []const u8) callconv(.Inline) noreturn {
+inline fn handle(ctx: *ExceptionContext, comptime name: []const u8) noreturn {
     hw.entry_uart.carefully(.{"exception handler running for " ++ name ++ "\r\n"});
 
     dumpRegs(ctx);

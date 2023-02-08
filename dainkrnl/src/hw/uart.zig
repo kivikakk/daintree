@@ -48,8 +48,8 @@ const UartImpl = struct {
     base: u64,
     reg_shift: u4,
 
-    write: fn (base: u64, reg_shift: u4, data: []const u8) void,
-    readBlock: fn (base: u64, reg_shift: u4, buf: []u8) usize,
+    write: *const fn (base: u64, reg_shift: u4, data: []const u8) void,
+    readBlock: *const fn (base: u64, reg_shift: u4, buf: []u8) usize,
 };
 
 var UART: ?UartImpl = null;

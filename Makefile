@@ -2,7 +2,7 @@
 
 all: qemu
 
-dtb/%.dtb:
+dtb/src/%.dtb:
 	$(QEMU_CMD) -machine dumpdtb=$@
 	dtc $@ -o $@
 
@@ -23,7 +23,7 @@ QEMU_ARGS := \
        -bios roms/u-boot-arm64-ramfb.bin \
        -cpu cortex-a53 -M virt,highmem=off \
 
-QEMU_DTB_ARGS := -dtb dtb/qemu_$(ARCH).dtb
+QEMU_DTB_ARGS := -dtb dtb/src/qemu_$(ARCH).dtb
 EFI_BOOTLOADER_NAME := BOOTAA64
 else ifeq ($(ARCH),riscv64)
 QEMU_BIN := qemu-system-riscv64
@@ -68,7 +68,7 @@ QEMU_CMD := $(QEMU_BIN) \
 		-usb \
 
 qemu: target/disk/EFI/BOOT/$(EFI_BOOTLOADER_NAME).efi target/disk/dainkrnl.$(ARCH)
-	$(QEMU_CMD) $(QEMU_DTB_ARGS) -s $$EXTRA_ARGS
+	$(QEMU_CMD) $(QEMU_DTB_ARGS) $$EXTRA_ARGS
 
 ifeq ($(ARCH),arm64)
 tftp: dainboot/zig-out/bin/BOOTAA64.rockpro64.efi dainkrnl/zig-out/bin/dainkrnl.rockpro64
