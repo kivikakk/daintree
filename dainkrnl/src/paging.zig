@@ -48,7 +48,7 @@ pub fn mapPagesConsecutive(base_in: usize, page_count_in: usize, flags: MapFlags
 pub const BumpAllocator = struct {
     next: usize,
 
-    pub fn allocSz(self: *BumpAllocator, comptime size: usize) callconv(.Inline) usize {
+    pub inline fn allocSz(self: *BumpAllocator, comptime size: usize) usize {
         const next = self.next;
         self.next += size;
         // XXX this only works if physical addresses are mapped, i.e. MMU is off
@@ -57,11 +57,11 @@ pub const BumpAllocator = struct {
         return next;
     }
 
-    pub fn allocPage(self: *BumpAllocator) callconv(.Inline) usize {
+    pub inline fn allocPage(self: *BumpAllocator) usize {
         return self.allocSz(PAGING.page_size);
     }
 
-    pub fn alloc(self: *BumpAllocator, comptime T: type) callconv(.Inline) *T {
+    pub inline fn alloc(self: *BumpAllocator, comptime T: type) *T {
         return @intToPtr(*T, self.allocSz(@sizeOf(T)));
     }
 };
@@ -114,7 +114,7 @@ pub const PagingConfiguration = struct {
     block_l1_bits: u8,
     block_l1_size: u64,
 
-    pub fn index(self: PagingConfiguration, comptime level: u2, va: u64) callconv(.Inline) usize {
+    pub inline fn index(self: PagingConfiguration, comptime level: u2, va: u64) usize {
         if (level == 0) {
             @compileError("level must be 1, 2, 3");
         }
@@ -153,7 +153,7 @@ pub const PagingConfiguration = struct {
         address: usize,
     };
 
-    pub fn kernelPageAddress(self: PagingConfiguration, i: usize) callconv(.Inline) u64 {
+    pub inline fn kernelPageAddress(self: PagingConfiguration, i: usize) u64 {
         return self.kernel_base | (i << self.page_bits);
     }
 };

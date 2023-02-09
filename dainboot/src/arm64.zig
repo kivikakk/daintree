@@ -112,7 +112,7 @@ pub fn transfer(entry_data: *dcommon.EntryData, uart_base: u64, adjusted_entry: 
         : [entry_data] "{x0}" (entry_data),
           [uart_base] "{x7}" (uart_base),
 
-          [entry] "{x9}" (adjusted_entry)
+          [entry] "{x9}" (adjusted_entry),
         : "memory"
     );
     unreachable;

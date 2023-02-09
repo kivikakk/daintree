@@ -88,6 +88,10 @@ pub const PageTable = extern struct {
     }
 };
 
+comptime {
+    std.debug.assert(@sizeOf(PageTable) == 4096);
+}
+
 pub const STACK_PAGES = 16;
 
 pub const SATP = struct {
