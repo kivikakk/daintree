@@ -39,8 +39,11 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     var it = p.PAGING.range(1, entry_data.conventional_start, entry_data.conventional_bytes + 100 * 1048576);
     while (it.next()) |r| {
         hw.entry_uart.carefully(.{ "mapping identity: page ", r.page, " address ", r.address, "\r\n" });
+        hw.entry_uart.carefully(.{ "p.K_DIRECTORY is ", @ptrToInt(p.K_DIRECTORY), "\r\n" });
         p.K_DIRECTORY.map(r.page, r.address, .kernel_promisc);
+        hw.entry_uart.carefully(.{"did that\r\n "});
     }
+    hw.entry_uart.carefully(.{"done mapping\r\n "});
 
     p.K_DIRECTORY.map(256, @ptrToInt(l2), .non_leaf);
     l2.map(0, @ptrToInt(l3), .non_leaf);

@@ -28,10 +28,8 @@ QEMU_ARGS := \
 	-M virt \
 	-device virtio-blk-device,drive=hd0 \
 
-# riscv64 doesn't like loading a dtb at the moment.
-# Fails -- possibly our fault!
-# qemu-system-riscv64: FDT: Failed to create subnode /fw-cfg@10100000: FDT_ERR_EXISTS
-QEMU_DTB_ARGS :=
+QEMU_RAMFB =
+
 EFI_BOOTLOADER_NAME := BOOTRISCV64
 else
 $(error ARCH must be set to arm64 or riscv64)
@@ -43,7 +41,7 @@ else
 	UNAME_S := $(shell uname -s)
 	ifeq ($(UNAME_S),Darwin)
 		ifeq ($(ARCH),arm64)
-			QEMU_ACCEL := hvf
+			QEMU_ACCEL := tcg
 		endif
 	endif
 endif
@@ -64,7 +62,7 @@ QEMU_CMD := $(QEMU_BIN) \
 		-usb \
 
 qemu: target/disk/EFI/BOOT/$(EFI_BOOTLOADER_NAME).efi target/disk/dainkrnl.$(ARCH)
-	$(QEMU_CMD) $(QEMU_DTB_ARGS) $$EXTRA_ARGS
+	$(QEMU_CMD) $(QEMU_DTB_ARGS) -s $$EXTRA_ARGS
 
 dtb/src/%.dtb:
 	$(QEMU_CMD) -machine dumpdtb=$@

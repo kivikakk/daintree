@@ -36,7 +36,18 @@ pub fn mapPage(phys_address: usize, flags: paging.MapFlags) paging.Error!usize {
 pub const PageTable = extern struct {
     entries: [PAGING.index_size]u64,
 
-    pub fn map(self: *PageTable, index: usize, phys_address: usize, flags: paging.MapFlags) void {
+    pub inline fn map(self: *PageTable, index: usize, phys_address: usize, flags: paging.MapFlags) void {
+        hw.entry_uart.carefully(.{
+            "mapping self ",
+            @ptrToInt(self),
+            " index ",
+            index,
+            " phys ",
+            phys_address,
+            " flags ",
+            @enumToInt(flagsToRWX(flags)),
+            "\r\n",
+        });
         self.entries[index] = (ArchPte{
             .rwx = flagsToRWX(flags),
             .u = 0,
