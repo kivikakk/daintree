@@ -113,7 +113,7 @@ pub const Escape = enum {
 
 fn carefullyAt(writer: Writer, parts: anytype) void {
     comptime var next_escape: ?Escape = null;
-    inline for (std.meta.fields(@TypeOf(parts))) |info, i| {
+    inline for (std.meta.fields(@TypeOf(parts)), 0..) |info, i| {
         if (info.type == Escape) {
             next_escape = parts[i];
         } else if (next_escape) |escape| {

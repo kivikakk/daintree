@@ -7,7 +7,7 @@ pub fn halt() noreturn {
     }
 }
 
-pub fn transfer(entry_data: *dcommon.EntryData, uart_base: u64, adjusted_entry: u64) callconv(.Inline) noreturn {
+pub inline fn transfer(entry_data: *dcommon.EntryData, uart_base: u64, adjusted_entry: u64) noreturn {
     // Check for EL2: we get
     // and pass to DAINKRNL.
     asm volatile (
@@ -118,7 +118,7 @@ pub fn transfer(entry_data: *dcommon.EntryData, uart_base: u64, adjusted_entry: 
     unreachable;
 }
 
-pub fn cleanInvalidateDCacheICache(start: u64, len: u64) callconv(.Inline) void {
+pub inline fn cleanInvalidateDCacheICache(start: u64, len: u64) void {
     // Clean and invalidate D- and I-caches for loaded code.
     // https://developer.arm.com/documentation/den0024/a/Caches/Cache-maintenance
     // Also consider referecing https://gitlab.denx.de/u-boot/u-boot/blob/master/arch/arm/cpu/armv8/cache.S,
@@ -167,7 +167,7 @@ pub fn cleanInvalidateDCacheICache(start: u64, len: u64) callconv(.Inline) void 
         \\  ISB                          // Synchronize the fetched instruction stream
         :
         : [start] "{x0}" (start),
-          [len] "{x1}" (len)
+          [len] "{x1}" (len),
         : "memory", "x2", "x3", "x4"
     );
 }
