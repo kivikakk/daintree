@@ -12,20 +12,24 @@ pub fn halt() noreturn {
     unreachable;
 }
 
-pub fn transfer(entry_data: *dcommon.EntryData, uart_base: u64, adjusted_entry: u64) callconv(.Inline) noreturn {
+pub inline fn transfer(entry_data: *dcommon.EntryData, uart_base: u64, adjusted_entry: u64) noreturn {
     // Supervisor mode, MMU disabled. (SATP = 0)
+    _ = uart_base;
 
     asm volatile (
         \\ret
         :
         : [entry_data] "{a0}" (entry_data),
-          [entry] "{ra}" (adjusted_entry)
+          [entry] "{ra}" (adjusted_entry),
         : "memory"
     );
     unreachable;
 }
 
-pub fn cleanInvalidateDCacheICache(start: u64, len: u64) callconv(.Inline) void {
+pub inline fn cleanInvalidateDCacheICache(start: u64, len: u64) void {
+    _ = start;
+    _ = len;
+
     // I think this does enough.
     asm volatile (
         \\fence.i
@@ -75,7 +79,7 @@ export fn relocate(ldbase: u64, dyn: [*]elf.Elf64_Dyn) uefi.Status {
                 : [r_info] "{t0}" (relp.r_info),
                   [dyn] "{t1}" (@ptrToInt(dyn)),
                   [i] "{t2}" (i),
-                  [rel] "{t3}" (@ptrToInt(rel))
+                  [rel] "{t3}" (@ptrToInt(rel)),
                 : "memory"
             );
         }
@@ -89,12 +93,12 @@ export fn relocate(ldbase: u64, dyn: [*]elf.Elf64_Dyn) uefi.Status {
 // For whatever reason, memset and memcpy implementations aren't being
 // included, and it's adding a PLT and GOT to have them looked up later.  They
 // aren't being provided by anyone else, so we must.
-export fn memset(b: *c_void, c: c_int, len: usize) *c_void {
+export fn memset(b: *anyopaque, c: c_int, len: usize) *anyopaque {
     std.mem.set(u8, @ptrCast([*]u8, b)[0..len], @truncate(u8, std.math.absCast(c)));
     return b;
 }
 
-export fn memcpy(dst: *c_void, src: *const c_void, n: usize) *c_void {
+export fn memcpy(dst: *anyopaque, src: *const anyopaque, n: usize) *anyopaque {
     std.mem.copy(u8, @ptrCast([*]u8, dst)[0..n], @ptrCast([*]const u8, src)[0..n]);
     return dst;
 }

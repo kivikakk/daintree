@@ -11,7 +11,7 @@ var rebootConfig: ?Config = null;
 var poweroffConfig: ?Config = null;
 
 pub fn init(base: u64) void {
-    regBase = paging.mapPage(base, .peripheral) catch |_| @panic("couldn't map syscon");
+    regBase = paging.mapPage(base, .peripheral) catch @panic("couldn't map syscon");
 }
 
 pub fn initReboot(offset: u32, value: u32) void {

@@ -3,7 +3,7 @@ const fb = @import("../console/fb.zig");
 const hw = @import("../hw.zig");
 const printf = @import("../console/fb.zig").printf;
 
-pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) noreturn {
+pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
     hw.entry_uart.carefully(.{"\r\n!!!!!!!!!!!!\r\nkernel panic\r\n!!!!!!!!!!!!\r\n"});
     const current_el = readRegister(.CurrentEL) >> 2;
     const sctlr_el1 = readRegister(.SCTLR_EL1);
@@ -23,6 +23,7 @@ pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) nore
     } else {
         hw.entry_uart.carefully(.{"no ert\r\n"});
     }
+    hw.entry_uart.carefully(.{ "ret_addr: ", ret_addr, "\r\n" });
     hw.entry_uart.carefully(.{ "@returnAddress: ", @returnAddress(), "\r\n" });
 
     hw.entry_uart.carefully(.{ "panic message ptr: ", @ptrToInt(msg.ptr), "\r\n<" });
@@ -35,9 +36,9 @@ pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) nore
     halt();
 }
 
-pub fn loadAddress(comptime symbol: []const u8) callconv(.Inline) u64 {
+pub inline fn loadAddress(comptime symbol: []const u8) u64 {
     return asm volatile ("adr %[ret], " ++ symbol
-        : [ret] "=r" (-> u64)
+        : [ret] "=r" (-> u64),
     );
 }
 
@@ -52,26 +53,26 @@ pub const Register = enum {
     CPTR_EL2,
     CPTR_EL3,
 };
-pub fn writeRegister(comptime register: Register, value: u64) callconv(.Inline) void {
+pub inline fn writeRegister(comptime register: Register, value: u64) void {
     asm volatile ("msr " ++ @tagName(register) ++ ", %[value]"
         :
-        : [value] "r" (value)
+        : [value] "r" (value),
         : "memory"
     );
 }
 
-pub fn readRegister(comptime register: Register) callconv(.Inline) u64 {
+pub inline fn readRegister(comptime register: Register) u64 {
     return asm volatile ("mrs %[ret], " ++ @tagName(register)
-        : [ret] "=r" (-> u64)
+        : [ret] "=r" (-> u64),
     );
 }
 
-pub fn orRegister(comptime register: Register, value: u64) callconv(.Inline) void {
+pub inline fn orRegister(comptime register: Register, value: u64) void {
     asm volatile ("mrs x0, " ++ @tagName(register) ++ "\n" ++
             "orr x0, x0, %[value]\n" ++
             "msr " ++ @tagName(register) ++ ", x0\n"
         :
-        : [value] "r" (value)
+        : [value] "r" (value),
         : "memory", "x0"
     );
 }
@@ -94,7 +95,7 @@ pub fn sleep(ms: u64) void {
         \\   mrs x1, cntpct_el0
         \\   b 1b
         \\2: nop
-        : [ms] "={x0}" (ms)
+        : [ms] "={x0}" (ms),
         :
         : "x1", "x2", "x3"
     );
@@ -123,7 +124,7 @@ fn psci(val: u32) noreturn {
                 \\msr daifset, #15
                 \\hvc 0
                 :
-                : [val] "{x0}" (val)
+                : [val] "{x0}" (val),
                 : "memory"
             );
         },
@@ -133,7 +134,7 @@ fn psci(val: u32) noreturn {
                 \\msr daifset, #15
                 \\smc 0
                 :
-                : [val] "{x0}" (val)
+                : [val] "{x0}" (val),
                 : "memory"
             );
         },

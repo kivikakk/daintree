@@ -1,10 +1,10 @@
 const std = @import("std");
-const Builder = std.build.Builder;
+const Build = std.Build;
 
 const dbuild = @import("src/common/dbuild.zig");
 const dcommon = @import("src/common/dcommon.zig");
 
-pub fn build(b: *Builder) !void {
+pub fn build(b: *Build) !void {
     const board = try dbuild.getBoard(b);
     var target = dbuild.crossTargetFor(board);
     target.os_tag = .uefi;
@@ -14,29 +14,48 @@ pub fn build(b: *Builder) !void {
         return;
     }
 
-    const exe = b.addExecutable(bootName(b, board, target), "src/dainboot.zig");
-    exe.setTarget(target);
-    exe.setBuildMode(b.standardReleaseOptions());
+    const exe = b.addExecutable(.{
+        .name = bootName(b, board, target),
+        .root_source_file = .{ .path = "src/dainboot.zig" },
+        .target = target,
+        .optimize = b.standardOptimizeOption(.{}),
+    });
     try dbuild.addBuildOptions(b, exe, board);
-    exe.addPackagePath("dtb", "../dtb/src/dtb.zig");
+    const dtb = b.addModule("dtb", .{
+        .source_file = .{ .path = "../dtb/src/dtb.zig" },
+    });
+    exe.addModule("dtb", dtb);
+
     exe.install();
 
     b.default_step.dependOn(&exe.step);
 }
 
-fn buildRiscv64(b: *Builder, board: dcommon.Board, target: std.zig.CrossTarget) !void {
-    const crt0 = b.addAssemble("crt0-efi-riscv64", "src/crt0-efi-riscv64.S");
-    crt0.setTarget(std.zig.CrossTarget{
-        .cpu_arch = target.cpu_arch,
-        .os_tag = .freestanding,
-    });
-    crt0.setBuildMode(b.standardReleaseOptions());
+fn buildRiscv64(b: *Build, board: dcommon.Board, target: std.zig.CrossTarget) !void {
+    const optimize = b.standardOptimizeOption(.{});
 
-    const obj = b.addObject(bootName(b, board, target), "src/dainboot.zig");
-    obj.setTarget(target);
-    obj.setBuildMode(b.standardReleaseOptions());
+    const crt0 = b.addAssembly(.{
+        .name = "crt0-efi-riscv64",
+        .source_file = .{ .path = "src/crt0-efi-riscv64.S" },
+        .target = .{
+            .cpu_arch = target.cpu_arch,
+            .os_tag = .freestanding,
+        },
+        .optimize = optimize,
+    });
+
+    const obj = b.addObject(.{
+        .name = bootName(b, board, target),
+        .root_source_file = .{ .path = "src/dainboot.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
     try dbuild.addBuildOptions(b, obj, board);
-    obj.addPackagePath("dtb", "../dtb/src/dtb.zig");
+
+    const dtb = b.addModule("dtb", .{
+        .source_file = .{ .path = "../dtb/src/dtb.zig" },
+    });
+    obj.addModule("dtb", dtb);
 
     const combined = b.addSystemCommand(&.{
         "ld.lld",
@@ -87,6 +106,6 @@ fn buildRiscv64(b: *Builder, board: dcommon.Board, target: std.zig.CrossTarget) 
     b.default_step.dependOn(&efi.step);
 }
 
-fn bootName(b: *Builder, board: dcommon.Board, target: std.zig.CrossTarget) []const u8 {
+fn bootName(b: *Build, board: dcommon.Board, target: std.zig.CrossTarget) []const u8 {
     return b.fmt("BOOT{s}.{s}", .{ dbuild.efiTagFor(target.cpu_arch.?), @tagName(board) });
 }

@@ -2,10 +2,6 @@
 
 all: qemu
 
-dtb/%.dtb:
-	$(QEMU_CMD) -machine dumpdtb=$@
-	dtc $@ -o $@
-
 clean:
 	-rm -rf dtb/zig-cache dtb/zig-out dainkrnl/zig-cache dainkrnl/zig-out dainboot/zig-cache dainboot/zig-out target
 
@@ -16,6 +12,7 @@ clean:
 
 ARCH =
 QEMU_RAMFB = -device ramfb
+QEMU_DTB_ARGS := -dtb dtb/src/qemu_$(ARCH).dtb
 
 ifeq ($(ARCH),arm64)
 QEMU_BIN := qemu-system-aarch64
@@ -23,7 +20,6 @@ QEMU_ARGS := \
        -bios roms/u-boot-arm64-ramfb.bin \
        -cpu cortex-a53 -M virt,highmem=off \
 
-QEMU_DTB_ARGS := -dtb dtb/qemu_$(ARCH).dtb
 EFI_BOOTLOADER_NAME := BOOTAA64
 else ifeq ($(ARCH),riscv64)
 QEMU_BIN := qemu-system-riscv64
@@ -32,11 +28,11 @@ QEMU_ARGS := \
 	-M virt \
 	-device virtio-blk-device,drive=hd0 \
 
-# riscv64 doesn't like loading a dtb at the moment.
-# Fails -- possibly our fault!
-# qemu-system-riscv64: FDT: Failed to create subnode /fw-cfg@10100000: FDT_ERR_EXISTS
-QEMU_DTB_ARGS :=
+QEMU_RAMFB =
+
 EFI_BOOTLOADER_NAME := BOOTRISCV64
+else
+$(error ARCH must be set to arm64 or riscv64)
 endif
 
 QEMU_ACCEL := tcg
@@ -45,7 +41,7 @@ else
 	UNAME_S := $(shell uname -s)
 	ifeq ($(UNAME_S),Darwin)
 		ifeq ($(ARCH),arm64)
-			QEMU_ACCEL := hvf
+			QEMU_ACCEL := tcg
 		endif
 	endif
 endif
@@ -68,12 +64,16 @@ QEMU_CMD := $(QEMU_BIN) \
 qemu: target/disk/EFI/BOOT/$(EFI_BOOTLOADER_NAME).efi target/disk/dainkrnl.$(ARCH)
 	$(QEMU_CMD) $(QEMU_DTB_ARGS) -s $$EXTRA_ARGS
 
+dtb/src/%.dtb:
+	$(QEMU_CMD) -machine dumpdtb=$@
+	dtc $@ -o $@
+
 ifeq ($(ARCH),arm64)
 tftp: dainboot/zig-out/bin/BOOTAA64.rockpro64.efi dainkrnl/zig-out/bin/dainkrnl.rockpro64
 	tools/update-tftp
 endif
 
-OS_FILES=$(shell find dainkrnl -name zig-cache -prune -o -type f) $(shell find common -type f)
+OS_FILES=$(shell find dainkrnl -name zig-out -prune -o -type f) $(shell find common -type f)
 dainkrnl/zig-out/bin/dainkrnl.%: $(OS_FILES)
 	cd dainkrnl && zig build -Dboard=$*
 

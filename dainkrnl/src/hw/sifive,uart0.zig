@@ -15,6 +15,8 @@ pub fn init(base: u64) void {
 }
 
 pub fn write(base: u64, reg_shift: u4, data: []const u8) void {
+    _ = reg_shift;
+
     const txfifo = @intToPtr(*volatile u32, base + REGOFF_TXFIFO);
     for (data) |c| {
         while (txfifo.* & REGMASK_TXFIFO_FULL == REGMASK_TXFIFO_FULL) {
@@ -25,6 +27,8 @@ pub fn write(base: u64, reg_shift: u4, data: []const u8) void {
 }
 
 pub fn readBlock(base: u64, reg_shift: u4, buf: []u8) usize {
+    _ = reg_shift;
+
     const rxfifo = @intToPtr(*volatile u32, base + REGOFF_RXFIFO);
 
     var i: usize = 0;

@@ -12,15 +12,22 @@ pub fn build(b: *Builder) !void {
 
     const arch_tag = dbuild.getArch(board);
 
-    const exe = b.addExecutable(b.fmt("dainkrnl.{s}", .{@tagName(board)}), "src/root.zig");
+    const exe = b.addExecutable(.{
+        .name = b.fmt("dainkrnl.{s}", .{@tagName(board)}),
+        .root_source_file = .{ .path = "src/root.zig" },
+        .target = target,
+        .optimize = b.standardOptimizeOption(.{}),
+    });
+
     if (dbuild.getArch(board) == .riscv64) {
         exe.code_model = .medium;
     }
     exe.addAssemblyFile(b.fmt("src/{s}/exception.s", .{@tagName(arch_tag)}));
-    exe.addPackagePath("dtb", "../dtb/src/dtb.zig");
-    exe.setTarget(target);
-    exe.setBuildMode(b.standardReleaseOptions());
-    exe.setLinkerScriptPath(b.fmt("linker.{s}.ld", .{@tagName(arch_tag)}));
+    const dtb = b.addModule("dtb", .{
+        .source_file = .{ .path = "../dtb/src/dtb.zig" },
+    });
+    exe.addModule("dtb", dtb);
+    exe.setLinkerScriptPath(.{ .path = b.fmt("linker.{s}.ld", .{@tagName(arch_tag)}) });
     exe.setVerboseLink(true);
 
     // Avoid using atomic stores/loads in suspend/resume code.

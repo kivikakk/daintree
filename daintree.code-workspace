@@ -7,5 +7,7 @@
 			"path": "../zig"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"zig.buildFilePath": "${workspaceFolder}/dainboot/build.zig"
+	}
 }

@@ -41,7 +41,7 @@ pub fn mapPage(phys_address: usize, flags: paging.MapFlags) paging.Error!usize {
     return K_DIRECTORY.mapFreePage(1, PAGING.kernel_base, phys_address, flags) orelse error.OutOfMemory;
 }
 
-pub const PageTable = packed struct {
+pub const PageTable = extern struct {
     entries: [PAGING.index_size]u64,
 
     pub fn map(self: *PageTable, index: usize, phys_address: usize, size: paging.MapSize, flags: paging.MapFlags) void {
@@ -133,7 +133,7 @@ pub const ArchPte = struct {
     pub const OA_MASK_L1_BLOCK: u64 = 0x0000ffff_c0000000;
     pub const OA_MASK_L2_BLOCK: u64 = 0x0000ffff_ffe00000;
     pub const OA_MASK_Lx_TABLE: u64 = 0x0000ffff_fffff000;
-    pub fn toU64(pte: ArchPte) callconv(.Inline) u64 {
+    pub inline fn toU64(pte: ArchPte) u64 {
         return @as(u64, pte.valid) |
             (@as(u64, @enumToInt(pte.type)) << 1) |
             (@as(u64, pte.attr_index) << 2) |
@@ -180,7 +180,7 @@ pub const ArchPte = struct {
 };
 
 pub const TCR_EL1 = struct {
-    pub fn toU64(tcr: TCR_EL1) callconv(.Inline) u64 {
+    pub inline fn toU64(tcr: TCR_EL1) u64 {
         return @as(u64, tcr.t0sz) |
             (@as(u64, tcr.epd0) << 7) |
             (@as(u64, tcr.irgn0) << 8) |
@@ -244,7 +244,7 @@ pub const MAIR_EL1 = struct {
     index: u3,
     attrs: u8,
 
-    pub fn toU64(mair_el1: MAIR_EL1) callconv(.Inline) u64 {
+    pub inline fn toU64(mair_el1: MAIR_EL1) u64 {
         return @as(u64, mair_el1.attrs) << (@as(u6, mair_el1.index) * 8);
     }
 };

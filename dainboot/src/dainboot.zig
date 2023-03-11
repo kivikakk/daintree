@@ -6,26 +6,28 @@ const dtblib = @import("dtb");
 const ddtb = @import("common/ddtb.zig");
 const arch = @import("arch.zig");
 
-usingnamespace @import("util.zig");
+const u = @import("util.zig");
 
 var boot_services: *uefi.tables.BootServices = undefined;
 
-pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) noreturn {
-    printf("panic: {s}\r\n", .{msg});
+pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
+    _ = error_return_trace;
+    _ = ret_addr;
+    u.printf("panic: {s}\r\n", .{msg});
     arch.halt();
 }
 
 pub fn main() void {
-    con_out = uefi.system_table.con_out.?;
+    u.con_out = uefi.system_table.con_out.?;
     boot_services = uefi.system_table.boot_services.?;
 
-    printf("daintree bootloader {s} on {s}\r\n", .{ build_options.version, build_options.board });
+    u.printf("daintree bootloader {s} on {s}\r\n", .{ build_options.version, build_options.board });
 
     var load_context = LoadContext{};
 
     var options_buffer: [256]u8 = [_]u8{undefined} ** 256;
     if (getLoadOptions(&options_buffer)) |options| {
-        printf("load options: \"{s}\"\r\n", .{options});
+        u.printf("load options: \"{s}\"\r\n", .{options});
         load_context.handleOptions(options);
     }
 
@@ -38,12 +40,12 @@ pub fn main() void {
     }
 
     const dtb = load_context.dtb orelse {
-        printf("\r\nDTB not found\r\n", .{});
+        u.printf("\r\nDTB not found\r\n", .{});
         _ = boot_services.stall(5 * 1000 * 1000);
         return;
     };
     const dainkrnl = load_context.dainkrnl orelse {
-        printf("\r\nDAINKRNL not found\r\n", .{});
+        u.printf("\r\nDAINKRNL not found\r\n", .{});
         _ = boot_services.stall(5 * 1000 * 1000);
         return;
     };
@@ -58,19 +60,19 @@ const LoadContext = struct {
     dainkrnl: ?[]const u8 = null,
 
     fn handleOptions(self: *Self, options: []const u8) void {
-        var it = std.mem.tokenize(options, " ");
+        var it = std.mem.tokenize(u8, options, " ");
 
         loop: while (it.next()) |opt_name| {
             if (std.mem.eql(u8, opt_name, "dtb")) {
                 const loc = handleOptionsLoc("dtb", &it) orelse continue :loop;
-                printf("using dtb in ramdisk at 0x{x:0>16} ({} bytes)\r\n", .{ loc.offset, loc.len });
+                u.printf("using dtb in ramdisk at 0x{x:0>16} ({} bytes)\r\n", .{ loc.offset, loc.len });
                 self.dtb = @intToPtr([*]u8, loc.offset)[0..loc.len];
             } else if (std.mem.eql(u8, opt_name, "kernel")) {
                 const loc = handleOptionsLoc("kernel", &it) orelse continue :loop;
-                printf("using kernel in ramdisk at 0x{x:0>16} ({} bytes)\r\n", .{ loc.offset, loc.len });
+                u.printf("using kernel in ramdisk at 0x{x:0>16} ({} bytes)\r\n", .{ loc.offset, loc.len });
                 self.dainkrnl = @intToPtr([*]u8, loc.offset)[0..loc.len];
             } else {
-                printf("unknown option '{s}'\r\n", .{opt_name});
+                u.printf("unknown option '{s}'\r\n", .{opt_name});
             }
         }
     }
@@ -88,10 +90,10 @@ const LoadContext = struct {
         for (uefi.system_table.configuration_table[0..uefi.system_table.number_of_table_entries]) |table| {
             if (table.vendor_guid.eql(fdt_table_guid)) {
                 if (dtblib.totalSize(table.vendor_table)) |size| {
-                    printf("found FDT in UEFI\n", .{});
+                    u.printf("found FDT in UEFI\n", .{});
                     self.dtb = @ptrCast([*]const u8, table.vendor_table)[0..size];
                     return;
-                } else |err| {}
+                } else |_| {}
             }
         }
     }
@@ -106,7 +108,7 @@ const LoadContext = struct {
             &handle_list_size,
             handle_list,
         ) == .BufferTooSmall) {
-            check("allocatePool", boot_services.allocatePool(
+            u.check("allocatePool", boot_services.allocatePool(
                 uefi.tables.MemoryType.BootServicesData,
                 handle_list_size,
                 @ptrCast(*[*]align(8) u8, &handle_list),
@@ -114,36 +116,36 @@ const LoadContext = struct {
         }
 
         if (handle_list_size == 0) {
-            printf("no simple file system protocols found\r\n", .{});
+            u.printf("no simple file system protocols found\r\n", .{});
             return;
         }
 
         const handle_count = handle_list_size / @sizeOf(uefi.Handle);
 
-        printf("searching for <", .{});
+        u.printf("searching for <", .{});
         if (self.dtb == null) {
-            printf("DTB", .{});
-            if (self.dainkrnl == null) printf(" ", .{});
+            u.printf("DTB", .{});
+            if (self.dainkrnl == null) u.printf(" ", .{});
         }
-        if (self.dainkrnl == null) printf("DAINKRNL.{s}", .{@tagName(dcommon.daintree_arch)});
-        printf("> on {} volume(s) ", .{handle_count});
+        if (self.dainkrnl == null) u.printf("DAINKRNL.{s}", .{@tagName(dcommon.daintree_arch)});
+        u.printf("> on {} volume(s) ", .{handle_count});
 
         for (handle_list[0..handle_count]) |handle| {
             var sfs_proto: ?*uefi.protocols.SimpleFileSystemProtocol = undefined;
 
-            check("openProtocol", boot_services.openProtocol(
+            u.check("openProtocol", boot_services.openProtocol(
                 handle,
                 &uefi.protocols.SimpleFileSystemProtocol.guid,
-                @ptrCast(*?*c_void, &sfs_proto),
+                @ptrCast(*?*anyopaque, &sfs_proto),
                 uefi.handle,
                 null,
                 .{ .get_protocol = true },
             ));
 
-            printf(".", .{});
+            u.printf(".", .{});
 
             var f_proto: *uefi.protocols.FileProtocol = undefined;
-            check("openVolume", sfs_proto.?.openVolume(&f_proto));
+            u.check("openVolume", sfs_proto.?.openVolume(&f_proto));
 
             if (self.dainkrnl == null) {
                 self.dainkrnl = tryLoadFromFileProtocol(f_proto, "dainkrnl." ++ @tagName(dcommon.daintree_arch));
@@ -167,22 +169,22 @@ const LoadContext = struct {
         len: u64,
     };
 
-    fn handleOptionsLoc(comptime opt_name: []const u8, it: *std.mem.TokenIterator) ?Loc {
+    fn handleOptionsLoc(comptime opt_name: []const u8, it: *std.mem.TokenIterator(u8)) ?Loc {
         const offset_s = it.next() orelse {
-            printf(opt_name ++ ": missing offset argument\r\n", .{});
+            u.printf(opt_name ++ ": missing offset argument\r\n", .{});
             return null;
         };
         const len_s = it.next() orelse {
-            printf(opt_name ++ ": missing length argument\r\n", .{});
+            u.printf(opt_name ++ ": missing length argument\r\n", .{});
             return null;
         };
 
         const offset = std.fmt.parseInt(u64, offset_s, 0) catch |err| {
-            printf(opt_name ++ ": parse offset '{s}' error: {}\r\n", .{ offset_s, err });
+            u.printf(opt_name ++ ": parse offset '{s}' error: {}\r\n", .{ offset_s, err });
             return null;
         };
         const len = std.fmt.parseInt(u64, len_s, 0) catch |err| {
-            printf(opt_name ++ ": parse len '{s}' error: {}\r\n", .{ len_s, err });
+            u.printf(opt_name ++ ": parse len '{s}' error: {}\r\n", .{ len_s, err });
             return null;
         };
         return Loc{ .offset = offset, .len = len };
@@ -194,7 +196,7 @@ fn getLoadOptions(buffer: *[256]u8) ?[]const u8 {
     if (boot_services.openProtocol(
         uefi.handle,
         &uefi.protocols.LoadedImageProtocol.guid,
-        @ptrCast(*?*c_void, &li_proto),
+        @ptrCast(*?*anyopaque, &li_proto),
         uefi.handle,
         null,
         .{ .get_protocol = true },
@@ -215,7 +217,7 @@ fn getLoadOptions(buffer: *[256]u8) ?[]const u8 {
         }
         return options;
     } else |err| {
-        printf("failed utf16leToUtf8: {}\r\n", .{err});
+        u.printf("failed utf16leToUtf8: {}\r\n", .{err});
         return null;
     }
 }
@@ -237,36 +239,36 @@ fn tryLoadFromFileProtocol(f_proto: *uefi.protocols.FileProtocol, comptime file_
         return null;
     }
 
-    check("setPosition", proto.setPosition(uefi.protocols.FileProtocol.efi_file_position_end_of_file));
-    check("getPosition", proto.getPosition(&size));
-    printf(" \"{s}\" {} bytes ", .{ file_name, size });
+    u.check("setPosition", proto.setPosition(uefi.protocols.FileProtocol.efi_file_position_end_of_file));
+    u.check("getPosition", proto.getPosition(&size));
+    u.printf(" \"{s}\" {} bytes ", .{ file_name, size });
 
-    check("setPosition", proto.setPosition(0));
+    u.check("setPosition", proto.setPosition(0));
 
-    check("allocatePool", boot_services.allocatePool(
+    u.check("allocatePool", boot_services.allocatePool(
         .BootServicesData,
         size,
         @ptrCast(*[*]align(8) u8, &mem),
     ));
-    check("read", proto.read(&size, mem));
+    u.check("read", proto.read(&size, mem));
     return mem[0..size];
 }
 
 fn parseElf(bytes: []const u8) std.elf.Header {
     if (bytes.len < @sizeOf(std.elf.Elf64_Ehdr)) {
-        printf("found {} byte(s), too small for ELF header ({} bytes)\r\n", .{ bytes.len, @sizeOf(std.elf.Elf64_Ehdr) });
+        u.printf("found {} byte(s), too small for ELF header ({} bytes)\r\n", .{ bytes.len, @sizeOf(std.elf.Elf64_Ehdr) });
         arch.halt();
     }
 
     var buffer = std.io.fixedBufferStream(bytes);
     var elf_header = std.elf.Header.read(&buffer) catch |err| {
-        printf("failed to parse ELF: {}\r\n", .{err});
+        u.printf("failed to parse ELF: {}\r\n", .{err});
         arch.halt();
     };
 
     const bits: u8 = if (elf_header.is_64) 64 else 32;
     const endian_ch = if (elf_header.endian == .Big) @as(u8, 'B') else @as(u8, 'L');
-    printf("ELF entrypoint: {x:0>16} ({}-bit {c}E {s})\r\n", .{
+    u.printf("ELF entrypoint: {x:0>16} ({}-bit {c}E {s})\r\n", .{
         elf_header.entry,
         bits,
         endian_ch,
@@ -278,8 +280,8 @@ fn parseElf(bytes: []const u8) std.elf.Header {
     });
 
     var it = elf_header.program_header_iterator(&buffer);
-    while (it.next() catch haltMsg("iterating phdr")) |phdr| {
-        printf(" * type={x:0>8} off={x:0>16} vad={x:0>16} pad={x:0>16} fsz={x:0>16} msz={x:0>16}\r\n", .{ phdr.p_type, phdr.p_offset, phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz, phdr.p_memsz });
+    while (it.next() catch u.haltMsg("iterating phdr")) |phdr| {
+        u.printf(" * type={x:0>8} off={x:0>16} vad={x:0>16} pad={x:0>16} fsz={x:0>16} msz={x:0>16}\r\n", .{ phdr.p_type, phdr.p_offset, phdr.p_vaddr, phdr.p_paddr, phdr.p_filesz, phdr.p_memsz });
     }
 
     return elf_header;
@@ -291,13 +293,13 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     var kernel_size: u64 = 0;
     {
         var it = dainkrnl_elf.program_header_iterator(&elf_source);
-        while (it.next() catch haltMsg("iterating phdrs (2)")) |phdr| {
+        while (it.next() catch u.haltMsg("iterating phdrs (2)")) |phdr| {
             if (phdr.p_type == std.elf.PT_LOAD) {
                 const target = phdr.p_vaddr - dcommon.daintree_kernel_start;
                 const load_bytes = std.math.min(phdr.p_filesz, phdr.p_memsz);
-                printf("will load 0x{x:0>16} bytes at 0x{x:0>16} into offset+0x{x:0>16}\r\n", .{ load_bytes, phdr.p_vaddr, target });
+                u.printf("will load 0x{x:0>16} bytes at 0x{x:0>16} into offset+0x{x:0>16}\r\n", .{ load_bytes, phdr.p_vaddr, target });
                 if (phdr.p_memsz > phdr.p_filesz) {
-                    printf("  and zeroing {} bytes at end\r\n", .{phdr.p_memsz - phdr.p_filesz});
+                    u.printf("  and zeroing {} bytes at end\r\n", .{phdr.p_memsz - phdr.p_filesz});
                 }
                 kernel_size = std.math.max(kernel_size, target + phdr.p_memsz);
             }
@@ -309,22 +311,22 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     var fb_horiz: u32 = 0;
     {
         var graphics: *uefi.protocols.GraphicsOutputProtocol = undefined;
-        const result = boot_services.locateProtocol(&uefi.protocols.GraphicsOutputProtocol.guid, null, @ptrCast(*?*c_void, &graphics));
+        const result = boot_services.locateProtocol(&uefi.protocols.GraphicsOutputProtocol.guid, null, @ptrCast(*?*anyopaque, &graphics));
         if (result == .Success) {
             fb = @intToPtr([*]u32, graphics.mode.frame_buffer_base);
             fb_vert = graphics.mode.info.vertical_resolution;
             fb_horiz = graphics.mode.info.horizontal_resolution;
-            printf("{}x{} framebuffer located at {*}\n", .{ fb_horiz, fb_vert, fb });
+            u.printf("{}x{} framebuffer located at {*}\n", .{ fb_horiz, fb_vert, fb });
         } else {
-            printf("no framebuffer found: {}\n", .{result});
+            u.printf("no framebuffer found: {}\n", .{result});
         }
     }
 
     var dtb_scratch_ptr: [*]u8 = undefined;
-    check("allocatePool", boot_services.allocatePool(uefi.tables.MemoryType.BootServicesData, 128 * 1024, @ptrCast(*[*]align(8) u8, &dtb_scratch_ptr)));
-    var dtb_scratch = dtb_scratch_ptr[0 .. 128 * 1024];
+    u.check("allocatePool", boot_services.allocatePool(uefi.tables.MemoryType.BootServicesData, 128 * 1024, @ptrCast(*[*]align(8) u8, &dtb_scratch_ptr)));
+    // var dtb_scratch = dtb_scratch_ptr[0 .. 128 * 1024];
 
-    printf("looking up serial base in DTB ... ", .{});
+    u.printf("looking up serial base in DTB ... ", .{});
     var uart_base: u64 = 0;
     var uart_width: u3 = 0;
     if (ddtb.searchForUart(dtb)) |uart| {
@@ -336,13 +338,13 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
             else => 1,
         };
     } else |err| {
-        printf("failed to parse dtb: {}", .{err});
+        u.printf("failed to parse dtb: {}", .{err});
     }
-    printf("0x{x:0>8}~{}\r\n", .{ uart_base, uart_width });
+    u.printf("0x{x:0>8}~{}\r\n", .{ uart_base, uart_width });
 
-    printf("we will clean d/i$ for 0x{x} bytes\r\n", .{kernel_size});
+    u.printf("we will clean d/i$ for 0x{x} bytes\r\n", .{kernel_size});
 
-    printf("going quiet before obtaining memory map\r\n", .{});
+    u.printf("going quiet before obtaining memory map\r\n", .{});
 
     // *****************************************************************
     // * Minimise logging between here and boot services exit.         *
@@ -362,7 +364,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
         &descriptor_size,
         &descriptor_version,
     ) == .BufferTooSmall) {
-        check("allocatePool", boot_services.allocatePool(
+        u.check("allocatePool", boot_services.allocatePool(
             uefi.tables.MemoryType.BootServicesData,
             memory_map_size,
             @ptrCast(*[*]align(8) u8, &memory_map),
@@ -398,7 +400,7 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     // to conventional_start now.
 
     var it = dainkrnl_elf.program_header_iterator(&elf_source);
-    while (it.next() catch haltMsg("iterating phdrs (2)")) |phdr| {
+    while (it.next() catch u.haltMsg("iterating phdrs (2)")) |phdr| {
         if (phdr.p_type == std.elf.PT_LOAD) {
             const target = phdr.p_vaddr - dcommon.daintree_kernel_start + conventional_start;
             std.mem.copy(u8, @intToPtr([*]u8, target)[0..phdr.p_filesz], dainkrnl[phdr.p_offset .. phdr.p_offset + phdr.p_filesz]);
@@ -427,11 +429,11 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     // I'd love to change this back to "..., kernel_size);" at some point.
     arch.cleanInvalidateDCacheICache(conventional_start, conventional_bytes);
 
-    printf("{x} {x} ", .{ conventional_start, @ptrToInt(&entry_data) });
+    u.printf("{x} {x} ", .{ conventional_start, @ptrToInt(&entry_data) });
 
     const adjusted_entry = dainkrnl_elf.entry - dcommon.daintree_kernel_start + conventional_start;
 
-    check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
+    u.check("exitBootServices", boot_services.exitBootServices(uefi.handle, memory_map_key));
 
     if (fb) |base| {
         var x: usize = 0;

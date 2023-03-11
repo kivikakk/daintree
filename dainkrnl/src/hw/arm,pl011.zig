@@ -6,6 +6,8 @@ const REGMASK_UARTFR_RXFE = 1 << 4;
 const REGMASK_UARTFR_TXFF = 1 << 5;
 
 pub fn write(base: u64, reg_shift: u4, data: []const u8) void {
+    _ = reg_shift;
+
     const uartdr = @intToPtr(*volatile u8, base + REGOFF_UARTDR);
     const uartfr = @intToPtr(*volatile u8, base + REGOFF_UARTFR);
     for (data) |c| {
@@ -20,6 +22,8 @@ pub fn write(base: u64, reg_shift: u4, data: []const u8) void {
 // Works the 'opposite' to 8250-style UART; instead of waiting for a "data
 // available" bit to set, we wait for the "receive FIFO empty" bit to clear.
 pub fn readBlock(base: u64, reg_shift: u4, buf: []u8) usize {
+    _ = reg_shift;
+
     const uartdr = @intToPtr(*volatile u8, base + REGOFF_UARTDR);
     const uartfr = @intToPtr(*volatile u8, base + REGOFF_UARTFR);
     while (uartfr.* & REGMASK_UARTFR_RXFE == REGMASK_UARTFR_RXFE) {

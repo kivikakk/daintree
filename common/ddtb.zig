@@ -30,8 +30,8 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
     var address_cells: ?u32 = null;
     var size_cells: ?u32 = null;
 
-    var ev = try traverser.next();
-    while (ev != .End) : (ev = try traverser.next()) {
+    var ev = try traverser.event();
+    while (ev != .End) : (ev = try traverser.event()) {
         if (!in_node) {
             switch (ev) {
                 .BeginNode => |name| {
