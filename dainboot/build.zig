@@ -21,11 +21,10 @@ pub fn build(b: *Build) !void {
         .optimize = b.standardOptimizeOption(.{}),
     });
     try dbuild.addBuildOptions(b, exe, board);
-    b.addModule(.{
-        .name = "dtb",
+    const dtb = b.addModule("dtb", .{
         .source_file = .{ .path = "../dtb/src/dtb.zig" },
     });
-    exe.addModule("dtb", b.modules.get("dtb").?);
+    exe.addModule("dtb", dtb);
 
     exe.install();
 
@@ -53,11 +52,10 @@ fn buildRiscv64(b: *Build, board: dcommon.Board, target: std.zig.CrossTarget) !v
     });
     try dbuild.addBuildOptions(b, obj, board);
 
-    b.addModule(.{
-        .name = "dtb",
+    const dtb = b.addModule("dtb", .{
         .source_file = .{ .path = "../dtb/src/dtb.zig" },
     });
-    obj.addModule("dtb", b.modules.get("dtb").?);
+    obj.addModule("dtb", dtb);
 
     const combined = b.addSystemCommand(&.{
         "ld.lld",

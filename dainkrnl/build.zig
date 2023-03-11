@@ -23,11 +23,10 @@ pub fn build(b: *Builder) !void {
         exe.code_model = .medium;
     }
     exe.addAssemblyFile(b.fmt("src/{s}/exception.s", .{@tagName(arch_tag)}));
-    b.addModule(.{
-        .name = "dtb",
+    const dtb = b.addModule("dtb", .{
         .source_file = .{ .path = "../dtb/src/dtb.zig" },
     });
-    exe.addModule("dtb", b.modules.get("dtb").?);
+    exe.addModule("dtb", dtb);
     exe.setLinkerScriptPath(.{ .path = b.fmt("linker.{s}.ld", .{@tagName(arch_tag)}) });
     exe.setVerboseLink(true);
 
