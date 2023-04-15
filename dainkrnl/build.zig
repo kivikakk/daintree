@@ -39,7 +39,7 @@ pub fn build(b: *Builder) !void {
     exe.single_threaded = true;
 
     try dbuild.addBuildOptions(b, exe, board);
-    exe.install();
+    b.installArtifact(exe);
 
     b.default_step.dependOn(&exe.step);
 }

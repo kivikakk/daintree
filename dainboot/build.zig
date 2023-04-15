@@ -26,7 +26,7 @@ pub fn build(b: *Build) !void {
     });
     exe.addModule("dtb", dtb);
 
-    exe.install();
+    b.installArtifact(exe);
 
     b.default_step.dependOn(&exe.step);
 }
