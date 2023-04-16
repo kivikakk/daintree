@@ -17,8 +17,9 @@ QEMU_DTB_ARGS := -dtb dtb/src/qemu_$(ARCH).dtb
 ifeq ($(ARCH),arm64)
 QEMU_BIN := qemu-system-aarch64
 QEMU_ARGS := \
-       -bios roms/u-boot-arm64-ramfb.bin \
-       -cpu cortex-a53 -M virt,highmem=off \
+	-bios roms/u-boot-arm64-ramfb.bin \
+	-drive file=roms/ovmf_vars.fd,if=pflash,format=raw,index=1 \
+	-cpu cortex-a53 -M virt,highmem=off \
 
 EFI_BOOTLOADER_NAME := BOOTAA64
 else ifeq ($(ARCH),riscv64)
