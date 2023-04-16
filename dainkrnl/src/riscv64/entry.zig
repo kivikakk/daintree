@@ -35,15 +35,15 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     var l2 = bump.alloc(p.PageTable);
     var l3 = bump.alloc(p.PageTable);
 
-    // XXX add 100MiB to catch page tables
-    var it = p.PAGING.range(1, entry_data.conventional_start, entry_data.conventional_bytes + 100 * 1048576);
+    hw.entry_uart.carefully(.{ "p.K_DIRECTORY is ", @ptrToInt(p.K_DIRECTORY), "\r\n" });
+    hw.entry_uart.carefully(.{ "           l2 is ", @ptrToInt(l2), "\r\n" });
+    hw.entry_uart.carefully(.{ "           l3 is ", @ptrToInt(l3), "\r\n" });
+
+    var it = p.PAGING.range(1, entry_data.conventional_start, entry_data.conventional_bytes);
     while (it.next()) |r| {
         hw.entry_uart.carefully(.{ "mapping identity: page ", r.page, " address ", r.address, "\r\n" });
-        hw.entry_uart.carefully(.{ "p.K_DIRECTORY is ", @ptrToInt(p.K_DIRECTORY), "\r\n" });
         p.K_DIRECTORY.map(r.page, r.address, .kernel_promisc);
-        hw.entry_uart.carefully(.{"did that\r\n "});
     }
-    hw.entry_uart.carefully(.{"done mapping\r\n "});
 
     p.K_DIRECTORY.map(256, @ptrToInt(l2), .non_leaf);
     l2.map(0, @ptrToInt(l3), .non_leaf);
@@ -147,8 +147,8 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
     asm volatile (
         \\mv sp, %[sp]
+        \\sfence.vma x0, x0
         \\csrw satp, %[satp]
-        \\sfence.vma
         \\ret
         :
         : [sp] "{a0}" (new_sp), // Argument to daintree_main.

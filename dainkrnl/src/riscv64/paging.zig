@@ -12,17 +12,15 @@ comptime {
     std.debug.assert(dcommon.daintree_kernel_start == PAGING.kernel_base);
 }
 
-fn flagsToRWX(flags: paging.MapFlags) RWX {
-    return switch (flags) {
-        .non_leaf => RWX.non_leaf,
-
-        .kernel_promisc => RWX.rwx,
-
-        .kernel_data => RWX.rw,
-        .kernel_rodata => RWX.ro,
-        .kernel_code => RWX.rx,
-        .peripheral => RWX.rw,
-    };
+inline fn flagsToRWX(flags: paging.MapFlags) RWX {
+    // switch here caused absolute jumps ...
+    if (flags == .non_leaf) return RWX.non_leaf;
+    if (flags == .kernel_promisc) return RWX.rwx;
+    if (flags == .kernel_data) return RWX.rw;
+    if (flags == .kernel_rodata) return RWX.ro;
+    if (flags == .kernel_code) return RWX.rx;
+    if (flags == .peripheral) return RWX.rw;
+    unreachable;
 }
 
 pub fn flushTLB() void {
@@ -37,23 +35,23 @@ pub const PageTable = extern struct {
     entries: [PAGING.index_size]u64,
 
     pub inline fn map(self: *PageTable, index: usize, phys_address: usize, flags: paging.MapFlags) void {
-        hw.entry_uart.carefully(.{
-            "mapping self ",
-            @ptrToInt(self),
-            " index ",
-            index,
-            " phys ",
-            phys_address,
-            " flags ",
-            @enumToInt(flagsToRWX(flags)),
-            "\r\n",
-        });
+        // hw.entry_uart.carefully(.{
+        //     "mapping self ", @ptrToInt(self),
+        //     " index ", index,
+        //     " phys ", phys_address,
+        //     " flags ", @enumToInt(flagsToRWX(flags)),
+        //     "\r\n",
+        // });
+
+        // A/D must not be set on non-leaf.
+        // https://github.com/qemu/qemu/commit/b6ecc63c569bb88c0fcadf79fb92bf4b88aefea8
+        const ad: u1 = if (flags != .non_leaf) 1 else 0;
         self.entries[index] = (ArchPte{
             .rwx = flagsToRWX(flags),
             .u = 0,
             .g = 0,
-            .a = 1, // XXX ???
-            .d = 1, // XXX ???
+            .a = ad,
+            .d = ad,
             .ppn = @truncate(u44, phys_address >> PAGING.page_bits),
         }).toU64();
     }
