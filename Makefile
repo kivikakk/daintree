@@ -3,7 +3,7 @@
 all: qemu
 
 clean:
-	-rm -rf dtb/zig-cache dtb/zig-out dainkrnl/zig-cache dainkrnl/zig-out dainboot/zig-cache dainboot/zig-out target
+	-rm -rf dainkrnl/.zig-cache dainkrnl/zig-out dainboot/.zig-cache dainboot/zig-out target
 
 %.dts:
 	dtc -I dtb -O dts $*
@@ -12,7 +12,7 @@ clean:
 
 ARCH =
 QEMU_RAMFB = -device ramfb
-QEMU_DTB_ARGS := -dtb dtb/src/qemu_$(ARCH).dtb
+QEMU_DTB_ARGS := -dtb dtb/qemu_$(ARCH).dtb
 
 ifeq ($(ARCH),arm64)
 QEMU_BIN := qemu-system-aarch64
@@ -65,7 +65,7 @@ QEMU_CMD := $(QEMU_BIN) \
 qemu: target/disk/EFI/BOOT/$(EFI_BOOTLOADER_NAME).efi target/disk/dainkrnl.$(ARCH)
 	$(QEMU_CMD) $(QEMU_DTB_ARGS) -s $$EXTRA_ARGS
 
-dtb/src/%.dtb:
+dtb/%.dtb:
 	$(QEMU_CMD) -machine dumpdtb=$@
 	dtc $@ -o $@
 
