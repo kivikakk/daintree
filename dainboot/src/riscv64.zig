@@ -68,9 +68,9 @@ export fn relocate(ldbase: u64, dyn: [*]elf.Elf64_Dyn) uefi.Status {
             // R_RISCV_RELATIVE
             const addr: *u64 = @as(*u64, @ptrFromInt(ldbase + relp.r_offset));
             if (relp.r_addend > 0) {
-                addr.* = ldbase + std.math.absCast(relp.r_addend);
+                addr.* = ldbase + @abs(relp.r_addend);
             } else {
-                addr.* = ldbase - std.math.absCast(relp.r_addend);
+                addr.* = ldbase - @abs(relp.r_addend);
             }
         } else {
             asm volatile (
@@ -94,11 +94,11 @@ export fn relocate(ldbase: u64, dyn: [*]elf.Elf64_Dyn) uefi.Status {
 // included, and it's adding a PLT and GOT to have them looked up later.  They
 // aren't being provided by anyone else, so we must.
 export fn memset(b: *anyopaque, c: c_int, len: usize) *anyopaque {
-    std.mem.set(u8, @as([*]u8, @ptrFromInt(b))[0..len], @as(u8, @truncate(std.math.absCast(c))));
+    @memset(@as([*]u8, @ptrCast(b))[0..len], @as(u8, @truncate(@abs(c))));
     return b;
 }
 
 export fn memcpy(dst: *anyopaque, src: *const anyopaque, n: usize) *anyopaque {
-    std.mem.copy(u8, @as([*]u8, @ptrFromInt(dst))[0..n], @as([*]const u8, @ptrFromInt(src))[0..n]);
+    @memcpy(@as([*]u8, @ptrCast(dst))[0..n], @as([*]const u8, @ptrCast(src))[0..n]);
     return dst;
 }

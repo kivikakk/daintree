@@ -14,16 +14,19 @@ pub fn build(b: *std.Build) !void {
         return;
     }
 
+    const optimize = b.standardOptimizeOption(.{});
+
     const exe = b.addExecutable(.{
         .name = bootName(b, board, resolvedTarget),
         .root_source_file = b.path("src/dainboot.zig"),
         .target = resolvedTarget,
-        .optimize = b.standardOptimizeOption(.{}),
+        .optimize = optimize,
     });
     try dbuild.addBuildOptions(b, exe, board);
-    const dtb = b.addModule("dtb", .{
-        .root_source_file = b.path("../dtb/src/dtb.zig"),
-    });
+    const dtb = b.dependency("dtb.zig", .{
+        .target = resolvedTarget,
+        .optimize = optimize,
+    }).module("dtb");
     exe.root_module.addImport("dtb", dtb);
 
     b.installArtifact(exe);
@@ -49,9 +52,10 @@ fn buildRiscv64(b: *std.Build, board: dcommon.Board, resolvedTarget: std.Build.R
     });
     try dbuild.addBuildOptions(b, obj, board);
 
-    const dtb = b.addModule("dtb", .{
-        .root_source_file = b.path("../dtb/src/dtb.zig"),
-    });
+    const dtb = b.dependency("dtb.zig", .{
+        .target = resolvedTarget,
+        .optimize = optimize,
+    }).module("dtb");
     obj.root_module.addImport("dtb", dtb);
 
     const combined = b.addSystemCommand(&.{

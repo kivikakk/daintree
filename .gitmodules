@@ -1,3 +1,0 @@
-[submodule "dtb"]
-	path = dtb
-	url = https://github.com/kivikakk/dtb.zig

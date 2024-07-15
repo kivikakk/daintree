@@ -404,9 +404,9 @@ fn exitBootServices(dainkrnl: []const u8, dtb: []const u8) noreturn {
     while (it.next() catch u.haltMsg("iterating phdrs (2)")) |phdr| {
         if (phdr.p_type == std.elf.PT_LOAD) {
             const target = phdr.p_vaddr - dcommon.daintree_kernel_start + conventional_start;
-            std.mem.copy(u8, @as([*]u8, @ptrFromInt(target))[0..phdr.p_filesz], dainkrnl[phdr.p_offset .. phdr.p_offset + phdr.p_filesz]);
+            @memcpy(@as([*]u8, @ptrFromInt(target))[0..phdr.p_filesz], dainkrnl[phdr.p_offset .. phdr.p_offset + phdr.p_filesz]);
             if (phdr.p_memsz > phdr.p_filesz) {
-                std.mem.set(u8, @as([*]u8, @ptrFromInt(target))[phdr.p_filesz..phdr.p_memsz], 0);
+                @memset(@as([*]u8, @ptrFromInt(target))[phdr.p_filesz..phdr.p_memsz], 0);
             }
         }
     }

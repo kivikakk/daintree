@@ -129,7 +129,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
             l3.map(i, bump.allocPage(), .kernel_rodata);
         }
 
-        std.mem.copy(u8, dtb_target, entry_data.dtb_ptr[0..entry_data.dtb_len]);
+        @memcpy(dtb_target, entry_data.dtb_ptr[0..entry_data.dtb_len]);
     }
 
     new_entry.bump_next = bump.next;

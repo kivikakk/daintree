@@ -55,14 +55,14 @@ pub const Shell = struct {
                                 },
                             };
                             if (maybe_rest) |rest| {
-                                std.mem.copy(u8, buf[len..], rest);
+                                @memcpy(buf[len..], rest);
                                 printf("{s}", .{rest});
                                 len += @truncate(u8, rest.len);
                             }
                         },
                         '\r' => {
                             printf("\n", .{});
-                            std.mem.copy(u8, &last_buf, buf[0..len]);
+                            @memcpy(&last_buf, buf[0..len]);
                             last_len = len;
                             self.process(buf[0..len]);
                             printf("> ", .{});

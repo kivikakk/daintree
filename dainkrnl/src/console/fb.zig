@@ -33,8 +33,8 @@ pub fn init(in_fb: [*]u32, in_vert: u32, in_horiz: u32) void {
     if (console_height * console_width > console_buf.len) {
         @panic("can't fit console");
     }
-    std.mem.set(u16, console_buf[0 .. console_width * console_height], 0);
-    std.mem.set(u32, fb.?[0 .. fb_horiz * fb_vert], 0);
+    @memset(console_buf[0 .. console_width * console_height], 0);
+    @memset(fb.?[0 .. fb_horiz * fb_vert], 0);
 
     arch.sleep(500);
     drawEnergyStar(false);
@@ -165,9 +165,9 @@ pub fn print(msg: []const u8) void {
 fn scroll() void {
     var row: CONSOLE_DIMENSION = 0;
     while (row < console_height - 1) : (row += 1) {
-        std.mem.copy(u16, console_buf[row * console_width .. (row + 1) * console_width], console_buf[(row + 1) * console_width .. (row + 2) * console_width]);
+        @memcpy(console_buf[row * console_width .. (row + 1) * console_width], console_buf[(row + 1) * console_width .. (row + 2) * console_width]);
     }
-    std.mem.set(u16, console_buf[(console_height - 1) * console_width .. console_height * console_width], 0);
+    @memset(console_buf[(console_height - 1) * console_width .. console_height * console_width], 0);
     refresh();
 }
 

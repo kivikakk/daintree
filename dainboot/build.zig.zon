@@ -1,0 +1,16 @@
+.{
+    .name = "dainboot",
+    .version = "0.0.0",
+    .dependencies = .{
+        .@"dtb.zig" = .{
+            .url = "https://github.com/kivikakk/dtb.zig/archive/e5f50cb3dfba304802c899d5a5fec3ad7b66443c.tar.gz",
+            .hash = "1220c4cf97bc6df21c6b1e21e242058828d2abbdc53f0c1e3b60600ebc18c1e24543",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "elf_riscv64_efi.lds",
+    },
+}

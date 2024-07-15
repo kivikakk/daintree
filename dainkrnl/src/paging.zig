@@ -53,7 +53,7 @@ pub const BumpAllocator = struct {
         self.next += size;
         // XXX this only works if physical addresses are mapped, i.e. MMU is off
         // or identity mapping is in place
-        std.mem.set(u8, @intToPtr([*]u8, next)[0..size], 0);
+        @memset(@intToPtr([*]u8, next)[0..size], 0);
         return next;
     }
 
