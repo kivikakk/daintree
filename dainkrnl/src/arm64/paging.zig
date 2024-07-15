@@ -54,8 +54,8 @@ pub const PageTable = extern struct {
             // Recurse into subtables.
             while (i < self.entries.len) : (i += 1) {
                 if ((self.entries[i] & 0x1) == 0x0) {
-                    var new_phys = paging.bump.alloc(PageTable);
-                    self.map(i, @ptrToInt(new_phys), .table, .non_leaf);
+                    const new_phys = paging.bump.alloc(PageTable);
+                    self.map(i, @intFromPtr(new_phys), .table, .non_leaf);
                 }
 
                 if ((self.entries[i] & 0x3) == 0x3) {
@@ -85,7 +85,7 @@ pub const PageTable = extern struct {
     fn pageAt(self: *const PageTable, index: usize) *PageTable {
         const entry = self.entries[index];
         if ((entry & 0x3) != 0x3) @panic("pageAt on non-page");
-        return @intToPtr(*PageTable, entry & ArchPte.OA_MASK_Lx_TABLE);
+        return @as(*PageTable, @ptrFromInt(entry & ArchPte.OA_MASK_Lx_TABLE));
     }
 };
 
@@ -135,11 +135,11 @@ pub const ArchPte = struct {
     pub const OA_MASK_Lx_TABLE: u64 = 0x0000ffff_fffff000;
     pub inline fn toU64(pte: ArchPte) u64 {
         return @as(u64, pte.valid) |
-            (@as(u64, @enumToInt(pte.type)) << 1) |
+            (@as(u64, @intFromEnum(pte.type)) << 1) |
             (@as(u64, pte.attr_index) << 2) |
             (@as(u64, pte.ns) << 5) |
-            (@as(u64, @enumToInt(pte.ap)) << 6) |
-            (@as(u64, @enumToInt(pte.sh)) << 8) |
+            (@as(u64, @intFromEnum(pte.ap)) << 6) |
+            (@as(u64, @intFromEnum(pte.sh)) << 8) |
             (@as(u64, pte.af) << 10) |
             (@as(u64, pte.pxn) << 53) |
             (@as(u64, pte.uxn) << 54);
@@ -186,15 +186,15 @@ pub const TCR_EL1 = struct {
             (@as(u64, tcr.irgn0) << 8) |
             (@as(u64, tcr.orgn0) << 10) |
             (@as(u64, tcr.sh0) << 12) |
-            (@as(u64, @enumToInt(tcr.tg0)) << 14) |
+            (@as(u64, @intFromEnum(tcr.tg0)) << 14) |
             (@as(u64, tcr.t1sz) << 16) |
             (@as(u64, tcr.a1) << 22) |
             (@as(u64, tcr.epd1) << 23) |
             (@as(u64, tcr.irgn1) << 24) |
             (@as(u64, tcr.orgn1) << 26) |
             (@as(u64, tcr.sh1) << 28) |
-            (@as(u64, @enumToInt(tcr.tg1)) << 30) |
-            (@as(u64, @enumToInt(tcr.ips)) << 32);
+            (@as(u64, @intFromEnum(tcr.tg1)) << 30) |
+            (@as(u64, @intFromEnum(tcr.ips)) << 32);
     }
 
     t0sz: u6, // TTBR0_EL1 addresses 2**(64-25)

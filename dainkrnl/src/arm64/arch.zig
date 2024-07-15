@@ -12,7 +12,7 @@ pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace, ret_
     if (error_return_trace) |ert| {
         hw.entry_uart.carefully(.{"trying to print stack ... \r\n"});
         var frame_index: usize = 0;
-        var frames_left: usize = std.math.min(ert.index, ert.instruction_addresses.len);
+        var frames_left: usize = @min(ert.index, ert.instruction_addresses.len);
         while (frames_left != 0) : ({
             frames_left -= 1;
             frame_index = (frame_index + 1) % ert.instruction_addresses.len;
@@ -26,7 +26,7 @@ pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace, ret_
     hw.entry_uart.carefully(.{ "ret_addr: ", ret_addr, "\r\n" });
     hw.entry_uart.carefully(.{ "@returnAddress: ", @returnAddress(), "\r\n" });
 
-    hw.entry_uart.carefully(.{ "panic message ptr: ", @ptrToInt(msg.ptr), "\r\n<" });
+    hw.entry_uart.carefully(.{ "panic message ptr: ", @intFromPtr(msg.ptr), "\r\n<" });
     hw.entry_uart.carefully(.{ hw.entry_uart.Escape.Runtime, msg, ">\r\n" });
 
     if (fb.present()) {
@@ -95,8 +95,8 @@ pub fn sleep(ms: u64) void {
         \\   mrs x1, cntpct_el0
         \\   b 1b
         \\2: nop
-        : [ms] "={x0}" (ms),
         :
+        : [ms] "{x0}" (ms),
         : "x1", "x2", "x3"
     );
 }

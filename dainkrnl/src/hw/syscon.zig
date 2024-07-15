@@ -41,6 +41,6 @@ fn doOrDie(comptime name: []const u8, maybe_config: ?Config) noreturn {
     const config = maybe_config orelse @panic("syscon " ++ name ++ " not configured!");
 
     printf("goodbye\n", .{});
-    @intToPtr(*volatile u32, reg_base + config.offset).* = config.value;
+    @as(*volatile u32, @ptrFromInt(reg_base + config.offset)).* = config.value;
     @panic("syscon " ++ name ++ " returned");
 }

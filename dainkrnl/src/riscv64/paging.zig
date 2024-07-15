@@ -36,7 +36,7 @@ pub const PageTable = extern struct {
 
     pub inline fn map(self: *PageTable, index: usize, phys_address: usize, flags: paging.MapFlags) void {
         // hw.entry_uart.carefully(.{
-        //     "mapping self ", @ptrToInt(self),
+        //     "mapping self ", @intFromPtr(self),
         //     " index ", index,
         //     " phys ", phys_address,
         //     " flags ", @enumToInt(flagsToRWX(flags)),
@@ -52,7 +52,7 @@ pub const PageTable = extern struct {
             .g = 0,
             .a = ad,
             .d = ad,
-            .ppn = @truncate(u44, phys_address >> PAGING.page_bits),
+            .ppn = @as(u44, @truncate(phys_address >> PAGING.page_bits)),
         }).toU64();
     }
 
@@ -62,8 +62,8 @@ pub const PageTable = extern struct {
             // Recurse into subtables.
             while (i < self.entries.len) : (i += 1) {
                 if ((self.entries[i] & 0x1) == 0x0) {
-                    var new_phys = paging.bump.alloc(PageTable);
-                    self.map(i, @ptrToInt(new_phys), .non_leaf);
+                    const new_phys = paging.bump.alloc(PageTable);
+                    self.map(i, @intFromPtr(new_phys), .non_leaf);
                 }
 
                 if ((self.entries[i] & 0xf) == 0x1) {
@@ -93,7 +93,7 @@ pub const PageTable = extern struct {
     fn pageAt(self: *const PageTable, index: usize) *PageTable {
         const entry = self.entries[index];
         if ((entry & 0xf) != 0x1) @panic("pageAt on non-page");
-        return @intToPtr(*PageTable, ((entry & ArchPte.PPN_MASK) >> ArchPte.PPN_OFFSET) << PAGING.page_bits);
+        return @as(*PageTable, @ptrFromInt(((entry & ArchPte.PPN_MASK) >> ArchPte.PPN_OFFSET) << PAGING.page_bits));
     }
 };
 
@@ -107,7 +107,7 @@ pub const SATP = struct {
     pub inline fn toU64(satp: SATP) u64 {
         return @as(u64, satp.ppn) |
             (@as(u64, satp.asid) << 44) |
-            (@as(u64, @enumToInt(satp.mode)) << 60);
+            (@as(u64, @intFromEnum(satp.mode)) << 60);
     }
 
     ppn: u44,
@@ -132,7 +132,7 @@ pub const ArchPte = struct {
     pub const PPN_OFFSET = 10;
     pub inline fn toU64(pte: ArchPte) u64 {
         return @as(u64, pte.v) |
-            (@as(u64, @enumToInt(pte.rwx)) << 1) |
+            (@as(u64, @intFromEnum(pte.rwx)) << 1) |
             (@as(u64, pte.u) << 4) |
             (@as(u64, pte.g) << 5) |
             (@as(u64, pte.a) << 6) |

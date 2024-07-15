@@ -58,8 +58,8 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     var l2 = bump.alloc(p.PageTable);
     var l3 = bump.alloc(p.PageTable);
 
-    const ttbr0_el1 = @ptrToInt(p.TTBR0_IDENTITY) | 1;
-    const ttbr1_el1 = @ptrToInt(p.K_DIRECTORY) | 1;
+    const ttbr0_el1 = @intFromPtr(p.TTBR0_IDENTITY) | 1;
+    const ttbr1_el1 = @intFromPtr(p.K_DIRECTORY) | 1;
     hw.entry_uart.carefully(.{ "setting TTBR0_EL1: ", ttbr0_el1, "\r\n" });
     hw.entry_uart.carefully(.{ "setting TTBR1_EL1: ", ttbr1_el1, "\r\n" });
     arch.writeRegister(.TTBR0_EL1, ttbr0_el1);
@@ -72,8 +72,8 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         p.TTBR0_IDENTITY.map(r.page, r.address, .block, .kernel_promisc);
     }
 
-    p.K_DIRECTORY.map(0, @ptrToInt(l2), .table, .non_leaf);
-    l2.map(0, @ptrToInt(l3), .table, .non_leaf);
+    p.K_DIRECTORY.map(0, @intFromPtr(l2), .table, .non_leaf);
+    l2.map(0, @intFromPtr(l3), .table, .non_leaf);
 
     var end: u64 = (daintree_end - daintree_base) >> p.PAGING.page_bits;
     entryAssert(end <= 512, "end got too big (1)");
@@ -122,7 +122,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     // address now points to the stack. make space for common.EntryData, align.
     var entry_address = bump.next - @sizeOf(dcommon.EntryData);
     entry_address &= ~@as(u64, 15);
-    var new_entry = @intToPtr(*dcommon.EntryData, entry_address);
+    var new_entry = @as(*dcommon.EntryData, @ptrFromInt(entry_address));
     new_entry.* = .{
         .memory_map = entry_data.memory_map,
         .memory_map_size = entry_data.memory_map_size,
@@ -146,13 +146,13 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     // I hate that I'm doing this. Put the DTB in here.
     {
         i += 1;
-        new_entry.dtb_ptr = @intToPtr([*]const u8, p.PAGING.kernelPageAddress(i));
-        var dtb_target = @intToPtr([*]u8, bump.next)[0..entry_data.dtb_len];
+        new_entry.dtb_ptr = @as([*]const u8, @ptrFromInt(p.PAGING.kernelPageAddress(i)));
+        const dtb_target = @as([*]u8, @ptrFromInt(bump.next))[0..entry_data.dtb_len];
 
         // How many pages?
         const dtb_pages = (entry_data.dtb_len + p.PAGING.page_size - 1) / p.PAGING.page_size;
 
-        var new_end = end + 1 + dtb_pages; // Skip 1 page since UART is there
+        const new_end = end + 1 + dtb_pages; // Skip 1 page since UART is there
         entryAssert(new_end <= 512, "end got too big (3)");
 
         hw.entry_uart.carefully(.{ "MAP: DTB at    ", p.PAGING.kernelPageAddress(i), "~\r\n" });

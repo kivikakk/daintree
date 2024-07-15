@@ -35,9 +35,9 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     var l2 = bump.alloc(p.PageTable);
     var l3 = bump.alloc(p.PageTable);
 
-    hw.entry_uart.carefully(.{ "p.K_DIRECTORY is ", @ptrToInt(p.K_DIRECTORY), "\r\n" });
-    hw.entry_uart.carefully(.{ "           l2 is ", @ptrToInt(l2), "\r\n" });
-    hw.entry_uart.carefully(.{ "           l3 is ", @ptrToInt(l3), "\r\n" });
+    hw.entry_uart.carefully(.{ "p.K_DIRECTORY is ", @intFromPtr(p.K_DIRECTORY), "\r\n" });
+    hw.entry_uart.carefully(.{ "           l2 is ", @intFromPtr(l2), "\r\n" });
+    hw.entry_uart.carefully(.{ "           l3 is ", @intFromPtr(l3), "\r\n" });
 
     var it = p.PAGING.range(1, entry_data.conventional_start, entry_data.conventional_bytes);
     while (it.next()) |r| {
@@ -45,8 +45,8 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
         p.K_DIRECTORY.map(r.page, r.address, .kernel_promisc);
     }
 
-    p.K_DIRECTORY.map(256, @ptrToInt(l2), .non_leaf);
-    l2.map(0, @ptrToInt(l3), .non_leaf);
+    p.K_DIRECTORY.map(256, @intFromPtr(l2), .non_leaf);
+    l2.map(0, @intFromPtr(l3), .non_leaf);
 
     var end: u64 = (daintree_end - daintree_base) >> p.PAGING.page_bits;
     entryAssert(end <= 512, "end got too big (1)");
@@ -92,7 +92,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
     var entry_address = bump.next - @sizeOf(dcommon.EntryData);
     entry_address &= ~@as(u64, 15);
-    var new_entry = @intToPtr(*dcommon.EntryData, entry_address);
+    var new_entry = @as(*dcommon.EntryData, @ptrFromInt(entry_address));
     new_entry.* = .{
         .memory_map = entry_data.memory_map,
         .memory_map_size = entry_data.memory_map_size,
@@ -115,13 +115,13 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
 
     {
         i += 1;
-        new_entry.dtb_ptr = @intToPtr([*]const u8, p.PAGING.kernelPageAddress(i));
-        var dtb_target = @intToPtr([*]u8, bump.next)[0..entry_data.dtb_len];
+        new_entry.dtb_ptr = @as([*]const u8, @ptrFromInt(p.PAGING.kernelPageAddress(i)));
+        const dtb_target = @as([*]u8, @ptrFromInt(bump.next))[0..entry_data.dtb_len];
 
         // How many pages?
         const dtb_pages = (entry_data.dtb_len + p.PAGING.page_size - 1) / p.PAGING.page_size;
 
-        var new_end = end + 1 + dtb_pages; // Skip 1 page since UART is there
+        const new_end = end + 1 + dtb_pages; // Skip 1 page since UART is there
         entryAssert(new_end <= 512, "end got too big (3)");
 
         hw.entry_uart.carefully(.{ "MAP: DTB at    ", p.PAGING.kernelPageAddress(i), "~\r\n" });
@@ -135,7 +135,7 @@ pub export fn daintree_mmu_start(entry_data: *dcommon.EntryData) noreturn {
     new_entry.bump_next = bump.next;
 
     const satp = (p.SATP{
-        .ppn = @truncate(u44, @ptrToInt(p.K_DIRECTORY) >> p.PAGING.page_bits),
+        .ppn = @as(u44, @truncate(@intFromPtr(p.K_DIRECTORY) >> p.PAGING.page_bits)),
         .asid = 0,
         .mode = .sv39,
     }).toU64();

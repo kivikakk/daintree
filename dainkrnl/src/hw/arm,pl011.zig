@@ -8,8 +8,8 @@ const REGMASK_UARTFR_TXFF = 1 << 5;
 pub fn write(base: u64, reg_shift: u4, data: []const u8) void {
     _ = reg_shift;
 
-    const uartdr = @intToPtr(*volatile u8, base + REGOFF_UARTDR);
-    const uartfr = @intToPtr(*volatile u8, base + REGOFF_UARTFR);
+    const uartdr = @as(*volatile u8, @ptrFromInt(base + REGOFF_UARTDR));
+    const uartfr = @as(*volatile u8, @ptrFromInt(base + REGOFF_UARTFR));
     for (data) |c| {
         while (uartfr.* & REGMASK_UARTFR_TXFF == REGMASK_UARTFR_TXFF) {
             // transmit FIFO full ...
@@ -24,8 +24,8 @@ pub fn write(base: u64, reg_shift: u4, data: []const u8) void {
 pub fn readBlock(base: u64, reg_shift: u4, buf: []u8) usize {
     _ = reg_shift;
 
-    const uartdr = @intToPtr(*volatile u8, base + REGOFF_UARTDR);
-    const uartfr = @intToPtr(*volatile u8, base + REGOFF_UARTFR);
+    const uartdr = @as(*volatile u8, @ptrFromInt(base + REGOFF_UARTDR));
+    const uartfr = @as(*volatile u8, @ptrFromInt(base + REGOFF_UARTFR));
     while (uartfr.* & REGMASK_UARTFR_RXFE == REGMASK_UARTFR_RXFE) {
         // receive FIFO empty ...
         asm volatile ("nop");

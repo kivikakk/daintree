@@ -17,11 +17,11 @@ export fn daintree_main(entry_data: *dcommon.EntryData) void {
     paging.bump.next = entry_data.bump_next;
 
     if (entry_data.fb) |fb_addr| {
-        hw.entry_uart.carefully(.{ "initting fb at ", @ptrToInt(fb_addr), "\r\n" });
+        hw.entry_uart.carefully(.{ "initting fb at ", @intFromPtr(fb_addr), "\r\n" });
         fb.init(fb_addr, entry_data.fb_vert, entry_data.fb_horiz);
     }
 
-    hw.entry_uart.carefully(.{ "searching dtb at ", @ptrToInt(entry_data.dtb_ptr), "\r\n" });
+    hw.entry_uart.carefully(.{ "searching dtb at ", @intFromPtr(entry_data.dtb_ptr), "\r\n" });
     if (ddtb.searchForUart(entry_data.dtb_ptr[0..entry_data.dtb_len])) |uart| {
         hw.entry_uart.carefully(.{ "got UART: ", hw.entry_uart.Escape.Runtime, @tagName(uart.kind), " @ ", uart.base, "\r\n" });
         // We patched this through in the MMU, so be extremely hacky:

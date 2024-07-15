@@ -27,15 +27,15 @@ pub fn init(entry_data: *dcommon.EntryData) void {
 
     carefully(.{ "\r\n\r\ndainkrnl ", build_options.version, " pre-MMU stage on ", build_options.board, "\r\n" });
 
-    carefully(.{ "entry_data (", @ptrToInt(entry_data), ")\r\n" });
-    carefully(.{ "memory_map:         ", @ptrToInt(entry_data.memory_map), "\r\n" });
+    carefully(.{ "entry_data (", @intFromPtr(entry_data), ")\r\n" });
+    carefully(.{ "memory_map:         ", @intFromPtr(entry_data.memory_map), "\r\n" });
     carefully(.{ "memory_map_size:    ", entry_data.memory_map_size, "\r\n" });
     carefully(.{ "descriptor_size:    ", entry_data.descriptor_size, "\r\n" });
-    carefully(.{ "dtb_ptr:            ", @ptrToInt(entry_data.dtb_ptr), "\r\n" });
+    carefully(.{ "dtb_ptr:            ", @intFromPtr(entry_data.dtb_ptr), "\r\n" });
     carefully(.{ "dtb_len:            ", entry_data.dtb_len, "\r\n" });
     carefully(.{ "conventional_start: ", entry_data.conventional_start, "\r\n" });
     carefully(.{ "conventional_bytes: ", entry_data.conventional_bytes, "\r\n" });
-    carefully(.{ "fb:                 ", @ptrToInt(entry_data.fb), "\r\n" });
+    carefully(.{ "fb:                 ", @intFromPtr(entry_data.fb), "\r\n" });
     carefully(.{ "fb_vert:            ", entry_data.fb_vert, "\r\n" });
     carefully(.{ "fb_horiz:           ", entry_data.fb_horiz, "\r\n" });
     carefully(.{ "uart_base:          ", entry_data.uart_base, "\r\n" });
@@ -47,8 +47,8 @@ const Writer = struct {
 
     fn w(self: Writer, c: u8) void {
         switch (self.width) {
-            1 => @intToPtr(*volatile u8, self.base).* = c,
-            4 => @intToPtr(*volatile u32, self.base).* = c,
+            1 => @as(*volatile u8, @ptrFromInt(self.base)).* = c,
+            4 => @as(*volatile u32, @ptrFromInt(self.base)).* = c,
             else => unreachable,
         }
     }
@@ -91,11 +91,11 @@ pub fn hex(n: u64) void {
     c = n;
     var pow: usize = std.math.powi(u64, 16, digits - 1) catch 0;
     while (pow > 0) : (pow /= 16) {
-        var digit = c / pow;
+        const digit = c / pow;
         if (digit >= 0 and digit <= 9) {
-            writer.w('0' + @truncate(u8, digit));
+            writer.w('0' + @as(u8, @truncate(digit)));
         } else if (digit >= 10 and digit <= 16) {
-            writer.w('a' + @truncate(u8, digit) - 10);
+            writer.w('a' + @as(u8, @truncate(digit)) - 10);
         } else {
             writer.w('?');
         }
@@ -114,6 +114,8 @@ pub const Escape = enum {
 fn carefullyAt(writer: Writer, parts: anytype) void {
     comptime var next_escape: ?Escape = null;
     inline for (std.meta.fields(@TypeOf(parts)), 0..) |info, i| {
+        const ti = @typeInfo(info.type);
+
         if (info.type == Escape) {
             next_escape = parts[i];
         } else if (next_escape) |escape| {
@@ -125,12 +127,15 @@ fn carefullyAt(writer: Writer, parts: anytype) void {
                     busyLoop();
                 },
             }
-        } else if (comptime std.meta.trait.isPtrTo(.Array)(info.type) or std.meta.trait.isSliceOf(.Int)(info.type)) {
+        } else if (ti == .Pointer) {
+            // } else if (comptime std.meta.trait.isPtrTo(.Array)(info.type) or std.meta.trait.isSliceOf(.Int)(info.type)) {
             writeCarefully(writer, parts[i]);
-        } else if (comptime std.meta.trait.isUnsignedInt(info.type)) {
+        } else if (ti == .Int) {
+            // } else if (comptime std.meta.trait.isUnsignedInt(info.type)) {
             writeCarefully(writer, "0x");
             writeCarefullyHex(writer, parts[i]);
-        } else if (comptime std.meta.trait.is(.Optional)(info.type)) {
+        } else if (ti == .Optional) {
+            // } else if (comptime std.meta.trait.is(.Optional)(info.type)) {
             writeCarefully(writer, "OPTIONAL THING");
         } else {
             @compileError("what do I do with this? " ++ @typeName(info.type));
@@ -167,11 +172,11 @@ fn writeCarefullyHex(writer: Writer, n: u64) void {
     c = n;
     var pow: usize = std.math.powi(u64, 16, digits - 1) catch 0;
     while (pow > 0) : (pow /= 16) {
-        var digit = c / pow;
+        const digit = c / pow;
         if (digit >= 0 and digit <= 9) {
-            writer.w('0' + @truncate(u8, digit));
+            writer.w('0' + @as(u8, @truncate(digit)));
         } else if (digit >= 10 and digit <= 16) {
-            writer.w('a' + @truncate(u8, digit) - 10);
+            writer.w('a' + @as(u8, @truncate(digit)) - 10);
         } else {
             writer.w('?');
         }

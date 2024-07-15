@@ -32,7 +32,7 @@ pub fn putChar(row: CONSOLE_DIMENSION, col: CONSOLE_DIMENSION, ch: u8, bgfg: u8)
     const y_origin = @as(u32, row) * FONT_HEIGHT;
     const x_origin = @as(u32, col) * FONT_WIDTH;
 
-    var char = CP437VGA[@as(usize, FONT_HEIGHT) * ch ..][0..FONT_HEIGHT];
+    const char = CP437VGA[@as(usize, FONT_HEIGHT) * ch ..][0..FONT_HEIGHT];
 
     var y: u32 = 0;
     while (y < FONT_HEIGHT) : (y += 1) {

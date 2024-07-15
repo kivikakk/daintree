@@ -8,8 +8,8 @@ const REGMASK_LSR_DATA_AVAIL = 1 << 0;
 const REGMASK_LSR_EMPTY_THR = 1 << 5;
 
 pub fn write(base: u64, reg_shift: u4, data: []const u8) void {
-    const thr = @intToPtr(*volatile u8, base + (REGOFF_RBR_THR << reg_shift));
-    const lsr = @intToPtr(*volatile u8, base + (REGOFF_LSR << reg_shift));
+    const thr = @as(*volatile u8, @ptrFromInt(base + (REGOFF_RBR_THR << reg_shift)));
+    const lsr = @as(*volatile u8, @ptrFromInt(base + (REGOFF_LSR << reg_shift)));
     for (data) |c| {
         while (lsr.* & REGMASK_LSR_EMPTY_THR == 0) {
             asm volatile ("nop");
@@ -19,8 +19,8 @@ pub fn write(base: u64, reg_shift: u4, data: []const u8) void {
 }
 
 pub fn readBlock(base: u64, reg_shift: u4, buf: []u8) usize {
-    const rbr = @intToPtr(*volatile u8, base + (REGOFF_RBR_THR << reg_shift));
-    const lsr = @intToPtr(*volatile u8, base + (REGOFF_LSR << reg_shift));
+    const rbr = @as(*volatile u8, @ptrFromInt(base + (REGOFF_RBR_THR << reg_shift)));
+    const lsr = @as(*volatile u8, @ptrFromInt(base + (REGOFF_LSR << reg_shift)));
     while (lsr.* & REGMASK_LSR_DATA_AVAIL == 0) {
         // no data available ...
         asm volatile ("nop");

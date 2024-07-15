@@ -111,7 +111,7 @@ pub fn init(dtb: []const u8) !void {
 
 // XXX these things are copied everywhere lol
 fn readU32(value: []const u8) u32 {
-    return std.mem.bigToNative(u32, @ptrCast(*const u32, @alignCast(@alignOf(u32), value.ptr)).*);
+    return std.mem.bigToNative(u32, @as(*const u32, @ptrCast(@alignCast(value.ptr))).*);
 }
 fn readU64(value: []const u8) u64 {
     return (@as(u64, readU32(value[0..4])) << 32) | readU32(value[4..8]);

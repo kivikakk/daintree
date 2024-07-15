@@ -31,11 +31,11 @@ pub fn mapPagesConsecutive(base_in: usize, page_count_in: usize, flags: MapFlags
     var base = base_in;
     var page_count = page_count_in - 1;
 
-    var first = try mapPage(base, flags);
+    const first = try mapPage(base, flags);
     var last = first;
     while (page_count > 0) : (page_count -= 1) {
         base += PAGING.page_size;
-        var next = try mapPage(base, flags);
+        const next = try mapPage(base, flags);
         if (next - last != PAGING.page_size) {
             @panic("mapPagesConsecutive wasn't consecutive");
         }
@@ -53,7 +53,7 @@ pub const BumpAllocator = struct {
         self.next += size;
         // XXX this only works if physical addresses are mapped, i.e. MMU is off
         // or identity mapping is in place
-        @memset(@intToPtr([*]u8, next)[0..size], 0);
+        @memset(@as([*]u8, @ptrFromInt(next))[0..size], 0);
         return next;
     }
 
@@ -62,7 +62,7 @@ pub const BumpAllocator = struct {
     }
 
     pub inline fn alloc(self: *BumpAllocator, comptime T: type) *T {
-        return @intToPtr(*T, self.allocSz(@sizeOf(T)));
+        return @as(*T, @ptrFromInt(self.allocSz(@sizeOf(T))));
     }
 };
 

@@ -28,8 +28,8 @@ pub fn init(in_fb: [*]u32, in_vert: u32, in_horiz: u32) void {
     fb_vert = in_vert;
     fb_horiz = in_horiz;
 
-    console_height = @truncate(CONSOLE_DIMENSION, fb_vert / font.FONT_HEIGHT);
-    console_width = @truncate(CONSOLE_DIMENSION, fb_horiz / font.FONT_WIDTH);
+    console_height = @as(CONSOLE_DIMENSION, @truncate(fb_vert / font.FONT_HEIGHT));
+    console_width = @as(CONSOLE_DIMENSION, @truncate(fb_horiz / font.FONT_WIDTH));
     if (console_height * console_width > console_buf.len) {
         @panic("can't fit console");
     }
@@ -45,10 +45,10 @@ pub fn init(in_fb: [*]u32, in_vert: u32, in_horiz: u32) void {
 }
 
 fn mapFb(base: [*]u32, pixels: usize) [*]u32 {
-    var page_count = (pixels * 4 + paging.PAGING.page_size - 1) / paging.PAGING.page_size;
-    var virt = paging.mapPagesConsecutive(@ptrToInt(base), page_count, .peripheral) catch @panic("oom");
+    const page_count = (pixels * 4 + paging.PAGING.page_size - 1) / paging.PAGING.page_size;
+    const virt = paging.mapPagesConsecutive(@intFromPtr(base), page_count, .peripheral) catch @panic("oom");
     hw.entry_uart.carefully(.{ "MAP: FB at     ", virt, "~\r\n" });
-    return @intToPtr([*]u32, virt);
+    return @as([*]u32, @ptrFromInt(virt));
 }
 
 pub inline fn present() bool {
@@ -56,7 +56,7 @@ pub inline fn present() bool {
 }
 
 pub fn panicMessage(msg: []const u8) void {
-    const msg_len: CONSOLE_DIMENSION = @truncate(CONSOLE_DIMENSION, "kernel panic: ".len + msg.len);
+    const msg_len: CONSOLE_DIMENSION = @as(CONSOLE_DIMENSION, @truncate("kernel panic: ".len + msg.len));
     const left: CONSOLE_DIMENSION = console_width - msg_len - 2;
 
     colour(0x4f);
@@ -83,7 +83,7 @@ fn drawEnergyStar(comptime allWhite: bool) void {
     while (y < HEIGHT) : (y += 1) {
         var x: u32 = 0;
         while (x < WIDTH) : (x += 1) {
-            var s = DATA[(WIDTH * y + x) * 3 .. (WIDTH * y + x + 1) * 3];
+            const s = DATA[(WIDTH * y + x) * 3 .. (WIDTH * y + x + 1) * 3];
             const c = (@as(u32, s[0]) << 16) | (@as(u32, s[1]) << 8) | @as(u32, s[2]);
             if (allWhite) {
                 plot(left + x, y, if (c != 0) 0xffffff else 0);
@@ -180,7 +180,7 @@ fn refresh() void {
         var col: CONSOLE_DIMENSION = 0;
         while (col < console_width) : (col += 1) {
             const pair = console_buf[row * console_width + col];
-            font.putChar(row, col, @truncate(u8, pair), @truncate(u8, pair >> 8));
+            font.putChar(row, col, @as(u8, @truncate(pair)), @as(u8, @truncate(pair >> 8)));
         }
     }
 }

@@ -26,7 +26,7 @@ pub const Shell = struct {
 
         while (true) {
             fb.placechar('\xdb');
-            var recv = hw.uart.readBlock(&uart_buf) catch return;
+            const recv = hw.uart.readBlock(&uart_buf) catch return;
             fb.placechar(' ');
 
             for (uart_buf[0..recv]) |c| {
@@ -57,7 +57,7 @@ pub const Shell = struct {
                             if (maybe_rest) |rest| {
                                 @memcpy(buf[len..], rest);
                                 printf("{s}", .{rest});
-                                len += @truncate(u8, rest.len);
+                                len += @as(u8, @truncate(rest.len));
                             }
                         },
                         '\r' => {

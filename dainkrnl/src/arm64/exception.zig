@@ -19,7 +19,7 @@ inline fn handle(ctx: *ExceptionContext, comptime name: []const u8) noreturn {
 }
 
 fn dumpRegs(ctx: *ExceptionContext) void {
-    hw.entry_uart.carefully(.{ "ctx ptr:", @ptrToInt(ctx), "\r\n" });
+    hw.entry_uart.carefully(.{ "ctx ptr:", @intFromPtr(ctx), "\r\n" });
     hw.entry_uart.carefully(.{ "x0  ", ctx.regs[0], "  x1  ", ctx.regs[1], "\r\n" });
     hw.entry_uart.carefully(.{ "x2  ", ctx.regs[2], "  x3  ", ctx.regs[3], "\r\n" });
     hw.entry_uart.carefully(.{ "x4  ", ctx.regs[4], "  x5  ", ctx.regs[5], "\r\n" });
