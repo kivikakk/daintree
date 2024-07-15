@@ -2,7 +2,7 @@ const std = @import("std");
 const uefi = std.os.uefi;
 const arch = @import("arch.zig");
 
-pub var con_out: *uefi.protocols.SimpleTextOutputProtocol = undefined;
+pub var con_out: *uefi.protocol.SimpleTextOutput = undefined;
 
 pub fn puts(msg: []const u8) void {
     for (msg) |c| {

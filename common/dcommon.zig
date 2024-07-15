@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-pub const version = std.builtin.Version{ .major = 0, .minor = 0, .patch = 2 };
+pub const version = std.SemanticVersion{ .major = 0, .minor = 0, .patch = 2 };
 
 pub const Arch = enum {
     arm64,

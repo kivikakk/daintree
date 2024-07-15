@@ -63,7 +63,7 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
                 } else if (std.mem.eql(u8, prop.name, "compatible")) {
                     state.compatible = prop.value;
                 } else if (std.mem.eql(u8, prop.name, "reg-shift")) {
-                    state.reg_shift = @truncate(u4, readU32(prop.value));
+                    state.reg_shift = @as(u4, @truncate(readU32(prop.value)));
                 }
             },
             .BeginNode => in_node = false,
@@ -95,14 +95,16 @@ pub fn searchForUart(dtb: []const u8) Error!Uart {
 }
 
 fn readU32(value: []const u8) u32 {
-    return std.mem.bigToNative(u32, @ptrCast(*const u32, @alignCast(@alignOf(u32), value.ptr)).*);
+    // align to: @alignOf(u32)
+    return std.mem.bigToNative(u32, @as(*const u32, @ptrCast(@alignCast(value.ptr))).*);
 }
 
 fn firstReg(address_cells: u32, value: []const u8) !u64 {
     if (value.len % @sizeOf(u32) != 0) {
         return error.BadStructure;
     }
-    var big_endian_cells: []const u32 = @ptrCast([*]const u32, @alignCast(@alignOf(u32), value.ptr))[0 .. value.len / @sizeOf(u32)];
+    // align to: @alignOf(u32)
+    const big_endian_cells: []const u32 = @as([*]const u32, @ptrCast(@alignCast(value.ptr)))[0 .. value.len / @sizeOf(u32)];
     if (address_cells == 1) {
         return std.mem.bigToNative(u32, big_endian_cells[0]);
     } else if (address_cells == 2) {

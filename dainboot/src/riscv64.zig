@@ -46,7 +46,7 @@ export fn relocate(ldbase: u64, dyn: [*]elf.Elf64_Dyn) uefi.Status {
     var i: usize = 0;
     while (dyn[i].d_tag != elf.DT_NULL) : (i += 1) {
         switch (dyn[i].d_tag) {
-            elf.DT_RELA => rel = @intToPtr(*elf.Elf64_Rela, dyn[i].d_val + ldbase),
+            elf.DT_RELA => rel = @as(*elf.Elf64_Rela, @ptrFromInt(dyn[i].d_val + ldbase)),
             elf.DT_RELASZ => relsz = dyn[i].d_val,
             elf.DT_RELAENT => relent = dyn[i].d_val,
             else => {},
@@ -66,7 +66,7 @@ export fn relocate(ldbase: u64, dyn: [*]elf.Elf64_Dyn) uefi.Status {
     while (relsz > 0) {
         if (relp.r_type() == 3) {
             // R_RISCV_RELATIVE
-            var addr: *u64 = @intToPtr(*u64, ldbase + relp.r_offset);
+            const addr: *u64 = @as(*u64, @ptrFromInt(ldbase + relp.r_offset));
             if (relp.r_addend > 0) {
                 addr.* = ldbase + std.math.absCast(relp.r_addend);
             } else {
@@ -77,13 +77,13 @@ export fn relocate(ldbase: u64, dyn: [*]elf.Elf64_Dyn) uefi.Status {
                 \\j 0
                 :
                 : [r_info] "{t0}" (relp.r_info),
-                  [dyn] "{t1}" (@ptrToInt(dyn)),
+                  [dyn] "{t1}" (@intFromPtr(dyn)),
                   [i] "{t2}" (i),
-                  [rel] "{t3}" (@ptrToInt(rel)),
+                  [rel] "{t3}" (@intFromPtr(rel)),
                 : "memory"
             );
         }
-        relp = @intToPtr(*elf.Elf64_Rela, @ptrToInt(relp) + relent);
+        relp = @as(*elf.Elf64_Rela, @ptrFromInt(@intFromPtr(relp) + relent));
         relsz -= relent;
     }
 
@@ -94,11 +94,11 @@ export fn relocate(ldbase: u64, dyn: [*]elf.Elf64_Dyn) uefi.Status {
 // included, and it's adding a PLT and GOT to have them looked up later.  They
 // aren't being provided by anyone else, so we must.
 export fn memset(b: *anyopaque, c: c_int, len: usize) *anyopaque {
-    std.mem.set(u8, @ptrCast([*]u8, b)[0..len], @truncate(u8, std.math.absCast(c)));
+    std.mem.set(u8, @as([*]u8, @ptrFromInt(b))[0..len], @as(u8, @truncate(std.math.absCast(c))));
     return b;
 }
 
 export fn memcpy(dst: *anyopaque, src: *const anyopaque, n: usize) *anyopaque {
-    std.mem.copy(u8, @ptrCast([*]u8, dst)[0..n], @ptrCast([*]const u8, src)[0..n]);
+    std.mem.copy(u8, @as([*]u8, @ptrFromInt(dst))[0..n], @as([*]const u8, @ptrFromInt(src))[0..n]);
     return dst;
 }

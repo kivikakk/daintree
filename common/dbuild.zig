@@ -1,11 +1,10 @@
 const std = @import("std");
-const build = std.build;
 
 const dcommon = @import("dcommon.zig");
 const Arch = dcommon.Arch;
 const Board = dcommon.Board;
 
-pub fn getBoard(b: *build.Builder) !Board {
+pub fn getBoard(b: *std.Build) !Board {
     return b.option(Board, "board", "Target board.") orelse
         error.UnknownBoard;
 }
@@ -17,7 +16,7 @@ pub fn getArch(board: Board) Arch {
     };
 }
 
-pub fn crossTargetFor(board: Board) std.zig.CrossTarget {
+pub fn queryFor(board: Board) std.Target.Query {
     switch (board) {
         .qemu_arm64, .rockpro64 => {
             var features = std.Target.Cpu.Feature.Set.empty;
@@ -26,7 +25,7 @@ pub fn crossTargetFor(board: Board) std.zig.CrossTarget {
             // function.  Can't seem to find a register setting (like in SCTLR_EL1
             // or something) that stops this happening.  Reproduced on both
             // QEMU and rockpro64 so giving up for now.
-            features.addFeature(@enumToInt(std.Target.aarch64.Feature.strict_align));
+            features.addFeature(@intFromEnum(std.Target.aarch64.Feature.strict_align));
 
             return .{
                 .cpu_arch = .aarch64,
@@ -49,21 +48,21 @@ pub fn efiTagFor(cpu_arch: std.Target.Cpu.Arch) []const u8 {
     };
 }
 
-pub fn addBuildOptions(b: *build.Builder, exe: *build.CompileStep, board: Board) !void {
+pub fn addBuildOptions(b: *std.Build, exe: *std.Build.Step.Compile, board: Board) !void {
     const options = b.addOptions();
     options.addOption([]const u8, "version", try b.allocator.dupe(u8, try getVersion(b)));
     options.addOption([]const u8, "board", try b.allocator.dupe(u8, @tagName(board)));
-    exe.addOptions("build_options", options);
+    exe.root_module.addOptions("build_options", options);
 }
 
 // adapted from Zig's own build.zig:
 // https://github.com/ziglang/zig/blob/a021c7b1b2428ecda85e79e281d43fa1c92f8c94/build.zig#L140-L188
-fn getVersion(b: *build.Builder) ![]u8 {
+fn getVersion(b: *std.Build) ![]u8 {
     const version = dcommon.version;
     const version_string = b.fmt("{d}.{d}.{d}", .{ version.major, version.minor, version.patch });
 
     var code: u8 = undefined;
-    const git_describe_untrimmed = b.execAllowFail(&[_][]const u8{
+    const git_describe_untrimmed = b.runAllowFail(&[_][]const u8{
         "git", "-C", b.build_root.path orelse ".", "describe", "--match", "*.*.*", "--tags",
     }, &code, .Ignore) catch {
         return version_string;
@@ -86,7 +85,7 @@ fn getVersion(b: *build.Builder) ![]u8 {
             const commit_height = it.next() orelse unreachable;
             const commit_id = it.next() orelse unreachable;
 
-            const ancestor_ver = try std.builtin.Version.parse(tagged_ancestor);
+            const ancestor_ver = try std.SemanticVersion.parse(tagged_ancestor);
             if (version.order(ancestor_ver) != .gt) {
                 std.debug.print("Daintree version '{}' must be greater than tagged ancestor '{}'\n", .{ version, ancestor_ver });
                 std.process.exit(1);
